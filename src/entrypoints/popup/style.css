@@ -1,0 +1,6 @@
+body { width: 420px; margin: 0; padding: 12px; font: 14px/1.4 system-ui, sans-serif; }
+h1 { font-size: 16px; margin: 0 0 8px; }
+textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; }
+button { font: inherit; padding: 4px 12px; }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 8px 0; }
+.muted { color: #666; font-size: 12px; }
