@@ -3,21 +3,16 @@ import { applyFixes, detect } from '../src/engine/rules';
 
 describe('applyFixes', () => {
   test('replaces em dashes with commas', () => {
-    const input = 'The plan' + String.fromCharCode(0x2014) + 'announced late' + String.fromCharCode(0x2014) + 'failed.';
-    expect(applyFixes(input)).toBe('The plan, announced late, failed.');
+    expect(applyFixes('The plan—announced late—failed.')).toBe('The plan, announced late, failed.');
   });
 
   test('writes out numeric en dash ranges', () => {
-    const input = 'It ran 1990' + String.fromCharCode(0x2013) + '1995.';
-    expect(applyFixes(input)).toBe('It ran 1990 to 1995.');
+    expect(applyFixes('It ran 1990–1995.')).toBe('It ran 1990 to 1995.');
   });
 
   test('straightens curly quotes and apostrophes', () => {
-    const input1 = 'He said ' + String.fromCharCode(0x201c) + 'fine' + String.fromCharCode(0x201d) + ' and left.';
-    expect(applyFixes(input1)).toBe('He said "fine" and left.');
-
-    const input2 = 'don' + String.fromCharCode(0x2019) + 't';
-    expect(applyFixes(input2)).toBe("don't");
+    expect(applyFixes('He said “fine” and left.')).toBe('He said "fine" and left.');
+    expect(applyFixes('don’t')).toBe("don't");
   });
 
   test('replaces spaced double hyphens', () => {
@@ -34,21 +29,19 @@ describe('applyFixes', () => {
   });
 
   test('leaves em dashes inside quotes alone', () => {
-    const input = 'He wrote ' + String.fromCharCode(0x201c) + 'wait ' + String.fromCharCode(0x2014) + ' really?' + String.fromCharCode(0x201d) + ' and left.';
-    expect(applyFixes(input)).toBe('He wrote "wait ' + String.fromCharCode(0x2014) + ' really?" and left.');
+    expect(applyFixes('He wrote "wait — really?" and left.')).toBe('He wrote "wait — really?" and left.');
   });
 });
 
 describe('detect', () => {
   test('reports em dashes with rule id and span', () => {
-    const tells = detect('A' + String.fromCharCode(0x2014) + 'B');
+    const tells = detect('A—B');
     expect(tells).toHaveLength(1);
     expect(tells[0]).toMatchObject({ ruleId: 'em-dash', span: { start: 1, end: 2 } });
   });
 
   test('skips quoted regions for skipQuoted rules', () => {
-    const input = 'say ' + String.fromCharCode(0x201c) + 'A' + String.fromCharCode(0x2014) + 'B' + String.fromCharCode(0x201d) + ' now';
-    const tells = detect(input);
+    const tells = detect('say "A—B" now');
     expect(tells.filter(t => t.ruleId === 'em-dash')).toHaveLength(0);
   });
 });

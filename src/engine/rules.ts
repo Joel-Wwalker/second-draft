@@ -6,7 +6,7 @@ export interface Rule {
   /** Must have the g flag (and u where needed). */
   pattern: RegExp;
   fixable: boolean;
-  /** Leave matches inside "..." or "..." untouched. */
+  /** Leave matches inside "..." or “...” untouched. */
   skipQuoted?: boolean;
   /** Heuristics only get mentioned to the model when repeated this often. */
   minCountForPrompt?: number;
@@ -17,29 +17,29 @@ export const RULES: Rule[] = [
   {
     id: 'curly-quote-double',
     reason: 'Curly quotes replaced with straight quotes',
-    pattern: new RegExp('[\u{201C}\u{201D}]', 'g'),
+    pattern: /[“”]/g,
     fixable: true,
     replacement: () => '"',
   },
   {
     id: 'curly-quote-single',
     reason: 'Curly apostrophe replaced',
-    pattern: new RegExp('[\u{2018}\u{2019}]', 'g'),
+    pattern: /[‘’]/g,
     fixable: true,
     replacement: () => "'",
   },
   {
     id: 'en-dash-range',
     reason: 'En dash range written out',
-    pattern: /(\d) ?\u{2013} ?(?=\d)/gu,
+    pattern: /(\d) ?– ?(?=\d)/g,
     fixable: true,
     skipQuoted: true,
-    replacement: match => match.replace(/ ?\u{2013} ?/u, ' to '),
+    replacement: match => match.replace(/ ?– ?/, ' to '),
   },
   {
     id: 'em-dash',
     reason: 'Em dash removed (AI tell)',
-    pattern: /[ \t]*[\u{2014}\u{2013}][ \t]*/gu,
+    pattern: /[ \t]*[—–][ \t]*/g,
     fixable: true,
     skipQuoted: true,
     replacement: () => ', ',
@@ -70,7 +70,7 @@ export const RULES: Rule[] = [
 
 export function quotedRegions(text: string): Span[] {
   const spans: Span[] = [];
-  const re = /[\u{201C}][^\u{201D}\n]{1,300}[\u{201D}]|"[^"\n]{1,300}"/gu;
+  const re = /"[^"\n]{1,300}"|“[^”\n]{1,300}”/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
     spans.push({ start: m.index, end: m.index + m[0].length });
   }
