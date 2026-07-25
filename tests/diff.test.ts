@@ -30,3 +30,11 @@ test('pure deletion yields a zero-width change', () => {
   expect(changes).toHaveLength(1);
   expect(changes[0]!.range.start).toBe(changes[0]!.range.end);
 });
+
+test('adjacent but non-overlapping tells are not misattributed', () => {
+  const before = 'The plan works fine — good.';
+  const changes = diffChanges(before, 'The plan works great — good.', detect(before));
+  expect(changes).toHaveLength(1);
+  expect(changes[0]).toMatchObject({ reason: 'Reworded' });
+  expect(changes[0]!.ruleId).toBeUndefined();
+});

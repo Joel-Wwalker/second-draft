@@ -69,7 +69,7 @@ export function diffChanges(before: string, after: string, tells: DetectedTell[]
       r.aStart < r.aEnd
         ? { start: aMid[r.aStart]!.start, end: aMid[r.aEnd - 1]!.end }
         : { start: anchorA(r.aStart), end: anchorA(r.aStart) };
-    const tell = tells.find(t => t.span.start <= aSpan.end && aSpan.start <= t.span.end);
+    const tell = tells.find(t => t.span.start < aSpan.end && aSpan.start < t.span.end);
     return tell
       ? { range: bSpan, ruleId: tell.ruleId, reason: tell.reason }
       : { range: bSpan, reason: 'Reworded' };
