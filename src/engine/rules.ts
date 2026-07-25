@@ -66,6 +66,38 @@ export const RULES: Rule[] = [
     fixable: true,
     replacement: () => '',
   },
+  {
+    id: 'ai-vocab',
+    reason: 'AI-associated vocabulary',
+    pattern:
+      /\b(?:delve(?:s|d)?|tapestry|testament to|underscor(?:es?|ing)|showcas(?:es?|ing)|pivotal|crucial|vibrant|foster(?:s|ing)?|garner(?:s|ed)?|interplay|intricate|intricacies|enduring|moreover|furthermore|additionally|aligns? with|(?:key|vital) (?:role|moment|factor|aspect))\b/gi,
+    fixable: false,
+  },
+  {
+    id: 'negative-parallelism',
+    reason: 'Negative parallelism (not just X, but Y)',
+    pattern: /\bnot (?:just|only|merely)\b[^.!?\n]{0,80}\bbut\b/gi,
+    fixable: false,
+  },
+  {
+    id: 'rule-of-three',
+    reason: 'Possible rule-of-three cadence',
+    pattern: /\b[\w'’-]+, [\w'’-]+, and [\w'’-]+\b/g,
+    fixable: false,
+    minCountForPrompt: 2,
+  },
+  {
+    id: 'title-case-heading',
+    reason: 'Title-case heading',
+    pattern: /^#{1,6} (?:[A-Z][\w'’-]* ){2,}[A-Z][\w'’-]*[ \t]*$/gm,
+    fixable: false,
+  },
+  {
+    id: 'bold-header-list',
+    reason: 'Bolded inline-header list item',
+    pattern: /^[ \t]*[-*•] \*\*[^*\n]+:?\*\*/gm,
+    fixable: false,
+  },
 ];
 
 export function quotedRegions(text: string): Span[] {
@@ -103,16 +135,27 @@ export function applyFixes(text: string): string {
   let out = text;
   for (const rule of RULES) {
     if (!rule.fixable || !rule.replacement) continue;
-    const quoted = rule.skipQuoted ? quotedRegions(out) : [];
-    rule.pattern.lastIndex = 0;
-    out = out.replace(rule.pattern, (match, ...rest) => {
-      const offset = rest[rest.length - 2] as number;
-      const span: Span = { start: offset, end: offset + match.length };
-      if (quoted.some(q => intersects(span, q))) return match;
-      return rule.replacement!(match);
-    });
+    out = replaceOutsideQuotes(out, rule);
   }
   return tidy(out);
+}
+
+function replaceOutsideQuotes(text: string, rule: Rule): string {
+  const quoted = rule.skipQuoted ? quotedRegions(text) : [];
+  let out = '';
+  let last = 0;
+  rule.pattern.lastIndex = 0;
+  for (let m = rule.pattern.exec(text); m; m = rule.pattern.exec(text)) {
+    if (m[0].length === 0) {
+      rule.pattern.lastIndex++;
+      continue;
+    }
+    const span: Span = { start: m.index, end: m.index + m[0].length };
+    out += text.slice(last, span.start);
+    out += quoted.some(q => intersects(span, q)) ? m[0] : rule.replacement!(m[0]);
+    last = span.end;
+  }
+  return out + text.slice(last);
 }
 
 /** Cleanup after mechanical replacements. */
