@@ -26,7 +26,12 @@ export async function humanize(
 
   if (!provider) {
     const rewritten = applyFixes(text);
-    return { rewritten, changes: diffChanges(text, rewritten, tells), engine: { kind: 'rules' } };
+    return {
+      rewritten,
+      changes: diffChanges(text, rewritten, tells),
+      engine: { kind: 'rules' },
+      tells: { before: tells.length, after: detect(rewritten).length },
+    };
   }
 
   const systemPrompt = buildSystemPrompt({
@@ -53,7 +58,12 @@ export async function humanize(
   if (text.trim() && !rewritten.trim()) {
     throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
   }
-  return { rewritten, changes: diffChanges(text, rewritten, tells), engine: provider.info };
+  return {
+    rewritten,
+    changes: diffChanges(text, rewritten, tells),
+    engine: provider.info,
+    tells: { before: tells.length, after: detect(rewritten).length },
+  };
 }
 
 /** Models wrap output despite instructions; peel fences, preambles, and quotes the original did not have. */

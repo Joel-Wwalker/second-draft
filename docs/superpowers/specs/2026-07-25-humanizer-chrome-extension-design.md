@@ -98,7 +98,7 @@ engine.humanize(text, {
   voiceSample?: string,
   signal?: AbortSignal,
 }) // streams chunks; resolves to:
-// { rewritten: string, changes: Change[], engine: Engine }
+// { rewritten: string, changes: Change[], engine: Engine, tells: { before, after } }
 // Engine = { kind: 'nano' | 'byok' | 'rules', model?: string }  // model, e.g. "claude-sonnet-5", lets the card name it
 // Change = { range, ruleId?, reason }  // range indexes the rewritten text
 ```

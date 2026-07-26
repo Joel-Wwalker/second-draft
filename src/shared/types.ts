@@ -39,6 +39,8 @@ export interface HumanizeResult {
   rewritten: string;
   changes: Change[];
   engine: EngineInfo;
+  /** Detected AI-tell counts before and after the rewrite. */
+  tells: { before: number; after: number };
 }
 
 export interface RewriteRequest {

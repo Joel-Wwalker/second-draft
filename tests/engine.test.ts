@@ -7,6 +7,7 @@ test('falls back to rules-only when no provider is available', async () => {
   expect(res.engine.kind).toBe('rules');
   expect(res.rewritten).toBe('The plan, bold.');
   expect(res.changes[0]).toMatchObject({ ruleId: 'em-dash' });
+  expect(res.tells).toEqual({ before: 1, after: 0 });
 });
 
 test('uses the provider and enforces surviving em dashes', async () => {
@@ -14,6 +15,7 @@ test('uses the provider and enforces surviving em dashes', async () => {
   const res = await humanize('We delve here', { intensity: 'full' }, { providers: [fake] });
   expect(res.engine).toMatchObject({ kind: 'fake', model: 'fake-echo' });
   expect(res.rewritten).toBe('We dig here, done');
+  expect(res.tells).toEqual({ before: 1, after: 0 });
 });
 
 test('skips unavailable providers and falls back to rules', async () => {

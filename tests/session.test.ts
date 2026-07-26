@@ -101,6 +101,7 @@ test('done result renders and Apply replaces the field text', () => {
       rewritten: 'We dig into the plan boldly.',
       changes: [],
       engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -130,7 +131,7 @@ test('stale responses for superseded ids are ignored', () => {
   port.emit({
     type: 'done',
     id: first.id,
-    result: { rewritten: 'STALE', changes: [], engine: { kind: 'fake' } },
+    result: { rewritten: 'STALE', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
 });
@@ -177,7 +178,7 @@ test('a done response cancels the timeout', () => {
   port.emit({
     type: 'done',
     id: req.id,
-    result: { rewritten: 'ok result here', changes: [], engine: { kind: 'fake' } },
+    result: { rewritten: 'ok result here', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
   });
   vi.advanceTimersByTime(120_000);
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;

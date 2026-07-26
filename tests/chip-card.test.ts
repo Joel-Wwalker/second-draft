@@ -32,6 +32,7 @@ test('card renders a result with highlight marks and engine label', () => {
     rewritten: 'We dig in.',
     changes: [{ range: { start: 3, end: 6 }, ruleId: 'ai-vocab', reason: 'AI-associated vocabulary' }],
     engine: { kind: 'fake', model: 'fake-echo' },
+    tells: { before: 1, after: 0 },
   };
   card.setResult(result);
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -39,6 +40,7 @@ test('card renders a result with highlight marks and engine label', () => {
   expect(mark.textContent).toBe('dig');
   expect(mark.getAttribute('title')).toBe('AI-associated vocabulary');
   expect(shadow.querySelector('.engine')!.textContent).toContain('Test engine (fake-echo)');
+  expect(shadow.querySelector('.status')!.textContent).toBe('1 change · AI tells: 1 → 0');
   expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(false);
   expect(card.contains(shadow.querySelector('button.apply'))).toBe(true);
   expect(card.contains(document.body)).toBe(false);

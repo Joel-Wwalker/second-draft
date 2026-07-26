@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { engineLabel } from '../src/shared/labels';
+import { engineLabel, resultStatus } from '../src/shared/labels';
 
 test('labels known kinds and appends the model when present', () => {
   expect(engineLabel({ kind: 'rules' })).toBe('Quick clean (no AI engine available)');
@@ -10,4 +10,12 @@ test('labels known kinds and appends the model when present', () => {
 test('falls back to the raw kind for unknown values', () => {
   expect(engineLabel({ kind: 'mystery' as never })).toBe('mystery');
   expect(engineLabel({ kind: 'byok' })).toBe('Your API key');
+});
+
+test('resultStatus reports changes and the tell score', () => {
+  const base = { rewritten: 'x', engine: { kind: 'rules' as const } };
+  expect(
+    resultStatus({ ...base, changes: [{ range: { start: 0, end: 1 }, reason: 'Reworded' }], tells: { before: 3, after: 1 } }),
+  ).toBe('1 change · AI tells: 3 → 1');
+  expect(resultStatus({ ...base, changes: [], tells: { before: 0, after: 0 } })).toBe('0 changes · no AI tells detected');
 });

@@ -1,7 +1,7 @@
 import type { BackgroundRequest, HumanizeResponse } from '../../shared/messages';
 import type { Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
-import { engineLabel as engineLabelFor } from '../../shared/labels';
+import { engineLabel as engineLabelFor, resultStatus } from '../../shared/labels';
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -82,8 +82,7 @@ async function run(): Promise<void> {
     if (res.ok) {
       output.value = res.result.rewritten;
       engineLabel.textContent = engineLabelFor(res.result.engine);
-      const n = res.result.changes.length;
-      status.textContent = `${n} change${n === 1 ? '' : 's'}`;
+      status.textContent = resultStatus(res.result);
       copy.disabled = false;
     } else {
       status.textContent = `Error: ${res.message}`;

@@ -1,4 +1,4 @@
-import { engineLabel } from '../shared/labels';
+import { engineLabel, resultStatus } from '../shared/labels';
 import type { HumanizeResult, HumanizerErrorKind, Intensity } from '../shared/types';
 
 export interface CardCallbacks {
@@ -131,8 +131,7 @@ export class Card {
   setResult(result: HumanizeResult): void {
     renderHighlights(this.doc, this.bodyEl, result);
     this.engineEl.textContent = engineLabel(result.engine);
-    const n = result.changes.length;
-    this.statusEl.textContent = `${n} change${n === 1 ? '' : 's'}`;
+    this.statusEl.textContent = resultStatus(result);
   }
 
   setError(kind: HumanizerErrorKind, message: string): void {
