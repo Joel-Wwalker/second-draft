@@ -9,12 +9,23 @@ export type EditableSelection =
 // password text never reaches the engine.
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel']);
 
+// Never capture fields that smell like credentials or payment data, even when
+// type="text" (show-password toggles, card forms). Hard gate before any
+// network provider ships.
+const SENSITIVE_FIELD = /password|cc-|one-time-code|cvc|csc/i;
+
 export function getEditableSelection(doc: Document): EditableSelection | null {
   const active = doc.activeElement;
   if (
     active instanceof HTMLTextAreaElement ||
     (active instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(active.type))
   ) {
+    if (
+      active instanceof HTMLInputElement &&
+      (SENSITIVE_FIELD.test(active.autocomplete) || SENSITIVE_FIELD.test(active.name))
+    ) {
+      return null;
+    }
     const start = active.selectionStart ?? 0;
     const end = active.selectionEnd ?? 0;
     if (end - start < MIN_SELECTION_CHARS) return null;

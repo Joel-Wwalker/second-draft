@@ -8,18 +8,22 @@ import type { HumanizeResponse, PortServerMessage } from '../shared/messages';
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
-    chrome.contextMenus.create({
-      id: 'humanize-selection',
-      title: 'Humanize selection',
-      contexts: ['selection'],
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'humanize-selection',
+        title: 'Humanize selection',
+        contexts: ['selection'],
+      });
     });
   });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== 'humanize-selection' || tab?.id === undefined) return;
-    void chrome.tabs.sendMessage(tab.id, { type: 'context-humanize' }).catch(() => {
-      // No content script in this tab (chrome:// page etc.); nothing to do.
-    });
+    void chrome.tabs
+      .sendMessage(tab.id, { type: 'context-humanize', selectionText: info.selectionText ?? '' })
+      .catch(() => {
+        // No content script in this tab (chrome:// page etc.); nothing to do.
+      });
   });
 
   // One-shot path (popup).

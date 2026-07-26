@@ -14,6 +14,7 @@ test('chip appears on textarea selection and Apply replaces the text', async ({ 
   await chip.dispatchEvent('mousedown');
   const card = page.locator('#humanizer-card-host');
   await expect(card.locator('.rewritten')).toContainText('dig into');
+  await expect(card.locator('.rewritten')).not.toContainText('—');
   await card.locator('button.apply').click();
   await expect(page.locator('#ta')).toHaveValue(/dig into/);
   await expect(page.locator('#ta')).not.toHaveValue(/—/);

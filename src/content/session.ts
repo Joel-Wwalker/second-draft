@@ -10,6 +10,13 @@ import type { HumanizeResult, Intensity } from '../shared/types';
 
 const CHIP_DEBOUNCE_MS = 150;
 
+let requestSeq = 0;
+function newRequestId(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${++requestSeq}-${Math.random().toString(36).slice(2)}`;
+}
+
 export class HumanizeSession {
   private readonly doc: Document;
   private readonly chip: Chip;
@@ -72,14 +79,16 @@ export class HumanizeSession {
   private readonly onRuntimeMessage = (msg: unknown): void => {
     if (this.stopped) return;
     if (typeof msg !== 'object' || msg === null) return;
-    if ((msg as Record<string, unknown>)['type'] !== 'context-humanize') return;
+    const m = msg as Record<string, unknown>;
+    if (m['type'] !== 'context-humanize') return;
     const editable = getEditableSelection(this.doc);
     if (editable) {
       this.captured = editable;
       this.capturedText = editable.text;
       this.canApply = true;
     } else {
-      const text = getPlainSelection(this.doc);
+      const fallback = typeof m['selectionText'] === 'string' ? m['selectionText'] : '';
+      const text = getPlainSelection(this.doc) || fallback;
       if (!text) return;
       this.captured = null;
       this.capturedText = text;
@@ -126,6 +135,9 @@ export class HumanizeSession {
       this.port.onMessage.addListener(msg => this.onPortMessage(msg as PortServerMessage));
       this.port.onDisconnect.addListener(() => {
         this.port = null;
+        if (!this.stopped && this.requestId && !this.result) {
+          this.card.setError('internal', 'The extension restarted. Try again.');
+        }
       });
     }
     return this.port;
@@ -133,10 +145,14 @@ export class HumanizeSession {
 
   private request(): void {
     this.result = null;
-    const id = crypto.randomUUID();
+    const id = newRequestId();
     this.requestId = id;
     const req: HumanizeRequest = { type: 'humanize', id, text: this.capturedText, intensity: this.intensity };
-    this.ensurePort().postMessage(req);
+    try {
+      this.ensurePort().postMessage(req);
+    } catch {
+      this.card.setError('internal', 'The extension was updated or reloaded. Reload this page and try again.');
+    }
   }
 
   private cancelInFlight(): void {

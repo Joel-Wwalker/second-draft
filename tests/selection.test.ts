@@ -62,3 +62,24 @@ test('ignores selections outside editable areas', () => {
   expect(getEditableSelection(document)).toBeNull();
   expect(getPlainSelection(document)).toBe('plain page text that is long enough');
 });
+
+test('resolves the editable root when the selection anchors in a text node', () => {
+  document.body.innerHTML = '<div contenteditable="true">hello <b>wonderful text</b> world</div>';
+  const textNode = document.querySelector('b')!.firstChild!;
+  const range = document.createRange();
+  range.setStart(textNode, 0);
+  range.setEnd(textNode, 14);
+  const sel = window.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  const result = getEditableSelection(document);
+  expect(result).toMatchObject({ kind: 'editable', text: 'wonderful text' });
+});
+
+test('never captures credential-scented text fields', () => {
+  document.body.innerHTML = '<input type="text" autocomplete="cc-number" value="4111111111111111">';
+  const input = document.querySelector('input')!;
+  input.focus();
+  input.setSelectionRange(0, 16);
+  expect(getEditableSelection(document)).toBeNull();
+});

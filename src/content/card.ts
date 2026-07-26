@@ -12,7 +12,8 @@ const CARD_CSS = `
   :host { all: initial; }
   .card { position: fixed; z-index: 2147483647; width: 360px; max-width: 92vw;
     background: #fff; color: #202124; font: 13px/1.45 system-ui, sans-serif;
-    border: 1px solid #dadce0; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+    border: 1px solid #dadce0; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    max-height: calc(100vh - 16px); overflow: auto; }
   .body { max-height: 260px; overflow: auto; padding: 10px 12px; white-space: pre-wrap; }
   .rewritten mark { background: #e8f0fe; color: inherit; border-radius: 3px; }
   .bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
@@ -105,9 +106,15 @@ export class Card {
     this.bodyEl.textContent = '';
     this.engineEl.textContent = '';
     this.statusEl.textContent = 'Rewriting...';
-    const left = Math.max(8, Math.min(rect.left, (this.doc.defaultView?.innerWidth ?? 800) - 376));
+    const win = this.doc.defaultView;
+    const viewportW = win?.innerWidth ?? 800;
+    const viewportH = win?.innerHeight ?? 600;
+    const CARD_ESTIMATED_H = 340;
+    const left = Math.max(8, Math.min(rect.left, viewportW - 376));
+    let top = rect.bottom + 6;
+    if (top + CARD_ESTIMATED_H > viewportH) top = Math.max(8, viewportH - CARD_ESTIMATED_H - 8);
     this.cardEl.style.left = `${Math.round(left)}px`;
-    this.cardEl.style.top = `${Math.round(rect.bottom + 6)}px`;
+    this.cardEl.style.top = `${Math.round(top)}px`;
     if (!this.host.isConnected) this.doc.body.append(this.host);
     this.doc.addEventListener('keydown', this.onKeydown, true);
     this.open_ = true;

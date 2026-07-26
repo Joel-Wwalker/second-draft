@@ -200,6 +200,15 @@ Hard rules: **no silent downgrades** (card always names the engine) and **never 
 - Redact provider error strings before surfacing (`String(err)` may carry URLs/keys once BYOK exists).
 - Consider `skipQuoted` on detect-only rules; UI surfacing of dashes that survive inside quotations.
 
+## Plan 3 must-carry list (from Plan 2's final review)
+
+- Sensitive-field capture guard is a hard gate on the first network provider: never send text from fields whose type, autocomplete, or name indicate passwords, card numbers, or one-time codes (a guard shipped in Plan 2; re-verify before BYOK/Nano).
+- Decide `all_frames: true` for iframe-hosted editors (TinyMCE, CKEditor, WordPress classic) with the performance and store-review tradeoffs written down; until then the context menu with its selectionText fallback is the escape hatch.
+- Shadow-DOM selection support (Reddit composer class of editors).
+- Client-side request timeout in the session as defense in depth against a background that never answers.
+- Live intensity refresh for open sessions and a .catch on the popup toggle write.
+- Manual matrix additions: iframe editor page, Reddit composer, plain-http page, extension-reload-with-tab-open.
+
 ## Suggested build order (input to the implementation plan)
 
 1. Scaffold (WXT + TS strict + Vitest + CI skeleton).

@@ -14,16 +14,18 @@ async function boot(): Promise<void> {
   const host = location.host;
 
   const sync = (): Promise<void> => {
-    pending = pending.then(async () => {
-      const disabled = await isSiteDisabled(host);
-      if (disabled && session) {
-        session.stop();
-        session = null;
-      } else if (!disabled && !session) {
-        session = new HumanizeSession(document);
-        session.start();
-      }
-    });
+    pending = pending
+      .then(async () => {
+        const disabled = await isSiteDisabled(host);
+        if (disabled && session) {
+          session.stop();
+          session = null;
+        } else if (!disabled && !session) {
+          session = new HumanizeSession(document);
+          session.start();
+        }
+      })
+      .catch(() => {});
     return pending;
   };
 

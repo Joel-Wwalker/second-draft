@@ -16,6 +16,7 @@ test('contenteditable selection humanizes and applies in place', async ({ contex
   await chip.dispatchEvent('mousedown');
   const card = page.locator('#humanizer-card-host');
   await expect(card.locator('.rewritten')).toContainText('dig into');
+  await expect(card.locator('.rewritten')).not.toContainText('—');
   await card.locator('button.apply').click();
   await expect(page.locator('#ce')).toContainText('dig into');
   await expect(page.locator('#ce')).not.toContainText('—');
