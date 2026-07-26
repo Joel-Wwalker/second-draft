@@ -240,7 +240,7 @@ git commit -m "feat: prompt-api ambient types, sse parser, and error redaction"
 `tests/nano.test.ts`:
 
 ```ts
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test } from 'vitest';
 import { NanoProvider, accumulate, chunkText } from '../src/engine/providers/nano';
 
 function fakeSession(replies: string[][]): {
@@ -357,6 +357,43 @@ test('aborts between chunks', async () => {
   });
   await expect(promise).rejects.toMatchObject({ kind: 'aborted' });
 });
+
+test('hard-splits an oversized paragraph even after prior content', () => {
+  const text = `Intro\n\n${'y'.repeat(9000)}`;
+  const chunks = chunkText(text, 4000);
+  expect(chunks.join('')).toBe(text);
+  expect(Math.max(...chunks.map(c => c.length))).toBeLessThanOrEqual(4000);
+});
+
+test('multi-chunk onChunk reports cumulative text across chunks', async () => {
+  installLanguageModel('available', [['ONE'], ['TWO']]);
+  const provider = new NanoProvider();
+  const text = `${'a'.repeat(3000)}\n\n${'b'.repeat(3000)}`;
+  const seen: string[] = [];
+  await provider.rewrite({ text, systemPrompt: 'S', onChunk: t => seen.push(t) });
+  expect(seen).toEqual(['ONE', 'ONE\n\nTWO']);
+});
+
+test('stream failures map to internal and mid-stream aborts to aborted', async () => {
+  const failing = (error: unknown): LanguageModelStatic => ({
+    availability: async () => 'available',
+    create: async () => ({
+      prompt: async () => '',
+      promptStreaming: () =>
+        new ReadableStream<string>({
+          start(controller) {
+            controller.error(error);
+          },
+        }),
+      destroy: () => {},
+    }),
+  });
+  (globalThis as Record<string, unknown>)['LanguageModel'] = failing(new Error('boom'));
+  const provider = new NanoProvider();
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'internal' });
+  (globalThis as Record<string, unknown>)['LanguageModel'] = failing(new DOMException('x', 'AbortError'));
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'aborted' });
+});
 ```
 
 - [ ] **Step 2: Run, confirm failure**
@@ -429,33 +466,40 @@ export class NanoProvider implements Provider {
   }
 }
 
-/** Streamed values may be deltas or cumulative snapshots; normalize to cumulative. */
+/**
+ * Streamed values may be deltas or cumulative snapshots; normalize to cumulative.
+ * Known edge (accepted): a true delta that itself starts with the entire
+ * previous text is misread as a cumulative snapshot.
+ */
 export function accumulate(prev: string, next: string): string {
   return next.startsWith(prev) ? next : prev + next;
 }
 
 /**
  * Split into chunks whose concatenation equals the input. Prefers paragraph
- * boundaries; hard-splits any single paragraph longer than max.
+ * boundaries; hard-splits any piece that would push a chunk past max,
+ * regardless of where it falls.
  */
 export function chunkText(text: string, max: number): string[] {
   if (text.length <= max) return [text];
   const pieces = text.split(/(\n{2,})/);
   const chunks: string[] = [];
   let current = '';
-  for (const piece of pieces) {
-    if (current.length + piece.length <= max || current.length === 0) {
-      current += piece;
-      while (current.length > max) {
-        chunks.push(current.slice(0, max));
-        current = current.slice(max);
-      }
-    } else {
+  const flush = (): void => {
+    if (current.length > 0) {
       chunks.push(current);
-      current = piece;
+      current = '';
+    }
+  };
+  for (const piece of pieces) {
+    if (current.length > 0 && current.length + piece.length > max) flush();
+    current += piece;
+    while (current.length > max) {
+      chunks.push(current.slice(0, max));
+      current = current.slice(max);
     }
   }
-  if (current.length > 0) chunks.push(current);
+  flush();
   return chunks;
 }
 

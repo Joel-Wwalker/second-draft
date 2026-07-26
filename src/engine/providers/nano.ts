@@ -60,33 +60,40 @@ export class NanoProvider implements Provider {
   }
 }
 
-/** Streamed values may be deltas or cumulative snapshots; normalize to cumulative. */
+/**
+ * Streamed values may be deltas or cumulative snapshots; normalize to cumulative.
+ * Known edge (accepted): a true delta that itself starts with the entire
+ * previous text is misread as a cumulative snapshot.
+ */
 export function accumulate(prev: string, next: string): string {
   return next.startsWith(prev) ? next : prev + next;
 }
 
 /**
  * Split into chunks whose concatenation equals the input. Prefers paragraph
- * boundaries; hard-splits any single paragraph longer than max.
+ * boundaries; hard-splits any piece that would push a chunk past max,
+ * regardless of where it falls.
  */
 export function chunkText(text: string, max: number): string[] {
   if (text.length <= max) return [text];
   const pieces = text.split(/(\n{2,})/);
   const chunks: string[] = [];
   let current = '';
-  for (const piece of pieces) {
-    if (current.length + piece.length <= max || current.length === 0) {
-      current += piece;
-      while (current.length > max) {
-        chunks.push(current.slice(0, max));
-        current = current.slice(max);
-      }
-    } else {
+  const flush = (): void => {
+    if (current.length > 0) {
       chunks.push(current);
-      current = piece;
+      current = '';
+    }
+  };
+  for (const piece of pieces) {
+    if (current.length > 0 && current.length + piece.length > max) flush();
+    current += piece;
+    while (current.length > max) {
+      chunks.push(current.slice(0, max));
+      current = current.slice(max);
     }
   }
-  if (current.length > 0) chunks.push(current);
+  flush();
   return chunks;
 }
 

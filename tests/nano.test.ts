@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test } from 'vitest';
 import { NanoProvider, accumulate, chunkText } from '../src/engine/providers/nano';
 
 function fakeSession(replies: string[][]): {
@@ -114,4 +114,41 @@ test('aborts between chunks', async () => {
     onChunk: () => ctl.abort(),
   });
   await expect(promise).rejects.toMatchObject({ kind: 'aborted' });
+});
+
+test('hard-splits an oversized paragraph even after prior content', () => {
+  const text = `Intro\n\n${'y'.repeat(9000)}`;
+  const chunks = chunkText(text, 4000);
+  expect(chunks.join('')).toBe(text);
+  expect(Math.max(...chunks.map(c => c.length))).toBeLessThanOrEqual(4000);
+});
+
+test('multi-chunk onChunk reports cumulative text across chunks', async () => {
+  installLanguageModel('available', [['ONE'], ['TWO']]);
+  const provider = new NanoProvider();
+  const text = `${'a'.repeat(3000)}\n\n${'b'.repeat(3000)}`;
+  const seen: string[] = [];
+  await provider.rewrite({ text, systemPrompt: 'S', onChunk: t => seen.push(t) });
+  expect(seen).toEqual(['ONE', 'ONE\n\nTWO']);
+});
+
+test('stream failures map to internal and mid-stream aborts to aborted', async () => {
+  const failing = (error: unknown): LanguageModelStatic => ({
+    availability: async () => 'available',
+    create: async () => ({
+      prompt: async () => '',
+      promptStreaming: () =>
+        new ReadableStream<string>({
+          start(controller) {
+            controller.error(error);
+          },
+        }),
+      destroy: () => {},
+    }),
+  });
+  (globalThis as Record<string, unknown>)['LanguageModel'] = failing(new Error('boom'));
+  const provider = new NanoProvider();
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'internal' });
+  (globalThis as Record<string, unknown>)['LanguageModel'] = failing(new DOMException('x', 'AbortError'));
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'aborted' });
 });
