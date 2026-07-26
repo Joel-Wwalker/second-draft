@@ -4,7 +4,7 @@ Make AI drafts sound like you. Select text in any editable field, click the
 Humanize chip, review the before/after with explained highlights, and Apply
 replaces it in place. A popup paste box covers sites that block replacement.
 Rewrites run on your device; real model engines (Gemini Nano, bring-your-own-key)
-arrive in Plan 3 — today's build uses the deterministic quick-clean rules.
+arrive in Plan 3. Today's build uses the deterministic quick-clean rules.
 
 Status: in development. Plan 2 (page UX) of 3.
 
