@@ -9,6 +9,9 @@ endpoint) configured in the options page.
 
 Status: 1.0.0, pending store submission.
 
+Privacy policy: https://joel-wwalker.github.io/second-draft/privacy-policy (no
+servers, no telemetry; text leaves your device only for a provider you configure).
+
 ## Develop
 
 - `npm install`

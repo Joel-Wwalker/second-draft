@@ -56,5 +56,5 @@ Productivity / Writing
 
 - Screenshots (1280x800): chip on a selection, the result card, the options page.
 - Final icon approval (current icon is a generated placeholder).
-- Developer account ($5 one-time) and privacy-policy URL (GitHub Pages once the
-  repo is pushed).
+- Developer account ($5 one-time).
+- Privacy policy URL (live): https://joel-wwalker.github.io/second-draft/privacy-policy

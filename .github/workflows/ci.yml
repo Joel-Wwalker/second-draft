@@ -12,10 +12,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run zip
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: xvfb-run -a npx playwright test
+      - run: npm run zip
       - uses: actions/upload-artifact@v4
         with:
           name: extension-zip
