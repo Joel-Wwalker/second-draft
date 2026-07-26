@@ -1617,7 +1617,7 @@ server.listen(8787, () => console.log('fixture server on :8787'));
 import { test as base, chromium, type BrowserContext } from '@playwright/test';
 import path from 'node:path';
 
-export const test = base.extend<{ context: BrowserContext }>({
+export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
     const dist = path.resolve('.output/chrome-mv3');
@@ -1628,17 +1628,25 @@ export const test = base.extend<{ context: BrowserContext }>({
     await use(context);
     await context.close();
   },
+  extensionId: async ({ context }, use) => {
+    let [sw] = context.serviceWorkers();
+    if (!sw) sw = await context.waitForEvent('serviceworker');
+    await use(new URL(sw.url()).host);
+  },
 });
 
 export const expect = test.expect;
 
+/** Seed extension settings via a real extension page; never evaluates in the service worker. */
 export async function setExtensionSettings(
   context: BrowserContext,
+  extensionId: string,
   settings: { defaultIntensity: 'light' | 'full'; useFakeProvider: boolean; disabledSites: string[] },
 ): Promise<void> {
-  let [sw] = context.serviceWorkers();
-  if (!sw) sw = await context.waitForEvent('serviceworker');
-  await sw.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
+  await page.close();
 }
 ```
 
@@ -1666,8 +1674,8 @@ export default defineConfig({
 ```ts
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('chip appears on textarea selection and Apply replaces the text', async ({ context }) => {
-  await setExtensionSettings(context, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
+test('chip appears on textarea selection and Apply replaces the text', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
   const page = await context.newPage();
   await page.goto('http://localhost:8787/page.html');
   await page.locator('#ta').evaluate(el => {
@@ -1691,8 +1699,8 @@ test('chip appears on textarea selection and Apply replaces the text', async ({ 
 ```ts
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('contenteditable selection humanizes and applies in place', async ({ context }) => {
-  await setExtensionSettings(context, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
+test('contenteditable selection humanizes and applies in place', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
   const page = await context.newPage();
   await page.goto('http://localhost:8787/page.html');
   await page.locator('#ce').evaluate(el => {
@@ -1718,8 +1726,8 @@ test('contenteditable selection humanizes and applies in place', async ({ contex
 ```ts
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('disabled site never shows the chip', async ({ context }) => {
-  await setExtensionSettings(context, {
+test('disabled site never shows the chip', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, {
     defaultIntensity: 'full',
     useFakeProvider: true,
     disabledSites: ['localhost:8787'],

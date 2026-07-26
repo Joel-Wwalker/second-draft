@@ -1,7 +1,7 @@
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('contenteditable selection humanizes and applies in place', async ({ context }) => {
-  await setExtensionSettings(context, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
+test('contenteditable selection humanizes and applies in place', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
   const page = await context.newPage();
   await page.goto('http://localhost:8787/page.html');
   await page.locator('#ce').evaluate(el => {

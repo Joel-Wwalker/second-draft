@@ -1,7 +1,7 @@
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('chip appears on textarea selection and Apply replaces the text', async ({ context }) => {
-  await setExtensionSettings(context, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
+test('chip appears on textarea selection and Apply replaces the text', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] });
   const page = await context.newPage();
   await page.goto('http://localhost:8787/page.html');
   await page.locator('#ta').evaluate(el => {

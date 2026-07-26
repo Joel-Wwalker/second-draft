@@ -1,7 +1,7 @@
 import { expect, setExtensionSettings, test } from './fixtures';
 
-test('disabled site never shows the chip', async ({ context }) => {
-  await setExtensionSettings(context, {
+test('disabled site never shows the chip', async ({ context, extensionId }) => {
+  await setExtensionSettings(context, extensionId, {
     defaultIntensity: 'full',
     useFakeProvider: true,
     disabledSites: ['localhost:8787'],

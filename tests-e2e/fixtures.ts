@@ -1,7 +1,7 @@
 import { test as base, chromium, type BrowserContext } from '@playwright/test';
 import path from 'node:path';
 
-export const test = base.extend<{ context: BrowserContext }>({
+export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
     const dist = path.resolve('.output/chrome-mv3');
@@ -12,15 +12,23 @@ export const test = base.extend<{ context: BrowserContext }>({
     await use(context);
     await context.close();
   },
+  extensionId: async ({ context }, use) => {
+    let [sw] = context.serviceWorkers();
+    if (!sw) sw = await context.waitForEvent('serviceworker');
+    await use(new URL(sw.url()).host);
+  },
 });
 
 export const expect = test.expect;
 
+/** Seed extension settings via a real extension page; never evaluates in the service worker. */
 export async function setExtensionSettings(
   context: BrowserContext,
+  extensionId: string,
   settings: { defaultIntensity: 'light' | 'full'; useFakeProvider: boolean; disabledSites: string[] },
 ): Promise<void> {
-  let [sw] = context.serviceWorkers();
-  if (!sw) sw = await context.waitForEvent('serviceworker');
-  await sw.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
+  await page.close();
 }
