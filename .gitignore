@@ -3,3 +3,5 @@ node_modules/
 .wxt/
 *.log
 .env*
+test-results/
+playwright-report/

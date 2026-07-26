@@ -86,7 +86,7 @@ All providers run from the background service worker (the Prompt API lives there
 2. contenteditable: restore the saved Range, then `document.execCommand('insertText')` (deprecated but universal; preserves the site's undo stack).
 3. If both fail (e.g. Google Docs' canvas editor), the card says so, flips to Copy-primary, and points at the popup paste box.
 
-**Never-clobber rule:** the selection Range is captured at chip-click time and revalidated before Apply. If the field changed since, diff-match relocates the original text; if relocation fails, refuse to replace and offer Copy.
+**Never-clobber rule:** the selection Range is captured at chip-click time and revalidated before Apply. If the field changed since, diff-match relocates the original text; if relocation fails, refuse to replace and offer Copy. Accepted tradeoff: relocation keys on the captured text being unique in the field, so after heavy drift an identical duplicate elsewhere can become the relocation target; it receives the same rewritten text, which we judge less harmful than refusing the common prepend and cut-paste cases.
 
 ## Engine
 

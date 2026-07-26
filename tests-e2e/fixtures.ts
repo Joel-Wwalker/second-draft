@@ -28,7 +28,10 @@ export async function setExtensionSettings(
   settings: { defaultIntensity: 'light' | 'full'; useFakeProvider: boolean; disabledSites: string[] },
 ): Promise<void> {
   const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  await page.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
-  await page.close();
+  try {
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+    await page.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
+  } finally {
+    await page.close();
+  }
 }

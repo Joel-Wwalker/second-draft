@@ -1,10 +1,12 @@
 # Humanizer (Chrome extension)
 
-Make AI drafts sound like you. Select text on any page, click Humanize, review
-the before/after, apply. Rewrites run on your device by default (Chrome's
-built-in Gemini Nano); optionally bring your own API key for higher quality.
+Make AI drafts sound like you. Select text in any editable field, click the
+Humanize chip, review the before/after with explained highlights, and Apply
+replaces it in place. A popup paste box covers sites that block replacement.
+Rewrites run on your device; real model engines (Gemini Nano, bring-your-own-key)
+arrive in Plan 3 — today's build uses the deterministic quick-clean rules.
 
-Status: in development. Plan 1 (engine + popup paste box) of 2.
+Status: in development. Plan 2 (page UX) of 3.
 
 ## Develop
 
@@ -13,6 +15,7 @@ Status: in development. Plan 1 (engine + popup paste box) of 2.
 - `npm test` runs unit tests, `npm run typecheck` checks types
 - `npm run build` outputs `.output/chrome-mv3` (load unpacked from there)
 - `npm run zip` builds the store upload
+- `npm run e2e` runs Playwright against the built extension (run `npm run build` first)
 
 Design spec: `docs/superpowers/specs/2026-07-25-humanizer-chrome-extension-design.md`
 
