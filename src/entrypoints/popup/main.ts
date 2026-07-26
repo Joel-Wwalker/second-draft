@@ -44,7 +44,7 @@ async function run(): Promise<void> {
   status.textContent = 'Rewriting...';
   engineLabel.textContent = '';
   try {
-    const req: BackgroundRequest = { type: 'humanize', text, intensity: intensity.value as Intensity };
+    const req: BackgroundRequest = { type: 'humanize', id: crypto.randomUUID(), text, intensity: intensity.value as Intensity };
     const res = (await chrome.runtime.sendMessage(req)) as HumanizeResponse;
     if (res.ok) {
       output.value = res.result.rewritten;
