@@ -143,7 +143,10 @@ export class Card {
   }
 
   contains(target: EventTarget | null): boolean {
-    return target instanceof Node && (this.host === target || this.host.contains(target));
+    return (
+      target instanceof Node &&
+      (this.host === target || (this.host.shadowRoot?.contains(target) ?? false))
+    );
   }
 }
 

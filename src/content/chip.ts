@@ -34,6 +34,9 @@ export class Chip {
   }
 
   contains(target: EventTarget | null): boolean {
-    return target instanceof Node && (this.host === target || this.host.contains(target)) || target === this.btn;
+    return (
+      target instanceof Node &&
+      (this.host === target || (this.host.shadowRoot?.contains(target) ?? false))
+    );
   }
 }

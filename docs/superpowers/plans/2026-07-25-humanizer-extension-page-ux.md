@@ -773,6 +773,8 @@ test('chip mounts on show, fires on mousedown, unmounts on hide', () => {
   expect(btn.textContent).toBe('Humanize');
   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
   expect(onClick).toHaveBeenCalledOnce();
+  expect(chip.contains(btn)).toBe(true);
+  expect(chip.contains(document.body)).toBe(false);
   chip.hide();
   expect(document.getElementById('humanizer-chip-host')).toBeNull();
 });
@@ -792,6 +794,8 @@ test('card renders a result with highlight marks and engine label', () => {
   expect(mark.getAttribute('title')).toBe('AI-associated vocabulary');
   expect(shadow.querySelector('.engine')!.textContent).toContain('Test engine (fake-echo)');
   expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(false);
+  expect(card.contains(shadow.querySelector('button.apply'))).toBe(true);
+  expect(card.contains(document.body)).toBe(false);
 });
 
 test('card hides Apply when canApply is false', () => {
@@ -862,7 +866,10 @@ export class Chip {
   }
 
   contains(target: EventTarget | null): boolean {
-    return target instanceof Node && (this.host === target || this.host.contains(target)) || target === this.btn;
+    return (
+      target instanceof Node &&
+      (this.host === target || (this.host.shadowRoot?.contains(target) ?? false))
+    );
   }
 }
 ```
@@ -1015,7 +1022,10 @@ export class Card {
   }
 
   contains(target: EventTarget | null): boolean {
-    return target instanceof Node && (this.host === target || this.host.contains(target));
+    return (
+      target instanceof Node &&
+      (this.host === target || (this.host.shadowRoot?.contains(target) ?? false))
+    );
   }
 }
 
