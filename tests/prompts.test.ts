@@ -20,6 +20,14 @@ test('full prompt includes pattern guidance that light omits', () => {
   expect(light).not.toContain('rule of three');
 });
 
+test('full prompt mandates a rewrite even for clean text; light stays minimal', () => {
+  const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).toContain('Returning the text unchanged or nearly unchanged is a failure');
+  expect(full).toContain('Rewrite even when none of the listed tells appear');
+  expect(light).not.toContain('unchanged is a failure');
+});
+
 test('nano prompts stay under the size budget even with a huge voice sample', () => {
   const p = buildSystemPrompt({
     intensity: 'full',

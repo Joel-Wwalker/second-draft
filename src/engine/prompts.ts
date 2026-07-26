@@ -48,7 +48,8 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - Trim hedging and filler (in order to, it is important to note that).
 - End without a generic upbeat conclusion.
 - Replace AI-flavored words (delve, tapestry, testament, pivotal, crucial, vibrant, interplay, intricate) with plain ones.
-- Replace every em dash and en dash. Straighten curly quotes. No emoji.`;
+- Replace every em dash and en dash. Straighten curly quotes. No emoji.
+Rewrite even when none of the listed tells appear: smooth, generic, evenly paced prose where every sentence has the same shape is itself an AI tell. Vary sentence length, break parallel structures, and swap vague phrasing for concrete wording. Returning the text unchanged or nearly unchanged is a failure. The rewrite must read noticeably different while keeping the same meaning, register, and rough length.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
 
