@@ -1,4 +1,4 @@
-# Humanizer (Chrome extension)
+# Second Draft (Chrome extension)
 
 Make AI drafts sound like you. Select text in any editable field, click the
 Humanize chip, review the before/after with explained highlights, and Apply
@@ -7,7 +7,7 @@ Rewrites run on your device through Chrome's built-in Gemini Nano when available
 with an optional bring-your-own-key upgrade (Anthropic or any OpenAI-compatible
 endpoint) configured in the options page.
 
-Status: feature complete pending store submission. Plan 3 (engines + ship) of 3.
+Status: 1.0.0, pending store submission.
 
 ## Develop
 

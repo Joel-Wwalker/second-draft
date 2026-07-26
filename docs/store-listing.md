@@ -2,7 +2,8 @@
 
 ## Name
 
-Humanizer
+Second Draft: Humanize AI Text
+Short name: Second Draft.
 
 ## Short description (132 chars max)
 

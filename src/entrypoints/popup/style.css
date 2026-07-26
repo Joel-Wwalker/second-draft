@@ -10,7 +10,7 @@
 }
 body { width: 420px; margin: 0; padding: 14px; font: 14px/1.5 system-ui, sans-serif; background: var(--ground); color: var(--ink); }
 h1 { font-size: 15px; font-weight: 650; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-h1::before { content: "H"; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+h1::before { content: "2"; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
 textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 13px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }

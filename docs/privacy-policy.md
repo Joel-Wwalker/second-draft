@@ -1,12 +1,12 @@
-# Humanizer privacy policy
+# Second Draft privacy policy
 
 Last updated: 2026-07-26
 
-Humanizer rewrites text you select to remove signs of AI-generated writing.
+Second Draft rewrites text you select to remove signs of AI-generated writing.
 
 ## What we collect
 
-Nothing. Humanizer has no servers, no analytics, no telemetry, and no accounts.
+Nothing. Second Draft has no servers, no analytics, no telemetry, and no accounts.
 The developer never receives your text, your settings, or any usage data.
 
 ## Where your text goes

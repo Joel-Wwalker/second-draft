@@ -1,4 +1,4 @@
-// Generates placeholder extension icons: white H on a blue rounded square.
+// Generates placeholder extension icons: white 2 on an indigo rounded square.
 // Zero dependencies; writes minimal RGBA PNGs by hand.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -7,8 +7,8 @@ const BLUE = [79, 70, 229, 255];
 const WHITE = [255, 255, 255, 255];
 const CLEAR = [0, 0, 0, 0];
 
-// 5x7 bitmap of "H"
-const H = ['10001', '10001', '10001', '11111', '10001', '10001', '10001'];
+// 5x7 bitmap of "2"
+const GLYPH = ['01110', '10001', '00001', '00110', '01000', '10000', '11111'];
 
 function crc32(buf) {
   let crc = 0xffffffff;
@@ -46,7 +46,7 @@ function png(size) {
       let color = inCorner ? CLEAR : BLUE;
       const gx = Math.floor((x - offX) / scale);
       const gy = Math.floor((y - offY) / scale);
-      if (!inCorner && gy >= 0 && gy < 7 && gx >= 0 && gx < 5 && H[gy][gx] === '1') color = WHITE;
+      if (!inCorner && gy >= 0 && gy < 7 && gx >= 0 && gx < 5 && GLYPH[gy][gx] === '1') color = WHITE;
       row.push(...color);
     }
     rows.push(Buffer.from(row));
