@@ -1578,3 +1578,9 @@ Covered by this plan: repo scaffold and tooling; engine API, pipeline order, pro
 Deferred to Plan 2 (listed in File map above): everything page-facing, real providers, options page, streaming UI, Playwright, packaging. `HumanizeOptions.onChunk` and `RewriteRequest.onChunk` exist now so Plan 2 does not have to change engine signatures.
 
 Known simplifications, intentional: enforce replaces leftover dashes with `', '` uniformly (the model handles nuanced punctuation first); `quotedRegions` only pairs same-line double quotes; the rule-of-three heuristic is detect-only and prompt-gated at 2+ hits.
+
+---
+
+## Post-review amendments (execution record)
+
+The branch's final whole-branch review corrected four defects in code blocks this plan specified verbatim; the shipped code supersedes the blocks above where they differ. See commits `582301f` (strict half-open overlap in diffChanges), `63cf8a9` (tsconfig `types: ["chrome"]`), and `b923dc3` (emoji class narrowed to emoji-presentation, `tidy` preserves indentation and double spaces, `quotedRegions` word-boundary pairing, `stripWrapping` original-had-it guards, CONTRACT leave-quotes clause, popup output clear). The spec's Goal 4 was amended to document the quoted-text exception to the no-dash guarantee.

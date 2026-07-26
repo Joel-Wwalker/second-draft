@@ -27,7 +27,7 @@ Ships to the Chrome Web Store. Positioning: "make AI drafts sound like you," not
 1. Select → humanize → apply works reliably on mainstream sites (Gmail, LinkedIn, X, Reddit).
 2. Default path is free, unlimited, and fully local; the extension makes zero network requests unless the user configures BYOK.
 3. Every changed span in the result can explain itself ("em dash → comma", "'delve' is AI vocabulary").
-4. The skill's hard constraint holds mechanically: no em or en dashes in output, guaranteed by code, not by prompt obedience.
+4. The skill's hard constraint holds mechanically outside quotations: no em or en dash survives in output, enforced by code, not by prompt obedience. Deliberate exception: text inside quotation marks is reproduced verbatim (rewriting what someone said would falsify the quote), so a dash inside a quote survives by design and the UI should say so rather than hide it.
 5. Store-review-friendly: minimal permissions, no remote code, honest privacy claims.
 
 ## Non-goals (v1)
@@ -109,7 +109,7 @@ Streamed chunks are provisional display only; when the pipeline completes, the c
 
 1. **Detect** (`rules.ts` on input). Inventory the tells present. Conditions the prompt ("this text contains em dashes, 'delve', a negative parallelism; fix these among other things") and seeds diff explanations. Does not modify text.
 2. **Model pass.** Provider order: BYOK if configured, else Nano, else rules-only. Prompt variants: *Light* = hard tells + AI vocabulary, "change as little as possible"; *Full* = distilled 33 patterns + rhythm/voice guidance. Voice sample appended when set (trimmed to ~500 words for Nano). Output contract is rewritten text only; markdown fences and "Here is..." preambles are stripped defensively.
-3. **Enforce** (`rules.ts` on output). Mechanically fix any surviving em/en dash, curly quote, ` -- `, or emoji. The model is asked; the rules layer guarantees.
+3. **Enforce** (`rules.ts` on output). Mechanically fix any surviving em/en dash, curly quote, ` -- `, or emoji. The model is asked; the rules layer guarantees, except inside quotation marks, which are left verbatim (see Goal 4).
 4. **Diff.** Word-level diff (small Myers implementation in `shared/`). Changes overlapping a detected tell inherit its reason; the rest read "reworded".
 
 ### Rules catalog
@@ -119,7 +119,7 @@ Each rule: `{ id, detect(text): Span[], fix?(text): string, reason }`. Two expli
 - **Fixable** (deterministic replacement is safe): em dash, en dash (number ranges become " to "), curly quotes → straight, ` -- `, emoji, chatbot artifacts ("I hope this helps", "Would you like...").
 - **Detect-only** (needs model judgment to rewrite well): AI vocabulary list (§7 of the skill), negative parallelisms, title-case headings, bold-header lists, rule-of-three heuristic. These feed the prompt and the highlights.
 
-False-positive guards follow the skill's "what NOT to flag" list: quoted/secondhand text is left alone, single tells are not treated as clusters.
+False-positive guards follow the skill's "what NOT to flag" list: quoted/secondhand text is left alone by the dash fixes (v1 does not yet extend this guard to detect-only rules; the model prompt carries a leave-quotes-verbatim clause instead). Cluster gating beyond the rule-of-three minimum count is deferred to Plan 2.
 
 **Rules-only mode** applies only the fixable set and the card labels it "quick clean, AI unavailable" — it never masquerades as the full product.
 
@@ -172,7 +172,7 @@ Hard rules: **no silent downgrades** (card always names the engine) and **never 
 
 ## Testing
 
-- **Unit (Vitest):** every rule gets detect + fix + false-positive cases from the skill's "what NOT to flag" list (en dash in "1990–1995", em dashes inside quotes, curly quotes alone). Diff util, prompt builders, and the full pipeline against a **fake provider** with canned outputs, including one that returns planted em dashes to prove the enforce pass catches them.
+- **Unit (Vitest):** every rule gets detect + fix + false-positive cases (em dashes inside quotes stay verbatim; en dash ranges like "1990–1995" are rewritten to "1990 to 1995" per the skill's hard ban; trademark/copyright symbols are never stripped by the emoji rule; markdown indentation survives cleanup). Diff util, prompt builders, and the full pipeline against a **fake provider** with canned outputs, including one that returns planted em dashes to prove the enforce pass catches them.
 - **E2E (Playwright, loaded extension):** fixture pages with a textarea, a React-controlled input, and a contenteditable div. Assert: chip appears, card streams, Apply replaces, site undo still works. A storage flag forces the fake provider so CI needs no model and stays deterministic.
 - **Manual matrix** before each release: Gmail, LinkedIn, X, Reddit, Google Docs (expected: copy fallback).
 - **CI (GitHub Actions):** typecheck, Vitest, Playwright, `wxt zip` artifact.
@@ -190,6 +190,15 @@ Hard rules: **no silent downgrades** (card always names the engine) and **never 
 - Multi-pass deep mode for BYOK.
 - Inline underline mode.
 - Other browsers via WXT's multi-target build.
+
+## Plan 2 must-carry list (from Plan 1's final review)
+
+- `docs/privacy-policy.md` + GitHub Pages hosting (spec requires it; Plan 1 deferred it implicitly).
+- Message protocol: add a correlation `id` to `HumanizeRequest` and a `{ type: 'cancel', id }` variant before the content script lands, so Dismiss-cancels-inference is buildable.
+- Wrap `provider.available()` in try/catch inside `firstAvailable` when the first real provider lands (a throwing probe must fall through to rules-only, per the error table).
+- Validate messages at the background boundary (runtime shape check + sender check) in the same commit as `content.ts`.
+- Redact provider error strings before surfacing (`String(err)` may carry URLs/keys once BYOK exists).
+- Consider `skipQuoted` on detect-only rules; UI surfacing of dashes that survive inside quotations.
 
 ## Suggested build order (input to the implementation plan)
 
