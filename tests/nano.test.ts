@@ -1,0 +1,117 @@
+import { afterEach, expect, test, vi } from 'vitest';
+import { NanoProvider, accumulate, chunkText } from '../src/engine/providers/nano';
+
+function fakeSession(replies: string[][]): {
+  session: LanguageModelSession;
+  prompts: string[];
+  destroyed: () => boolean;
+} {
+  const prompts: string[] = [];
+  let destroyed = false;
+  let call = 0;
+  const session: LanguageModelSession = {
+    prompt: async input => {
+      prompts.push(input);
+      return (replies[call++] ?? ['']).join('');
+    },
+    promptStreaming: input => {
+      prompts.push(input);
+      const parts = replies[call++] ?? [''];
+      return new ReadableStream<string>({
+        start(controller) {
+          for (const part of parts) controller.enqueue(part);
+          controller.close();
+        },
+      });
+    },
+    destroy: () => {
+      destroyed = true;
+    },
+  };
+  return { session, prompts, destroyed: () => destroyed };
+}
+
+function installLanguageModel(
+  availability: LanguageModelAvailability,
+  replies: string[][],
+): ReturnType<typeof fakeSession> {
+  const fake = fakeSession(replies);
+  (globalThis as Record<string, unknown>)['LanguageModel'] = {
+    availability: async () => availability,
+    create: async () => fake.session,
+  } satisfies LanguageModelStatic;
+  return fake;
+}
+
+afterEach(() => {
+  delete (globalThis as Record<string, unknown>)['LanguageModel'];
+});
+
+test('accumulate handles delta and cumulative streams', () => {
+  expect(accumulate('', 'He')).toBe('He');
+  expect(accumulate('He', 'llo')).toBe('Hello');
+  expect(accumulate('He', 'Hello')).toBe('Hello');
+});
+
+test('chunkText concatenation equals the input and respects paragraph bounds', () => {
+  const text = 'para one\n\npara two\n\npara three';
+  const chunks = chunkText(text, 12);
+  expect(chunks.join('')).toBe(text);
+  expect(chunks.length).toBeGreaterThan(1);
+  const giant = 'x'.repeat(9001);
+  expect(chunkText(giant, 4000).join('')).toBe(giant);
+});
+
+test('unavailable when the global is missing or not ready', async () => {
+  const provider = new NanoProvider();
+  expect(await provider.available()).toBe(false);
+  installLanguageModel('downloadable', []);
+  expect(await provider.available()).toBe(false);
+  installLanguageModel('available', []);
+  expect(await provider.available()).toBe(true);
+});
+
+test('rewrites via streaming, reports chunks, destroys the session', async () => {
+  const fake = installLanguageModel('available', [['Rewritten ', 'text.']]);
+  const provider = new NanoProvider();
+  const seen: string[] = [];
+  const out = await provider.rewrite({
+    text: 'input text here',
+    systemPrompt: 'SYSTEM',
+    onChunk: t => seen.push(t),
+  });
+  expect(out).toBe('Rewritten text.');
+  expect(seen).toEqual(['Rewritten ', 'Rewritten text.']);
+  expect(fake.prompts).toEqual(['input text here']);
+  expect(fake.destroyed()).toBe(true);
+});
+
+test('multi-chunk inputs are rewritten sequentially and joined', async () => {
+  const fake = installLanguageModel('available', [['ONE'], ['TWO']]);
+  const provider = new NanoProvider();
+  const text = `${'a'.repeat(3000)}\n\n${'b'.repeat(3000)}`;
+  const out = await provider.rewrite({ text, systemPrompt: 'S' });
+  expect(fake.prompts).toHaveLength(2);
+  expect(out).toBe('ONE\n\nTWO');
+});
+
+test('throws nano-unavailable without the global', async () => {
+  const provider = new NanoProvider();
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({
+    kind: 'nano-unavailable',
+  });
+});
+
+test('aborts between chunks', async () => {
+  installLanguageModel('available', [['ONE'], ['TWO']]);
+  const provider = new NanoProvider();
+  const ctl = new AbortController();
+  const text = `${'a'.repeat(3000)}\n\n${'b'.repeat(3000)}`;
+  const promise = provider.rewrite({
+    text,
+    systemPrompt: 'S',
+    signal: ctl.signal,
+    onChunk: () => ctl.abort(),
+  });
+  await expect(promise).rejects.toMatchObject({ kind: 'aborted' });
+});
