@@ -281,9 +281,12 @@ test('toggleSiteDisabled adds then removes a host', async () => {
 });
 
 test('settings stored before disabledSites existed still merge cleanly', async () => {
-  const { getSettings } = await import('../src/shared/storage');
-  const { DEFAULT_SETTINGS } = await import('../src/shared/storage');
-  expect((await getSettings()).disabledSites).toEqual(DEFAULT_SETTINGS.disabledSites);
+  const { DEFAULT_SETTINGS, getSettings } = await import('../src/shared/storage');
+  await chrome.storage.local.set({ settings: { defaultIntensity: 'light', useFakeProvider: true } });
+  const settings = await getSettings();
+  expect(settings.disabledSites).toEqual(DEFAULT_SETTINGS.disabledSites);
+  expect(settings.defaultIntensity).toBe('light');
+  expect(settings.useFakeProvider).toBe(true);
 });
 ```
 
@@ -299,7 +302,8 @@ test('labels known kinds and appends the model when present', () => {
 });
 
 test('falls back to the raw kind for unknown values', () => {
-  expect(engineLabel({ kind: 'byok' as never })).toBe('Your API key');
+  expect(engineLabel({ kind: 'mystery' as never })).toBe('mystery');
+  expect(engineLabel({ kind: 'byok' })).toBe('Your API key');
 });
 ```
 

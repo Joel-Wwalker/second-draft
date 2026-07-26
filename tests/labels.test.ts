@@ -7,5 +7,6 @@ test('labels known kinds and appends the model when present', () => {
 });
 
 test('falls back to the raw kind for unknown values', () => {
-  expect(engineLabel({ kind: 'byok' as never })).toBe('Your API key');
+  expect(engineLabel({ kind: 'mystery' as never })).toBe('mystery');
+  expect(engineLabel({ kind: 'byok' })).toBe('Your API key');
 });
