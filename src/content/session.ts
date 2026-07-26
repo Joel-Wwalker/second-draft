@@ -9,6 +9,7 @@ import type { HumanizeRequest, PortServerMessage } from '../shared/messages';
 import type { HumanizeResult, Intensity } from '../shared/types';
 
 const CHIP_DEBOUNCE_MS = 150;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 let requestSeq = 0;
 function newRequestId(): string {
@@ -23,6 +24,7 @@ export class HumanizeSession {
   private readonly card: Card;
   private port: chrome.runtime.Port | null = null;
   private debounce: ReturnType<typeof setTimeout> | null = null;
+  private timeout: ReturnType<typeof setTimeout> | null = null;
   private selection: EditableSelection | null = null;
   private captured: EditableSelection | null = null;
   private capturedText = '';
@@ -47,6 +49,7 @@ export class HumanizeSession {
     this.doc.addEventListener('selectionchange', this.onSelectionChange);
     this.doc.addEventListener('mousedown', this.onMouseDown, true);
     chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
+    chrome.storage.onChanged.addListener(this.onStorageChanged);
     void getSettings().then(s => {
       this.intensity = s.defaultIntensity;
     });
@@ -56,9 +59,11 @@ export class HumanizeSession {
     this.stopped = true;
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = null;
+    this.clearRequestTimeout();
     this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mousedown', this.onMouseDown, true);
     chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
+    chrome.storage.onChanged.removeListener(this.onStorageChanged);
     this.chip.hide();
     this.dismissCard();
     this.port?.disconnect();
@@ -74,6 +79,17 @@ export class HumanizeSession {
     if (this.chip.contains(e.target) || this.card.contains(e.target)) return;
     this.chip.hide();
     if (this.card.isOpen) this.dismissCard();
+  };
+
+  private readonly onStorageChanged = (
+    changes: Record<string, chrome.storage.StorageChange>,
+    area: string,
+  ): void => {
+    if (area !== 'local' || !changes['settings']) return;
+    const next = changes['settings'].newValue as { defaultIntensity?: Intensity } | undefined;
+    if (next?.defaultIntensity === 'light' || next?.defaultIntensity === 'full') {
+      this.intensity = next.defaultIntensity;
+    }
   };
 
   private readonly onRuntimeMessage = (msg: unknown): void => {
@@ -147,6 +163,12 @@ export class HumanizeSession {
     this.result = null;
     const id = newRequestId();
     this.requestId = id;
+    if (this.timeout) clearTimeout(this.timeout);
+    this.timeout = setTimeout(() => {
+      if (this.requestId === id && !this.result && !this.stopped) {
+        this.card.setError('internal', 'No response from the engine. Try again.');
+      }
+    }, REQUEST_TIMEOUT_MS);
     const req: HumanizeRequest = { type: 'humanize', id, text: this.capturedText, intensity: this.intensity };
     try {
       this.ensurePort().postMessage(req);
@@ -155,20 +177,30 @@ export class HumanizeSession {
     }
   }
 
+  private clearRequestTimeout(): void {
+    if (this.timeout) clearTimeout(this.timeout);
+    this.timeout = null;
+  }
+
   private cancelInFlight(): void {
     if (this.requestId && !this.result && this.port) {
       this.port.postMessage({ type: 'cancel', id: this.requestId });
     }
     this.requestId = null;
+    this.clearRequestTimeout();
   }
 
   private onPortMessage(msg: PortServerMessage): void {
     if (msg.id !== this.requestId || this.stopped) return;
     if (msg.type === 'chunk') this.card.setStreaming(msg.textSoFar);
     else if (msg.type === 'done') {
+      this.clearRequestTimeout();
       this.result = msg.result;
       this.card.setResult(msg.result);
-    } else this.card.setError(msg.kind, msg.message);
+    } else {
+      this.clearRequestTimeout();
+      this.card.setError(msg.kind, msg.message);
+    }
   }
 
   private onApply(): void {

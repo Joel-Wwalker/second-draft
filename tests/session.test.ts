@@ -19,6 +19,7 @@ class FakePort {
 
 let port: FakePort;
 let runtimeListeners: Array<(msg: unknown) => void> = [];
+let storageListeners: Array<(changes: Record<string, { newValue?: unknown }>, area: string) => void> = [];
 let session: import('../src/content/session').HumanizeSession;
 
 beforeEach(async () => {
@@ -28,6 +29,7 @@ beforeEach(async () => {
     settings: { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] },
   };
   runtimeListeners = [];
+  storageListeners = [];
   (globalThis as Record<string, unknown>)['chrome'] = {
     runtime: {
       id: 'test',
@@ -45,7 +47,14 @@ beforeEach(async () => {
         get: async (key: string) => ({ [key]: store[key] }),
         set: async (items: Record<string, unknown>) => void Object.assign(store, items),
       },
-      onChanged: { addListener: (): void => undefined },
+      onChanged: {
+        addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void): void =>
+          void storageListeners.push(fn),
+        removeListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void): void => {
+          const i = storageListeners.indexOf(fn);
+          if (i >= 0) storageListeners.splice(i, 1);
+        },
+      },
     },
   } as unknown as typeof chrome;
   document.body.innerHTML = '<textarea>We delve into the plan boldly.</textarea>';
@@ -151,4 +160,46 @@ test('a retained runtime listener reference is inert after stop()', () => {
   session.stop();
   listener?.({ type: 'context-humanize' });
   expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('a request with no response times out with an error', () => {
+  selectInTextarea();
+  clickChip();
+  vi.advanceTimersByTime(60_001);
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.status')!.textContent).toContain('No response from the engine');
+});
+
+test('a done response cancels the timeout', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: { rewritten: 'ok result here', changes: [], engine: { kind: 'fake' } },
+  });
+  vi.advanceTimersByTime(120_000);
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.status')!.textContent).not.toContain('No response');
+});
+
+test('changing the stored default intensity applies to the next request', () => {
+  selectInTextarea();
+  clickChip();
+  for (const fn of storageListeners) {
+    fn({ settings: { newValue: { defaultIntensity: 'light' } } }, 'local');
+  }
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.dismiss') as HTMLButtonElement).click();
+  selectInTextarea();
+  clickChip();
+  const second = port.sent.filter(m => (m as { type: string }).type === 'humanize')[1] as { intensity: string };
+  expect(second.intensity).toBe('light');
+});
+
+test('stop() removes the storage listener', () => {
+  expect(storageListeners.length).toBeGreaterThan(0);
+  session.stop();
+  expect(storageListeners).toHaveLength(0);
 });
