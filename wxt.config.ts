@@ -6,6 +6,6 @@ export default defineConfig({
     name: 'Humanizer',
     description: 'Make AI drafts sound like you. Rewrites run on your device.',
     minimum_chrome_version: '138',
-    permissions: ['storage'],
+    permissions: ['storage', 'contextMenus', 'activeTab'],
   },
 });
