@@ -1221,10 +1221,14 @@ test('a debounce pending at stop() cannot resurrect the chip', () => {
   expect(document.getElementById('humanizer-chip-host')).toBeNull();
 });
 
-test('selection changes after stop() never show the chip', () => {
+test('a retained runtime listener reference is inert after stop()', () => {
+  const ta = document.querySelector('textarea')!;
+  ta.focus();
+  ta.setSelectionRange(0, 30);
+  const [listener] = runtimeListeners;
   session.stop();
-  selectInTextarea();
-  expect(document.getElementById('humanizer-chip-host')).toBeNull();
+  listener?.({ type: 'context-humanize' });
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
 });
 ```
 
