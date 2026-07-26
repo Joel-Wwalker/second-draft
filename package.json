@@ -1,6 +1,6 @@
 {
   "name": "humanizer-extension",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "wxt",
@@ -9,7 +9,8 @@
     "postinstall": "wxt prepare",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "icons": "node scripts/make-icons.mjs"
   },
   "license": "MIT",
   "type": "module",
