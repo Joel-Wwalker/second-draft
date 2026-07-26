@@ -8,11 +8,13 @@
     "zip": "wxt zip",
     "postinstall": "wxt prepare",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test"
   },
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/chrome": "^0.2.2",
     "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
