@@ -1,4 +1,4 @@
-import { getEditableSelection, getPlainSelection } from './selection';
+import { getEditableSelection, getPlainSelection, isSensitiveTarget } from './selection';
 import type { EditableSelection } from './selection';
 import { applyReplacement } from './replace';
 import { Chip } from './chip';
@@ -103,6 +103,7 @@ export class HumanizeSession {
       this.capturedText = editable.text;
       this.canApply = true;
     } else {
+      if (isSensitiveTarget(this.doc)) return;
       const fallback = typeof m['selectionText'] === 'string' ? m['selectionText'] : '';
       const text = getPlainSelection(this.doc) || fallback;
       if (!text) return;
@@ -163,18 +164,23 @@ export class HumanizeSession {
     this.result = null;
     const id = newRequestId();
     this.requestId = id;
-    if (this.timeout) clearTimeout(this.timeout);
-    this.timeout = setTimeout(() => {
-      if (this.requestId === id && !this.result && !this.stopped) {
-        this.card.setError('internal', 'No response from the engine. Try again.');
-      }
-    }, REQUEST_TIMEOUT_MS);
+    this.armTimeout(id);
     const req: HumanizeRequest = { type: 'humanize', id, text: this.capturedText, intensity: this.intensity };
     try {
       this.ensurePort().postMessage(req);
     } catch {
       this.card.setError('internal', 'The extension was updated or reloaded. Reload this page and try again.');
     }
+  }
+
+  private armTimeout(id: string): void {
+    if (this.timeout) clearTimeout(this.timeout);
+    this.timeout = setTimeout(() => {
+      if (this.requestId === id && !this.result && !this.stopped) {
+        this.cancelInFlight();
+        this.card.setError('internal', 'No response from the engine. Try again.');
+      }
+    }, REQUEST_TIMEOUT_MS);
   }
 
   private clearRequestTimeout(): void {
@@ -192,8 +198,10 @@ export class HumanizeSession {
 
   private onPortMessage(msg: PortServerMessage): void {
     if (msg.id !== this.requestId || this.stopped) return;
-    if (msg.type === 'chunk') this.card.setStreaming(msg.textSoFar);
-    else if (msg.type === 'done') {
+    if (msg.type === 'chunk') {
+      this.armTimeout(msg.id);
+      this.card.setStreaming(msg.textSoFar);
+    } else if (msg.type === 'done') {
       this.clearRequestTimeout();
       this.result = msg.result;
       this.card.setResult(msg.result);

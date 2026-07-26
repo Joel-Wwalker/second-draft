@@ -95,7 +95,7 @@ async function runHumanize(
     return { ok: true, result };
   } catch (err) {
     const e = err instanceof HumanizerError ? err : new HumanizerError('internal', redactError(String(err)));
-    if (e.kind !== 'aborted') console.error('[humanizer]', e.kind, e.message);
+    if (e.kind !== 'aborted') console.error('[humanizer]', e.kind, redactError(e.message));
     return { ok: false, kind: e.kind, message: redactError(e.message) };
   }
 }

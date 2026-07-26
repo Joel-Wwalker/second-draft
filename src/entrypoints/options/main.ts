@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../../shared/storage';
 import type { ByokSettings, Settings } from '../../shared/storage';
 import type { Intensity } from '../../shared/types';
+import { byokOrigin } from '../../shared/byok-origin';
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -91,20 +92,9 @@ async function save(): Promise<void> {
   }
 }
 
-export function byokOrigin(byok: ByokSettings): string | null {
-  try {
-    const url = byok.provider === 'anthropic' ? 'https://api.anthropic.com' : byok.baseUrl;
-    const origin = new URL(url).origin;
-    return origin.startsWith('http') ? `${origin}/*` : null;
-  } catch {
-    return null;
-  }
-}
-
 async function requestByokPermission(byok: ByokSettings): Promise<boolean> {
   const origin = byokOrigin(byok);
   if (!origin) return false;
-  if (origin.startsWith('http://localhost') || origin.startsWith('http://127.')) return true;
   try {
     return await chrome.permissions.request({ origins: [origin] });
   } catch {

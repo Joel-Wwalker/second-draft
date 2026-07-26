@@ -1701,3 +1701,9 @@ Covered: Nano provider (availability, download UI in options, chunking, streamin
 Left for the owner (open items, not build work): real screenshots, final icon, store account + submission, GitHub push + Pages for the privacy-policy URL. Deferred with rationale in spec: `all_frames`, shadow-DOM selection, deep mode, hosted tier.
 
 Known simplifications, intentional: Nano chunk seams may normalize blank-line runs between chunks (outputs joined with a standard paragraph break); BYOK `max_tokens` fixed at 8192 for Anthropic; the options page saves keys even when the permission grant is declined (rewrites then fail with a clear error; re-saving re-prompts); no e2e for real engines (manual matrix rows 9-14 cover them).
+
+---
+
+## Post-review amendments (execution record)
+
+The branch's final whole-branch review gated the merge on fixes landed after Task 7; the shipped code supersedes the blocks above where they differ: empty-rewrite guard and friendly too-long message in the engine; sensitive-field guard on the context-menu path; idle-reset request timeout that also cancels in flight; BYOK stream-error mapping, scaled Anthropic max_tokens, and truncation detection (too-long); fresh Nano session per chunk; byokOrigin moved to src/shared with port-stripped patterns; http localhost origins added to optional_host_permissions; popup Settings button and model-name fallback; redacted console logging; privacy-policy and options-page voice-sample disclosure; store-listing positioning-note relocation and optional-hosts justification; manual matrix rows 19-24.

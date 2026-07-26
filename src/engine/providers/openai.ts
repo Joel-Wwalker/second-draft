@@ -47,17 +47,27 @@ export class OpenAIProvider implements Provider {
     } catch (err) {
       throw mapFetchError(err, 'Could not reach the configured API endpoint.');
     }
-    throwForStatus(res, 'The API endpoint');
+    throwForStatus(res, 'the API endpoint');
     if (!res.body) throw new HumanizerError('network', 'The API endpoint returned an empty stream.');
     let out = '';
-    for await (const data of parseSSE(res.body)) {
-      if (data === '[DONE]') break;
-      const evt = safeParse(data) as { choices?: Array<{ delta?: { content?: string } }> } | null;
-      const delta = evt?.choices?.[0]?.delta?.content;
-      if (typeof delta === 'string') {
-        out += delta;
-        req.onChunk?.(out);
+    try {
+      for await (const data of parseSSE(res.body)) {
+        if (data === '[DONE]') break;
+        const evt = safeParse(data) as
+          | { choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }> }
+          | null;
+        if (evt?.choices?.[0]?.finish_reason === 'length') {
+          throw new HumanizerError('too-long', 'The rewrite hit the output limit. Split the selection.');
+        }
+        const delta = evt?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string') {
+          out += delta;
+          req.onChunk?.(out);
+        }
       }
+    } catch (err) {
+      if (err instanceof HumanizerError) throw err;
+      throw mapFetchError(err, 'The connection to the API endpoint dropped mid-stream.');
     }
     return out;
   }

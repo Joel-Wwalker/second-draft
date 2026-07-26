@@ -21,20 +21,21 @@ export class NanoProvider implements Provider {
       throw new HumanizerError('nano-unavailable', 'On-device AI is not supported by this browser.');
     }
     throwIfAborted(req.signal);
-    let session: LanguageModelSession;
-    try {
-      session = await LanguageModel.create({
-        initialPrompts: [{ role: 'system', content: req.systemPrompt }],
-        signal: req.signal,
-      });
-    } catch (err) {
-      throw abortOr(err, new HumanizerError('nano-unavailable', 'Could not start the on-device model.'));
-    }
-    try {
-      const chunks = chunkText(req.text, NANO_CHUNK_CHARS);
-      const outputs: string[] = [];
-      for (const chunk of chunks) {
-        throwIfAborted(req.signal);
+    const chunks = chunkText(req.text, NANO_CHUNK_CHARS);
+    const outputs: string[] = [];
+    for (const chunk of chunks) {
+      throwIfAborted(req.signal);
+      // Fresh session per chunk: reuse would treat prior chunks as conversation turns.
+      let session: LanguageModelSession;
+      try {
+        session = await LanguageModel.create({
+          initialPrompts: [{ role: 'system', content: req.systemPrompt }],
+          signal: req.signal,
+        });
+      } catch (err) {
+        throw abortOr(err, new HumanizerError('nano-unavailable', 'Could not start the on-device model.'));
+      }
+      try {
         const prefix = outputs.length > 0 ? `${outputs.join('\n\n')}\n\n` : '';
         let chunkOut = '';
         const stream = session.promptStreaming(chunk, { signal: req.signal });
@@ -52,11 +53,11 @@ export class NanoProvider implements Provider {
           reader.releaseLock();
         }
         outputs.push(chunkOut.trim());
+      } finally {
+        session.destroy();
       }
-      return outputs.join('\n\n');
-    } finally {
-      session.destroy();
     }
+    return outputs.join('\n\n');
   }
 }
 

@@ -90,3 +90,25 @@ test('malformed stream json is skipped, not fatal', async () => {
   );
   expect(await provider.rewrite({ text: 't', systemPrompt: 's' })).toBe('ok');
 });
+
+test('anthropic maps max_tokens truncation to too-long', async () => {
+  const events = [
+    JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'partial' } }),
+    JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'max_tokens' } }),
+  ];
+  const provider = new AnthropicProvider({ apiKey: 'k', model: 'm' }, async () => sseResponse(events));
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'too-long' });
+});
+
+test('openai maps finish_reason length to too-long', async () => {
+  const events = [
+    JSON.stringify({ choices: [{ delta: { content: 'partial' } }] }),
+    JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] }),
+    '[DONE]',
+  ];
+  const provider = new OpenAIProvider(
+    { baseUrl: 'https://api.openai.com/v1', apiKey: 'k', model: 'm' },
+    async () => sseResponse(events),
+  );
+  await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'too-long' });
+});

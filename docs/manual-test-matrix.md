@@ -23,3 +23,9 @@ rows where noted (Clear extension storage via service-worker console).
 | 16 | Voice sample set: rewrite | Output tone follows the sample (subjective check) |
 | 17 | Password / email / card-number fields | No chip ever |
 | 18 | Selection near the bottom of the window | Card stays fully on-screen |
+| 19 | Nano: selection over 8000 chars across 3+ paragraphs | Later chunks stay rewrites (no commentary or repetition of earlier chunks) |
+| 20 | BYOK: selection that streams for longer than 60 seconds | No false timeout while chunks keep arriving |
+| 21 | BYOK: selection over 30k chars | Clear too-long error, never a silently truncated result |
+| 22 | Right-click Humanize inside a card-number or OTP field | Nothing happens |
+| 23 | Nano downloadable, no API key | Quick clean result; options page offers the model download |
+| 24 | Non-Ollama local OpenAI-compatible server (LM Studio, llama.cpp) | Works after permission grant, or a clear endpoint error, never a hang |

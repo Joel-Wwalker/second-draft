@@ -14,6 +14,18 @@ const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel']);
 // network provider ships.
 const SENSITIVE_FIELD = /password|cc-|one-time-code|cvc|csc/i;
 
+/** Guard for capture paths that bypass getEditableSelection (context menu). */
+export function isSensitiveTarget(doc: Document): boolean {
+  const el = doc.activeElement;
+  if (!(el instanceof HTMLInputElement)) return false;
+  return (
+    el.type === 'password' ||
+    SENSITIVE_FIELD.test(el.autocomplete) ||
+    SENSITIVE_FIELD.test(el.name) ||
+    SENSITIVE_FIELD.test(el.id)
+  );
+}
+
 export function getEditableSelection(doc: Document): EditableSelection | null {
   const active = doc.activeElement;
   if (

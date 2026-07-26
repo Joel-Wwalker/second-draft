@@ -16,8 +16,9 @@ The developer never receives your text, your settings, or any usage data.
   machine.
 - If you configure an API key in settings, the text you choose to humanize is
   sent directly from your browser to the provider you configured (for example
-  Anthropic or an OpenAI-compatible endpoint), and to no one else. Their
-  privacy terms apply to that request.
+  Anthropic or an OpenAI-compatible endpoint), and to no one else, along with
+  your writing voice sample if you have set one. Their privacy terms apply to
+  that request.
 
 ## What is stored
 

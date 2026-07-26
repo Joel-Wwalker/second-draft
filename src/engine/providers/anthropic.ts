@@ -36,7 +36,7 @@ export class AnthropicProvider implements Provider {
         },
         body: JSON.stringify({
           model: this.cfg.model,
-          max_tokens: 8192,
+          max_tokens: Math.min(64000, Math.max(1024, Math.ceil(req.text.length / 2))),
           stream: true,
           system: req.systemPrompt,
           messages: [{ role: 'user', content: req.text }],
@@ -49,12 +49,22 @@ export class AnthropicProvider implements Provider {
     throwForStatus(res, 'Anthropic');
     if (!res.body) throw new HumanizerError('network', 'Anthropic returned an empty stream.');
     let out = '';
-    for await (const data of parseSSE(res.body)) {
-      const evt = safeParse(data) as { type?: string; delta?: { type?: string; text?: string } } | null;
-      if (evt?.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && typeof evt.delta.text === 'string') {
-        out += evt.delta.text;
-        req.onChunk?.(out);
+    try {
+      for await (const data of parseSSE(res.body)) {
+        const evt = safeParse(data) as
+          | { type?: string; delta?: { type?: string; text?: string; stop_reason?: string } }
+          | null;
+        if (evt?.type === 'message_delta' && evt.delta?.stop_reason === 'max_tokens') {
+          throw new HumanizerError('too-long', 'The rewrite hit the output limit. Split the selection.');
+        }
+        if (evt?.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && typeof evt.delta.text === 'string') {
+          out += evt.delta.text;
+          req.onChunk?.(out);
+        }
       }
+    } catch (err) {
+      if (err instanceof HumanizerError) throw err;
+      throw mapFetchError(err, 'The connection to Anthropic dropped mid-stream.');
     }
     return out;
   }
@@ -65,7 +75,7 @@ export function throwForStatus(res: Response, who: string): void {
     throw new HumanizerError('byok-auth', `API key rejected (${res.status}).`);
   }
   if (res.status === 429) throw new HumanizerError('byok-rate-limit', `Rate limited by ${who}.`);
-  if (!res.ok) throw new HumanizerError('network', `${who} returned ${res.status}.`);
+  if (!res.ok) throw new HumanizerError('network', `Request to ${who} failed (${res.status}).`);
 }
 
 export function mapFetchError(err: unknown, message: string): HumanizerError {

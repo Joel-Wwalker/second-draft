@@ -203,3 +203,24 @@ test('stop() removes the storage listener', () => {
   session.stop();
   expect(storageListeners).toHaveLength(0);
 });
+
+test('context-humanize ignores sensitive fields even with a selectionText fallback', () => {
+  document.body.innerHTML = '<input type="text" autocomplete="cc-number" value="4111111111111111">';
+  document.querySelector('input')!.focus();
+  for (const fn of [...runtimeListeners]) fn({ type: 'context-humanize', selectionText: '4111111111111111' });
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+  expect(port.sent).toHaveLength(0);
+});
+
+test('streaming chunks keep the request alive past the deadline', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  vi.advanceTimersByTime(45_000);
+  port.emit({ type: 'chunk', id: req.id, textSoFar: 'partial' });
+  vi.advanceTimersByTime(45_000);
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.status')!.textContent).not.toContain('No response');
+  vi.advanceTimersByTime(61_000);
+  expect(shadow.querySelector('.status')!.textContent).toContain('No response');
+});

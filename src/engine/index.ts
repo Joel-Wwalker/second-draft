@@ -18,7 +18,7 @@ export async function humanize(
 ): Promise<HumanizeResult> {
   throwIfAborted(opts.signal);
   if (text.length > MAX_INPUT_CHARS) {
-    throw new HumanizerError('too-long', `Input is ${text.length} chars; max is ${MAX_INPUT_CHARS}.`);
+    throw new HumanizerError('too-long', 'Selection is too long for this engine. Split it or add an API key.');
   }
 
   const tells = detect(text);
@@ -50,6 +50,9 @@ export async function humanize(
 
   throwIfAborted(opts.signal);
   const rewritten = applyFixes(stripWrapping(raw, text));
+  if (text.trim() && !rewritten.trim()) {
+    throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
+  }
   return { rewritten, changes: diffChanges(text, rewritten, tells), engine: provider.info };
 }
 

@@ -23,8 +23,10 @@ account, no servers, no tracking, unlimited use. Optionally add your own
 Anthropic or OpenAI-compatible API key for higher quality rewrites; your key
 stays in your browser.
 
-Positioning note (per spec): this listing says "make AI drafts sound like you";
-it does not promise to defeat AI detectors.
+## Positioning note
+
+This listing says "make AI drafts sound like you"; it does not promise to
+defeat AI detectors.
 
 ## Category
 
@@ -41,6 +43,10 @@ Productivity / Writing
 - activeTab: lets the popup show and toggle the current site's disable switch.
 - Optional host permissions: requested only when the user configures their own
   API key, limited to the provider domain they enter.
+- Optional host permissions are declared broadly (https, plus http localhost
+  and 127.0.0.1 for local models) because users may configure any
+  OpenAI-compatible endpoint; a specific origin is requested only when the
+  user saves a key, never at install.
 
 ## Assets still needed from the owner
 

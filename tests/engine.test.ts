@@ -58,3 +58,10 @@ test('a provider whose available() throws is skipped, not fatal', async () => {
   const res = await humanize('A—B here', { intensity: 'light' }, { providers: [explosive] });
   expect(res.engine.kind).toBe('rules');
 });
+
+test('an empty provider rewrite is rejected, not applied', async () => {
+  const empty = new FakeProvider(() => '');
+  await expect(
+    humanize('some real text', { intensity: 'light' }, { providers: [empty] }),
+  ).rejects.toMatchObject({ kind: 'internal' });
+});

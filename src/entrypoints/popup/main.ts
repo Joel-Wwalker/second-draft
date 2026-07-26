@@ -12,6 +12,7 @@ const go = byId<HTMLButtonElement>('go');
 const copy = byId<HTMLButtonElement>('copy');
 const status = byId<HTMLParagraphElement>('status');
 const engineLabel = byId<HTMLSpanElement>('engine');
+const openOptions = byId<HTMLButtonElement>('openOptions');
 const siteRow = byId<HTMLDivElement>('siteRow');
 const siteToggle = byId<HTMLInputElement>('siteToggle');
 const siteHost = byId<HTMLSpanElement>('siteHost');
@@ -29,6 +30,9 @@ async function init(): Promise<void> {
   });
   copy.addEventListener('click', () => {
     void navigator.clipboard.writeText(output.value);
+  });
+  openOptions.addEventListener('click', () => {
+    void chrome.runtime.openOptionsPage();
   });
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url;
@@ -50,7 +54,9 @@ async function init(): Promise<void> {
   }
 
   if (settings.byok.provider !== 'none' && settings.byok.apiKey) {
-    engineLabel.textContent = `Your API key (${settings.byok.model || 'default model'})`;
+    const model =
+      settings.byok.model || (settings.byok.provider === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-4o-mini');
+    engineLabel.textContent = `Your API key (${model})`;
   } else if (typeof LanguageModel !== 'undefined' && LanguageModel) {
     const availability = await LanguageModel.availability().catch(() => 'unavailable' as const);
     engineLabel.textContent =

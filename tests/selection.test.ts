@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test } from 'vitest';
-import { getEditableSelection, getPlainSelection } from '../src/content/selection';
+import { getEditableSelection, getPlainSelection, isSensitiveTarget } from '../src/content/selection';
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -82,4 +82,13 @@ test('never captures credential-scented text fields', () => {
   input.focus();
   input.setSelectionRange(0, 16);
   expect(getEditableSelection(document)).toBeNull();
+});
+
+test('isSensitiveTarget flags credential fields for the context-menu guard', () => {
+  document.body.innerHTML = '<input type="text" autocomplete="one-time-code" value="12345678901">';
+  document.querySelector('input')!.focus();
+  expect(isSensitiveTarget(document)).toBe(true);
+  document.body.innerHTML = '<textarea>plain text here</textarea>';
+  document.querySelector('textarea')!.focus();
+  expect(isSensitiveTarget(document)).toBe(false);
 });
