@@ -31,6 +31,24 @@ describe('applyFixes', () => {
   test('leaves em dashes inside quotes alone', () => {
     expect(applyFixes('He wrote "wait — really?" and left.')).toBe('He wrote "wait — really?" and left.');
   });
+
+  test('preserves markdown indentation and double spaces', () => {
+    expect(applyFixes('- item\n  - nested\n    - code')).toBe('- item\n  - nested\n    - code');
+    expect(applyFixes('One.  Two spaces stay.')).toBe('One.  Two spaces stay.');
+  });
+
+  test('strips line-leading emoji without leaving a leading space', () => {
+    expect(applyFixes('🚀 Launch\n✅ Done')).toBe('Launch\nDone');
+  });
+
+  test('keeps trademark, copyright, and arrow symbols', () => {
+    expect(applyFixes('Acme® sells Widget™ © 2026, a ↔ b')).toBe('Acme® sells Widget™ © 2026, a ↔ b');
+  });
+
+  test('unbalanced quotes do not shield distant dashes', () => {
+    expect(applyFixes('He said "hello and the plan — bold. She said "bye"'))
+      .toBe('He said "hello and the plan, bold. She said "bye"');
+  });
 });
 
 describe('detect', () => {

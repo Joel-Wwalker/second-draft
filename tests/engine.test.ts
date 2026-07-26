@@ -41,3 +41,8 @@ test('stripWrapping removes preambles, fences, and wrapper quotes', () => {
   expect(stripWrapping('```\nClean.\n```', 'orig')).toBe('Clean.');
   expect(stripWrapping('"Clean."', 'orig')).toBe('Clean.');
 });
+
+test('stripWrapping keeps wrappers the original already had', () => {
+  expect(stripWrapping('Here is the plan: do it.', 'Here is the plan: do it.')).toBe('Here is the plan: do it.');
+  expect(stripWrapping('```\ncode\n```', '```\ncode\n```')).toBe('```\ncode\n```');
+});

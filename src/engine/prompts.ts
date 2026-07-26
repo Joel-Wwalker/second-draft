@@ -19,7 +19,8 @@ const TELL_NAMES: Record<string, string> = {
 const CONTRACT =
   'Rewrite the text the user sends. Output only the rewritten text: no preamble, no explanation, ' +
   'no quotes around it, no code fences. Preserve the meaning, approximate length, paragraph breaks, ' +
-  'and all facts. Never use em dashes or en dashes anywhere in the output.';
+  'and all facts. Never use em dashes or en dashes anywhere in the output. ' +
+  'Leave text inside quotation marks exactly as written.';
 
 const LIGHT_CORE = `${CONTRACT}
 Change as little as possible. Only fix these AI tells where they appear:

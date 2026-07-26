@@ -9,6 +9,8 @@ test('light prompt lists detected tells and the output contract', () => {
   expect(p).toContain('Output only the rewritten text');
   expect(p).toContain('em dash');
   expect(p).toContain('Change as little as possible');
+  expect(p).toMatch(/Detected in this text: .*em dash/);
+  expect(p).toContain('Leave text inside quotation marks exactly as written.');
 });
 
 test('full prompt includes pattern guidance that light omits', () => {

@@ -55,7 +55,7 @@ export const RULES: Rule[] = [
   {
     id: 'emoji',
     reason: 'Emoji removed',
-    pattern: /[ \t]?\p{Extended_Pictographic}(?:[\p{Extended_Pictographic}\u{FE0F}\u{200D}])*[ \t]?/gu,
+    pattern: /[ \t]?(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:[\p{Extended_Pictographic}\uFE0F\u200D])*[ \t]?/gu,
     fixable: true,
     replacement: () => ' ',
   },
@@ -102,7 +102,7 @@ export const RULES: Rule[] = [
 
 export function quotedRegions(text: string): Span[] {
   const spans: Span[] = [];
-  const re = /"[^"\n]{1,300}"|“[^”\n]{1,300}”/g;
+  const re = /(?<!\w)"[^"\n]{1,300}"(?!\w)|“[^”\n]{1,300}”/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
     spans.push({ start: m.index, end: m.index + m[0].length });
   }
@@ -161,8 +161,8 @@ function replaceOutsideQuotes(text: string, rule: Rule): string {
 /** Cleanup after mechanical replacements. */
 export function tidy(text: string): string {
   return text
-    .replace(/[ \t]{2,}/g, ' ')
     .replace(/ ([,.;:!?])/g, '$1')
     .replace(/, *,/g, ',')
-    .replace(/^[ \t]+|[ \t]+$/gm, '');
+    .replace(/[ \t]+$/gm, '')
+    .replace(/^ (?=\S)/gm, '');
 }

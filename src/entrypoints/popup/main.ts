@@ -40,6 +40,7 @@ async function run(): Promise<void> {
   if (!text) return;
   go.disabled = true;
   copy.disabled = true;
+  output.value = '';
   status.textContent = 'Rewriting...';
   engineLabel.textContent = '';
   try {

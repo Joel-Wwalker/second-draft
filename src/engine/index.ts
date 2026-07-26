@@ -53,13 +53,16 @@ export async function humanize(
   return { rewritten, changes: diffChanges(text, rewritten, tells), engine: provider.info };
 }
 
-/** Models wrap output despite instructions; peel fences, preambles, and quotes. */
+/** Models wrap output despite instructions; peel fences, preambles, and quotes the original did not have. */
 export function stripWrapping(raw: string, original: string): string {
   let out = raw.trim();
-  const fence = out.match(/^```[a-z]*\n([\s\S]*?)\n?```$/i);
-  if (fence) out = fence[1]!.trim();
-  out = out.replace(/^here(?:'s| is)[^\n:]{0,60}:\s*/i, '');
-  const wrapped = /^"[\s\S]*"$/.test(out) && !/^"[\s\S]*"$/.test(original.trim());
+  const orig = original.trim();
+  const fenceRe = /^```[a-z]*\n([\s\S]*?)\n?```$/i;
+  const fence = out.match(fenceRe);
+  if (fence && !fenceRe.test(orig)) out = fence[1]!.trim();
+  const preambleRe = /^here(?:'s| is)[^\n:]{0,60}:\s*/i;
+  if (!preambleRe.test(orig)) out = out.replace(preambleRe, '');
+  const wrapped = /^"[\s\S]*"$/.test(out) && !/^"[\s\S]*"$/.test(orig);
   if (wrapped) out = out.slice(1, -1).trim();
   return out;
 }
