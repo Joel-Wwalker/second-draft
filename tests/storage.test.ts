@@ -28,3 +28,17 @@ test('updateSettings merges a patch and persists it', async () => {
   expect(settings.useFakeProvider).toBe(true);
   expect(settings.defaultIntensity).toBe(DEFAULT_SETTINGS.defaultIntensity);
 });
+
+test('toggleSiteDisabled adds then removes a host', async () => {
+  const { isSiteDisabled, toggleSiteDisabled } = await import('../src/shared/storage');
+  await toggleSiteDisabled('example.com');
+  expect(await isSiteDisabled('example.com')).toBe(true);
+  await toggleSiteDisabled('example.com');
+  expect(await isSiteDisabled('example.com')).toBe(false);
+});
+
+test('settings stored before disabledSites existed still merge cleanly', async () => {
+  const { getSettings } = await import('../src/shared/storage');
+  const { DEFAULT_SETTINGS } = await import('../src/shared/storage');
+  expect((await getSettings()).disabledSites).toEqual(DEFAULT_SETTINGS.disabledSites);
+});
