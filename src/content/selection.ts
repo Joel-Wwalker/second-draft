@@ -1,0 +1,48 @@
+export const MIN_SELECTION_CHARS = 10;
+
+export type EditableSelection =
+  | { kind: 'field'; el: HTMLTextAreaElement | HTMLInputElement; start: number; end: number; text: string }
+  | { kind: 'editable'; root: HTMLElement; range: Range; text: string };
+
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email']);
+
+export function getEditableSelection(doc: Document): EditableSelection | null {
+  const active = doc.activeElement;
+  if (
+    active instanceof HTMLTextAreaElement ||
+    (active instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(active.type))
+  ) {
+    const start = active.selectionStart ?? 0;
+    const end = active.selectionEnd ?? 0;
+    if (end - start < MIN_SELECTION_CHARS) return null;
+    return { kind: 'field', el: active, start, end, text: active.value.slice(start, end) };
+  }
+
+  const sel = doc.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+  const range = sel.getRangeAt(0);
+  const root = editableRoot(range.commonAncestorContainer);
+  if (!root) return null;
+  const text = sel.toString();
+  if (text.length < MIN_SELECTION_CHARS) return null;
+  return { kind: 'editable', root, range: range.cloneRange(), text };
+}
+
+/** Selected text anywhere on the page (context-menu path; may be non-editable). */
+export function getPlainSelection(doc: Document): string {
+  return doc.getSelection()?.toString() ?? '';
+}
+
+const EDITABLE_SELECTOR = '[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]';
+
+/** Outermost contenteditable ancestor, attribute-based so it works in jsdom too. */
+function editableRoot(node: Node | null): HTMLElement | null {
+  const el = node instanceof HTMLElement ? node : (node?.parentElement ?? null);
+  let cur = el?.closest<HTMLElement>(EDITABLE_SELECTOR) ?? null;
+  while (cur) {
+    const above = cur.parentElement?.closest<HTMLElement>(EDITABLE_SELECTOR) ?? null;
+    if (!above) return cur;
+    cur = above;
+  }
+  return null;
+}
