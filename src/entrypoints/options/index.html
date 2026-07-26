@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Humanizer settings</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1>Humanizer settings</h1>
+
+    <section>
+      <h2>On-device AI (Gemini Nano)</h2>
+      <p id="nanoStatus" class="muted">Checking...</p>
+      <button id="nanoDownload" hidden>Download model</button>
+    </section>
+
+    <section>
+      <h2>Your API key (optional, higher quality)</h2>
+      <label>Provider
+        <select id="byokProvider">
+          <option value="none">None (use on-device AI)</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="openai">OpenAI-compatible (OpenAI, OpenRouter, Groq, Ollama)</option>
+        </select>
+      </label>
+      <label id="keyRow" hidden>API key
+        <input id="byokKey" type="password" autocomplete="off" spellcheck="false" />
+      </label>
+      <label id="modelRow" hidden>Model
+        <input id="byokModel" type="text" spellcheck="false" />
+      </label>
+      <label id="baseUrlRow" hidden>Base URL
+        <input id="byokBaseUrl" type="text" spellcheck="false" />
+      </label>
+      <p class="muted">Your key stays in this browser's local extension storage and is only sent to the provider you configure.</p>
+    </section>
+
+    <section>
+      <h2>Voice sample (optional)</h2>
+      <p class="muted">Paste a sample of your own writing; rewrites will try to match its voice.</p>
+      <textarea id="voiceSample" rows="6" maxlength="20000"></textarea>
+    </section>
+
+    <section>
+      <h2>Defaults</h2>
+      <label>Intensity
+        <select id="defaultIntensity">
+          <option value="light">Light touch</option>
+          <option value="full">Full rewrite</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Disabled sites</h2>
+      <ul id="siteList"></ul>
+      <p id="noSites" class="muted">No sites disabled.</p>
+    </section>
+
+    <div class="row">
+      <button id="save">Save</button>
+      <span id="saveStatus" class="muted"></span>
+    </div>
+
+    <footer class="muted">
+      Rewrite patterns derive from the MIT-licensed humanizer skill (blader/humanizer), based on Wikipedia's "Signs of AI writing".
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

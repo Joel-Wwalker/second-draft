@@ -1273,7 +1273,6 @@ async function downloadNano(): Promise<void> {
 Extend the storage import with `DEFAULT_SETTINGS` if not present, and append to the end of `init()`:
 
 ```ts
-  const settings = await getSettings();
   if (settings.byok.provider !== 'none' && settings.byok.apiKey) {
     engineLabel.textContent = `Your API key (${settings.byok.model || 'default model'})`;
   } else if (typeof LanguageModel !== 'undefined' && LanguageModel) {

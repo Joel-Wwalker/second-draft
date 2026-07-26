@@ -39,10 +39,26 @@ async function init(): Promise<void> {
     siteRow.hidden = false;
     siteToggle.addEventListener('change', () => {
       siteToggle.disabled = true;
-      void toggleSiteDisabled(host).finally(() => {
-        siteToggle.disabled = false;
-      });
+      void toggleSiteDisabled(host)
+        .catch(() => {
+          siteToggle.checked = !siteToggle.checked;
+        })
+        .finally(() => {
+          siteToggle.disabled = false;
+        });
     });
+  }
+
+  if (settings.byok.provider !== 'none' && settings.byok.apiKey) {
+    engineLabel.textContent = `Your API key (${settings.byok.model || 'default model'})`;
+  } else if (typeof LanguageModel !== 'undefined' && LanguageModel) {
+    const availability = await LanguageModel.availability().catch(() => 'unavailable' as const);
+    engineLabel.textContent =
+      availability === 'available'
+        ? 'On-device AI ready'
+        : 'On-device AI not ready. Open Settings.';
+  } else {
+    engineLabel.textContent = 'Quick clean only (no AI engine available)';
   }
 }
 
