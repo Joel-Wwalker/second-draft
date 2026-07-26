@@ -7,5 +7,6 @@ export default defineConfig({
     description: 'Make AI drafts sound like you. Rewrites run on your device.',
     minimum_chrome_version: '138',
     permissions: ['storage', 'contextMenus', 'activeTab'],
+    optional_host_permissions: ['https://*/*'],
   },
 });

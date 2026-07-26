@@ -1,6 +1,11 @@
 import { humanize } from '../engine';
 import { FakeProvider } from '../engine/providers/fake';
+import { NanoProvider } from '../engine/providers/nano';
+import { AnthropicProvider } from '../engine/providers/anthropic';
+import { OpenAIProvider } from '../engine/providers/openai';
 import { getSettings } from '../shared/storage';
+import type { Settings } from '../shared/storage';
+import { redactError } from '../shared/redact';
 import { HumanizerError } from '../shared/types';
 import type { Intensity, Provider } from '../shared/types';
 import { HUMANIZE_PORT, isCancelRequest, isHumanizeRequest } from '../shared/messages';
@@ -82,13 +87,30 @@ async function runHumanize(
 ): Promise<HumanizeResponse> {
   try {
     const settings = await getSettings();
-    // Real providers (nano, byok) land in Plan 3; empty means rules-only.
-    const providers: Provider[] = settings.useFakeProvider ? [new FakeProvider()] : [];
-    const result = await humanize(text, { intensity, signal, onChunk }, { providers });
+    const result = await humanize(
+      text,
+      { intensity, signal, onChunk, voiceSample: settings.voiceSample || undefined },
+      { providers: buildProviders(settings) },
+    );
     return { ok: true, result };
   } catch (err) {
-    const e = err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
+    const e = err instanceof HumanizerError ? err : new HumanizerError('internal', redactError(String(err)));
     if (e.kind !== 'aborted') console.error('[humanizer]', e.kind, e.message);
-    return { ok: false, kind: e.kind, message: e.message };
+    return { ok: false, kind: e.kind, message: redactError(e.message) };
   }
+}
+
+function buildProviders(settings: Settings): Provider[] {
+  if (settings.useFakeProvider) return [new FakeProvider()];
+  const providers: Provider[] = [];
+  const { byok } = settings;
+  if (byok.provider === 'anthropic' && byok.apiKey) {
+    providers.push(new AnthropicProvider({ apiKey: byok.apiKey, model: byok.model || 'claude-sonnet-4-5' }));
+  } else if (byok.provider === 'openai' && byok.apiKey) {
+    providers.push(
+      new OpenAIProvider({ baseUrl: byok.baseUrl, apiKey: byok.apiKey, model: byok.model || 'gpt-4o-mini' }),
+    );
+  }
+  providers.push(new NanoProvider());
+  return providers;
 }

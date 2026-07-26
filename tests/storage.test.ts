@@ -45,3 +45,19 @@ test('settings stored before disabledSites existed still merge cleanly', async (
   expect(settings.defaultIntensity).toBe('light');
   expect(settings.useFakeProvider).toBe(true);
 });
+
+test('byok settings deep-merge over defaults', async () => {
+  const { DEFAULT_SETTINGS, getSettings, updateSettings } = await import('../src/shared/storage');
+  await updateSettings({ byok: { ...DEFAULT_SETTINGS.byok, provider: 'anthropic', apiKey: 'k1' } });
+  const settings = await getSettings();
+  expect(settings.byok.provider).toBe('anthropic');
+  expect(settings.byok.baseUrl).toBe(DEFAULT_SETTINGS.byok.baseUrl);
+});
+
+test('legacy records without byok/voiceSample still merge cleanly', async () => {
+  const { getSettings } = await import('../src/shared/storage');
+  await chrome.storage.local.set({ settings: { defaultIntensity: 'light', useFakeProvider: false, disabledSites: [] } });
+  const settings = await getSettings();
+  expect(settings.byok.provider).toBe('none');
+  expect(settings.voiceSample).toBe('');
+});

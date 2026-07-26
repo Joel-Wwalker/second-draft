@@ -46,3 +46,15 @@ test('stripWrapping keeps wrappers the original already had', () => {
   expect(stripWrapping('Here is the plan: do it.', 'Here is the plan: do it.')).toBe('Here is the plan: do it.');
   expect(stripWrapping('```\ncode\n```', '```\ncode\n```')).toBe('```\ncode\n```');
 });
+
+test('a provider whose available() throws is skipped, not fatal', async () => {
+  const explosive = {
+    info: { kind: 'nano' as const },
+    available: async (): Promise<boolean> => {
+      throw new Error('probe failed');
+    },
+    rewrite: async (): Promise<string> => 'never',
+  };
+  const res = await humanize('A—B here', { intensity: 'light' }, { providers: [explosive] });
+  expect(res.engine.kind).toBe('rules');
+});

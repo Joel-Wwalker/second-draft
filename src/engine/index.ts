@@ -69,7 +69,11 @@ export function stripWrapping(raw: string, original: string): string {
 
 async function firstAvailable(providers: Provider[]): Promise<Provider | null> {
   for (const provider of providers) {
-    if (await provider.available()) return provider;
+    try {
+      if (await provider.available()) return provider;
+    } catch {
+      // A throwing probe means unavailable; fall through to the next provider.
+    }
   }
   return null;
 }
