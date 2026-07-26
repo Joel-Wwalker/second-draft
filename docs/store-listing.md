@@ -11,13 +11,16 @@ Make AI drafts sound like you. Select text, click Humanize, review the changes, 
 
 ## Description
 
-Humanizer removes the telltale signs of AI-generated writing: em dashes, curly
-quotes, "delve" and its friends, chatbot filler, rule-of-three cadence, and
+AI wrote your first draft. Second Draft makes it yours: it removes the
+telltale signs of AI-generated writing, including em dashes, curly quotes,
+"delve" and its friends, chatbot filler, rule-of-three cadence, and
 promotional fluff.
 
 Select text in almost any editable field, click the Humanize chip, and review
-a before-and-after with every change explained. Apply replaces the text in
-place. A popup paste box covers sites that block in-place editing.
+a before-and-after with every change explained: a What-changed log lists each
+edit with its reason, and an AI-tells score shows how many tells were found
+and how many remain. Apply replaces the text in place. A popup paste box
+covers sites that block in-place editing.
 
 Private by design: rewrites run on your device using Chrome's built-in AI. No
 account, no servers, no tracking, unlimited use. Optionally add your own
