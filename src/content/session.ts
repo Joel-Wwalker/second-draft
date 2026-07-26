@@ -47,10 +47,15 @@ export class HumanizeSession {
 
   stop(): void {
     this.stopped = true;
+    if (this.debounce) clearTimeout(this.debounce);
+    this.debounce = null;
     this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mousedown', this.onMouseDown, true);
+    chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
     this.chip.hide();
     this.dismissCard();
+    this.port?.disconnect();
+    this.port = null;
   }
 
   private readonly onSelectionChange = (): void => {
@@ -65,6 +70,7 @@ export class HumanizeSession {
   };
 
   private readonly onRuntimeMessage = (msg: unknown): void => {
+    if (this.stopped) return;
     if (typeof msg !== 'object' || msg === null) return;
     if ((msg as Record<string, unknown>)['type'] !== 'context-humanize') return;
     const editable = getEditableSelection(this.doc);
@@ -85,6 +91,7 @@ export class HumanizeSession {
   };
 
   private updateChip(): void {
+    if (this.stopped) return;
     if (this.card.isOpen) return;
     this.selection = getEditableSelection(this.doc);
     if (!this.selection) {
@@ -133,8 +140,8 @@ export class HumanizeSession {
   }
 
   private cancelInFlight(): void {
-    if (this.requestId && !this.result) {
-      this.ensurePort().postMessage({ type: 'cancel', id: this.requestId });
+    if (this.requestId && !this.result && this.port) {
+      this.port.postMessage({ type: 'cancel', id: this.requestId });
     }
     this.requestId = null;
   }

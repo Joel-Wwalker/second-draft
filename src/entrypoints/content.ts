@@ -10,17 +10,21 @@ export default defineContentScript({
 
 async function boot(): Promise<void> {
   let session: HumanizeSession | null = null;
+  let pending: Promise<void> = Promise.resolve();
   const host = location.host;
 
-  const sync = async (): Promise<void> => {
-    const disabled = await isSiteDisabled(host);
-    if (disabled && session) {
-      session.stop();
-      session = null;
-    } else if (!disabled && !session) {
-      session = new HumanizeSession(document);
-      session.start();
-    }
+  const sync = (): Promise<void> => {
+    pending = pending.then(async () => {
+      const disabled = await isSiteDisabled(host);
+      if (disabled && session) {
+        session.stop();
+        session = null;
+      } else if (!disabled && !session) {
+        session = new HumanizeSession(document);
+        session.start();
+      }
+    });
+    return pending;
   };
 
   chrome.storage.onChanged.addListener((changes, area) => {

@@ -1096,6 +1096,7 @@ class FakePort {
 }
 
 let port: FakePort;
+let runtimeListeners: Array<(msg: unknown) => void> = [];
 let session: import('../src/content/session').HumanizeSession;
 
 beforeEach(async () => {
@@ -1104,11 +1105,18 @@ beforeEach(async () => {
   const store: Record<string, unknown> = {
     settings: { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] },
   };
+  runtimeListeners = [];
   (globalThis as Record<string, unknown>)['chrome'] = {
     runtime: {
       id: 'test',
       connect: () => port,
-      onMessage: { addListener: (): void => undefined },
+      onMessage: {
+        addListener: (fn: (msg: unknown) => void): void => void runtimeListeners.push(fn),
+        removeListener: (fn: (msg: unknown) => void): void => {
+          const i = runtimeListeners.indexOf(fn);
+          if (i >= 0) runtimeListeners.splice(i, 1);
+        },
+      },
     },
     storage: {
       local: {
@@ -1195,6 +1203,29 @@ test('stale responses for superseded ids are ignored', () => {
   });
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
 });
+
+test('stop() removes the runtime listener and ignores late messages', () => {
+  expect(runtimeListeners).toHaveLength(1);
+  session.stop();
+  expect(runtimeListeners).toHaveLength(0);
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('a debounce pending at stop() cannot resurrect the chip', () => {
+  const ta = document.querySelector('textarea')!;
+  ta.focus();
+  ta.setSelectionRange(0, 30);
+  document.dispatchEvent(new Event('selectionchange'));
+  session.stop();
+  vi.advanceTimersByTime(300);
+  expect(document.getElementById('humanizer-chip-host')).toBeNull();
+});
+
+test('selection changes after stop() never show the chip', () => {
+  session.stop();
+  selectInTextarea();
+  expect(document.getElementById('humanizer-chip-host')).toBeNull();
+});
 ```
 
 - [ ] **Step 2: Run, confirm failure**
@@ -1254,10 +1285,15 @@ export class HumanizeSession {
 
   stop(): void {
     this.stopped = true;
+    if (this.debounce) clearTimeout(this.debounce);
+    this.debounce = null;
     this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mousedown', this.onMouseDown, true);
+    chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
     this.chip.hide();
     this.dismissCard();
+    this.port?.disconnect();
+    this.port = null;
   }
 
   private readonly onSelectionChange = (): void => {
@@ -1272,6 +1308,7 @@ export class HumanizeSession {
   };
 
   private readonly onRuntimeMessage = (msg: unknown): void => {
+    if (this.stopped) return;
     if (typeof msg !== 'object' || msg === null) return;
     if ((msg as Record<string, unknown>)['type'] !== 'context-humanize') return;
     const editable = getEditableSelection(this.doc);
@@ -1292,6 +1329,7 @@ export class HumanizeSession {
   };
 
   private updateChip(): void {
+    if (this.stopped) return;
     if (this.card.isOpen) return;
     this.selection = getEditableSelection(this.doc);
     if (!this.selection) {
@@ -1340,8 +1378,8 @@ export class HumanizeSession {
   }
 
   private cancelInFlight(): void {
-    if (this.requestId && !this.result) {
-      this.ensurePort().postMessage({ type: 'cancel', id: this.requestId });
+    if (this.requestId && !this.result && this.port) {
+      this.port.postMessage({ type: 'cancel', id: this.requestId });
     }
     this.requestId = null;
   }
@@ -1413,17 +1451,21 @@ export default defineContentScript({
 
 async function boot(): Promise<void> {
   let session: HumanizeSession | null = null;
+  let pending: Promise<void> = Promise.resolve();
   const host = location.host;
 
-  const sync = async (): Promise<void> => {
-    const disabled = await isSiteDisabled(host);
-    if (disabled && session) {
-      session.stop();
-      session = null;
-    } else if (!disabled && !session) {
-      session = new HumanizeSession(document);
-      session.start();
-    }
+  const sync = (): Promise<void> => {
+    pending = pending.then(async () => {
+      const disabled = await isSiteDisabled(host);
+      if (disabled && session) {
+        session.stop();
+        session = null;
+      } else if (!disabled && !session) {
+        session = new HumanizeSession(document);
+        session.start();
+      }
+    });
+    return pending;
   };
 
   chrome.storage.onChanged.addListener((changes, area) => {

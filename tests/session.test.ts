@@ -18,6 +18,7 @@ class FakePort {
 }
 
 let port: FakePort;
+let runtimeListeners: Array<(msg: unknown) => void> = [];
 let session: import('../src/content/session').HumanizeSession;
 
 beforeEach(async () => {
@@ -26,11 +27,18 @@ beforeEach(async () => {
   const store: Record<string, unknown> = {
     settings: { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] },
   };
+  runtimeListeners = [];
   (globalThis as Record<string, unknown>)['chrome'] = {
     runtime: {
       id: 'test',
       connect: () => port,
-      onMessage: { addListener: (): void => undefined },
+      onMessage: {
+        addListener: (fn: (msg: unknown) => void): void => void runtimeListeners.push(fn),
+        removeListener: (fn: (msg: unknown) => void): void => {
+          const i = runtimeListeners.indexOf(fn);
+          if (i >= 0) runtimeListeners.splice(i, 1);
+        },
+      },
     },
     storage: {
       local: {
@@ -116,4 +124,27 @@ test('stale responses for superseded ids are ignored', () => {
     result: { rewritten: 'STALE', changes: [], engine: { kind: 'fake' } },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
+});
+
+test('stop() removes the runtime listener and ignores late messages', () => {
+  expect(runtimeListeners).toHaveLength(1);
+  session.stop();
+  expect(runtimeListeners).toHaveLength(0);
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('a debounce pending at stop() cannot resurrect the chip', () => {
+  const ta = document.querySelector('textarea')!;
+  ta.focus();
+  ta.setSelectionRange(0, 30);
+  document.dispatchEvent(new Event('selectionchange'));
+  session.stop();
+  vi.advanceTimersByTime(300);
+  expect(document.getElementById('humanizer-chip-host')).toBeNull();
+});
+
+test('selection changes after stop() never show the chip', () => {
+  session.stop();
+  selectInTextarea();
+  expect(document.getElementById('humanizer-chip-host')).toBeNull();
 });
