@@ -5,7 +5,7 @@ export const NANO_CHUNK_CHARS = 4000;
 
 /** Chrome's on-device Gemini Nano via the Prompt API (extension SW context). */
 export class NanoProvider implements Provider {
-  readonly info: EngineInfo = { kind: 'nano', model: 'gemini-nano' };
+  readonly info: EngineInfo = { kind: 'nano' };
 
   async available(): Promise<boolean> {
     if (typeof LanguageModel === 'undefined' || !LanguageModel) return false;

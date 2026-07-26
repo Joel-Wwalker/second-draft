@@ -1664,7 +1664,7 @@ rows where noted (Clear extension storage via service-worker console).
 | 6 | WordPress classic editor (iframe) | Chip does not appear (top-frame only, known); context menu on selection opens card with Copy |
 | 7 | Plain http:// page with a textarea | Chip works; no crash (randomUUID fallback) |
 | 8 | Reload the extension while a tab is open, then select + Humanize | Card shows "extension reloaded" error; after page reload everything works |
-| 9 | Options: Nano status reflects machine; download flow when `downloadable` | Progress percel then Ready |
+| 9 | Options: Nano status reflects machine; download flow when `downloadable` | Progress percentage, then Ready |
 | 10 | No key + Nano ready: rewrite a selection | Engine label "On-device AI (Gemini Nano)"; no em dashes in output |
 | 11 | No key + Nano unavailable | Quick clean result labeled as such |
 | 12 | Anthropic key: save (permission prompt appears), rewrite | Engine label "Your API key (model)"; streaming visible on long text |
