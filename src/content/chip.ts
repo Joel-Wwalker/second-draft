@@ -11,8 +11,8 @@ export class Chip {
     this.btn = doc.createElement('button');
     this.btn.textContent = 'Humanize';
     this.btn.style.cssText =
-      'all:initial;cursor:pointer;font:600 12px system-ui,sans-serif;color:#fff;' +
-      'background:#1a73e8;padding:5px 12px;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.35);';
+      'all:initial;cursor:pointer;font:600 12.5px system-ui,sans-serif;color:#fff;' +
+      'background:#4f46e5;padding:6px 14px;border-radius:999px;box-shadow:0 3px 10px rgba(79,70,229,.35);';
     this.btn.addEventListener('mousedown', e => {
       e.preventDefault();
       e.stopPropagation();

@@ -3,7 +3,7 @@
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
-const BLUE = [26, 115, 232, 255];
+const BLUE = [79, 70, 229, 255];
 const WHITE = [255, 255, 255, 255];
 const CLEAR = [0, 0, 0, 0];
 

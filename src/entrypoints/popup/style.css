@@ -1,6 +1,24 @@
-body { width: 420px; margin: 0; padding: 12px; font: 14px/1.4 system-ui, sans-serif; }
-h1 { font-size: 16px; margin: 0 0 8px; }
-textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; }
-button { font: inherit; padding: 4px 12px; }
-.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 8px 0; }
-.muted { color: #666; font-size: 12px; }
+:root {
+  --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --surface: #ffffff; --ground: #f8fafc;
+  --accent: #4f46e5; --accent-hover: #4338ca;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e2e8f0; --muted: #94a3b8; --line: #334155; --surface: #1e293b; --ground: #0f172a;
+    --accent: #6366f1; --accent-hover: #818cf8;
+  }
+}
+body { width: 420px; margin: 0; padding: 14px; font: 14px/1.5 system-ui, sans-serif; background: var(--ground); color: var(--ink); }
+h1 { font-size: 15px; font-weight: 650; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+h1::before { content: "H"; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 13px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: 0.5; cursor: default; }
+#go { background: var(--accent); border-color: var(--accent); color: #fff; }
+#go:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 10px 0; }
+.muted { color: var(--muted); font-size: 12px; }
+input[type="checkbox"] { accent-color: var(--accent); }

@@ -10,21 +10,24 @@ export interface CardCallbacks {
 
 const CARD_CSS = `
   :host { all: initial; }
-  .card { position: fixed; z-index: 2147483647; width: 360px; max-width: 92vw;
-    background: #fff; color: #202124; font: 13px/1.45 system-ui, sans-serif;
-    border: 1px solid #dadce0; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
-    max-height: calc(100vh - 16px); overflow: auto; }
-  .body { max-height: 260px; overflow: auto; padding: 10px 12px; white-space: pre-wrap; }
-  .rewritten mark { background: #e8f0fe; color: inherit; border-radius: 3px; }
-  .bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
-    border-top: 1px solid #eee; }
-  .status { padding: 0 12px 6px; color: #5f6368; min-height: 16px; }
-  .engine { color: #5f6368; margin-right: auto; }
-  button { font: inherit; padding: 4px 12px; border: 1px solid #dadce0; border-radius: 6px;
-    background: #fff; cursor: pointer; }
-  button.apply { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+  .card { position: fixed; z-index: 2147483647; width: 380px; max-width: 92vw;
+    max-height: calc(100vh - 16px); overflow: auto;
+    background: #ffffff; color: #0f172a; font: 13.5px/1.55 system-ui, sans-serif;
+    border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 12px 32px rgba(15,23,42,.18); }
+  .body { max-height: 260px; overflow: auto; padding: 12px 14px; white-space: pre-wrap; }
+  .rewritten mark { background: #e0e7ff; color: inherit; border-radius: 3px; }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 10px 14px;
+    border-top: 1px solid #e2e8f0; }
+  .status { padding: 0 14px 8px; color: #64748b; min-height: 16px; font-size: 12px; }
+  .engine { color: #64748b; margin-right: auto; font-size: 11.5px; }
+  button { font: 600 12.5px system-ui, sans-serif; padding: 5px 12px; border: 1px solid #e2e8f0;
+    border-radius: 6px; background: #fff; color: #0f172a; cursor: pointer; }
+  button:hover { border-color: #94a3b8; }
+  button.apply { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+  button.apply:hover { background: #4338ca; }
   button[hidden] { display: none; }
-  select { font: inherit; }
+  select { font: 12.5px system-ui, sans-serif; padding: 4px 8px; border: 1px solid #e2e8f0;
+    border-radius: 6px; background: #fff; color: #0f172a; }
 `;
 
 export class Card {
