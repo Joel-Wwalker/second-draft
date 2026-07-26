@@ -23,10 +23,19 @@ test('returns null under the minimum length', () => {
   expect(getEditableSelection(document)).toBeNull();
 });
 
-test('rejects non-text input types', () => {
+test('rejects input types without a readable selection', () => {
   document.body.innerHTML = '<input type="number" value="123456789012">';
-  const input = document.querySelector('input')!;
-  input.focus();
+  document.querySelector('input')!.focus();
+  expect(getEditableSelection(document)).toBeNull();
+
+  document.body.innerHTML = '<input type="email" value="someone@example.com">';
+  document.querySelector('input')!.focus();
+  expect(getEditableSelection(document)).toBeNull();
+});
+
+test('never captures password fields', () => {
+  document.body.innerHTML = '<input type="password" value="hunter2hunter2">';
+  document.querySelector('input')!.focus();
   expect(getEditableSelection(document)).toBeNull();
 });
 

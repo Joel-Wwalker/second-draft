@@ -4,7 +4,10 @@ export type EditableSelection =
   | { kind: 'field'; el: HTMLTextAreaElement | HTMLInputElement; start: number; end: number; text: string }
   | { kind: 'editable'; root: HTMLElement; range: Range; text: string };
 
-const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email']);
+// Input types whose selection API is readable in Chromium. email/number/date
+// types throw on selectionStart reads; password is deliberately excluded so
+// password text never reaches the engine.
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel']);
 
 export function getEditableSelection(doc: Document): EditableSelection | null {
   const active = doc.activeElement;
