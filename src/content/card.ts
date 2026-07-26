@@ -1,4 +1,5 @@
 import { engineLabel, resultStatus } from '../shared/labels';
+import { formatChanges } from '../shared/change-log';
 import type { HumanizeResult, HumanizerErrorKind, Intensity } from '../shared/types';
 
 export interface CardCallbacks {
@@ -28,6 +29,15 @@ const CARD_CSS = `
   button[hidden] { display: none; }
   select { font: 12.5px system-ui, sans-serif; padding: 4px 8px; border: 1px solid #e2e8f0;
     border-radius: 6px; background: #fff; color: #0f172a; }
+  .changes { border-top: 1px solid #e2e8f0; padding: 8px 14px; font-size: 12px; }
+  .changes summary { cursor: pointer; color: #64748b; font-weight: 600; }
+  .changes .rows { max-height: 150px; overflow: auto; margin-top: 6px; }
+  .chg { padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .chg:last-child { border-bottom: 0; }
+  .chg .why { display: block; font-size: 10.5px; color: #64748b; margin-bottom: 2px; }
+  .chg .b { color: #9f5f64; text-decoration-color: #d4a3a8; }
+  .chg .a { color: #0f172a; font-weight: 550; }
+  .changes[hidden] { display: none; }
 `;
 
 export class Card {
@@ -37,6 +47,8 @@ export class Card {
   private readonly cardEl: HTMLElement;
   private readonly bodyEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  private readonly changesEl: HTMLDetailsElement;
+  private readonly changeRowsEl: HTMLDivElement;
   private readonly engineEl: HTMLElement;
   private readonly applyBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
@@ -62,6 +74,14 @@ export class Card {
     this.bodyEl.className = 'body rewritten';
     this.statusEl = doc.createElement('div');
     this.statusEl.className = 'status';
+
+    this.changesEl = doc.createElement('details');
+    this.changesEl.className = 'changes';
+    const summary = doc.createElement('summary');
+    summary.textContent = 'What changed';
+    this.changeRowsEl = doc.createElement('div');
+    this.changeRowsEl.className = 'rows';
+    this.changesEl.append(summary, this.changeRowsEl);
 
     const bar = doc.createElement('div');
     bar.className = 'bar';
@@ -95,7 +115,7 @@ export class Card {
     this.dismissBtn.addEventListener('click', () => this.cb.onDismiss());
 
     bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.copyBtn, this.dismissBtn);
-    this.cardEl.append(this.bodyEl, this.statusEl, bar);
+    this.cardEl.append(this.bodyEl, this.statusEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
 
@@ -109,6 +129,9 @@ export class Card {
     this.bodyEl.textContent = '';
     this.engineEl.textContent = '';
     this.statusEl.textContent = 'Rewriting...';
+    this.changesEl.hidden = true;
+    this.changesEl.open = false;
+    this.changeRowsEl.textContent = '';
     const win = this.doc.defaultView;
     const viewportW = win?.innerWidth ?? 800;
     const viewportH = win?.innerHeight ?? 600;
@@ -128,10 +151,31 @@ export class Card {
     this.statusEl.textContent = 'Rewriting...';
   }
 
-  setResult(result: HumanizeResult): void {
+  setResult(result: HumanizeResult, original: string): void {
     renderHighlights(this.doc, this.bodyEl, result);
     this.engineEl.textContent = engineLabel(result.engine);
     this.statusEl.textContent = resultStatus(result);
+    this.changeRowsEl.textContent = '';
+    const rows = formatChanges(result, original);
+    this.changesEl.hidden = rows.length === 0;
+    for (const row of rows) {
+      const item = this.doc.createElement('div');
+      item.className = 'chg';
+      const why = this.doc.createElement('span');
+      why.className = 'why';
+      why.textContent = row.reason;
+      const line = this.doc.createElement('div');
+      const before = this.doc.createElement('s');
+      before.className = 'b';
+      before.textContent = row.before;
+      const arrow = this.doc.createTextNode(' \u2192 ');
+      const after = this.doc.createElement('span');
+      after.className = 'a';
+      after.textContent = row.after;
+      line.append(before, arrow, after);
+      item.append(why, line);
+      this.changeRowsEl.append(item);
+    }
   }
 
   setError(kind: HumanizerErrorKind, message: string): void {

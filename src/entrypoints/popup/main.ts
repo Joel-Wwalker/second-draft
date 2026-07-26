@@ -2,6 +2,7 @@ import type { BackgroundRequest, HumanizeResponse } from '../../shared/messages'
 import type { Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
 import { engineLabel as engineLabelFor, resultStatus } from '../../shared/labels';
+import { formatChanges } from '../../shared/change-log';
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -13,6 +14,8 @@ const copy = byId<HTMLButtonElement>('copy');
 const status = byId<HTMLParagraphElement>('status');
 const engineLabel = byId<HTMLSpanElement>('engine');
 const openOptions = byId<HTMLButtonElement>('openOptions');
+const changesBox = byId<HTMLDetailsElement>('changesBox');
+const changesList = byId<HTMLDivElement>('changesList');
 const siteRow = byId<HTMLDivElement>('siteRow');
 const siteToggle = byId<HTMLInputElement>('siteToggle');
 const siteHost = byId<HTMLSpanElement>('siteHost');
@@ -76,6 +79,9 @@ async function run(): Promise<void> {
   output.value = '';
   status.textContent = 'Rewriting...';
   engineLabel.textContent = '';
+  changesBox.hidden = true;
+  changesBox.open = false;
+  changesList.textContent = '';
   try {
     const req: BackgroundRequest = { type: 'humanize', id: crypto.randomUUID(), text, intensity: intensity.value as Intensity };
     const res = (await chrome.runtime.sendMessage(req)) as HumanizeResponse;
@@ -83,6 +89,26 @@ async function run(): Promise<void> {
       output.value = res.result.rewritten;
       engineLabel.textContent = engineLabelFor(res.result.engine);
       status.textContent = resultStatus(res.result);
+      const rows = formatChanges(res.result, text);
+      changesBox.hidden = rows.length === 0;
+      for (const row of rows) {
+        const item = document.createElement('div');
+        item.className = 'chg';
+        const why = document.createElement('span');
+        why.className = 'why';
+        why.textContent = row.reason;
+        const line = document.createElement('div');
+        const before = document.createElement('s');
+        before.className = 'b';
+        before.textContent = row.before;
+        const arrow = document.createTextNode(' → ');
+        const after = document.createElement('span');
+        after.className = 'a';
+        after.textContent = row.after;
+        line.append(before, arrow, after);
+        item.append(why, line);
+        changesList.append(item);
+      }
       copy.disabled = false;
     } else {
       status.textContent = `Error: ${res.message}`;

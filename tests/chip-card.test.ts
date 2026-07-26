@@ -30,11 +30,13 @@ test('card renders a result with highlight marks and engine label', () => {
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   const result: HumanizeResult = {
     rewritten: 'We dig in.',
-    changes: [{ range: { start: 3, end: 6 }, ruleId: 'ai-vocab', reason: 'AI-associated vocabulary' }],
+    changes: [
+      { range: { start: 3, end: 6 }, from: { start: 3, end: 8 }, ruleId: 'ai-vocab', reason: 'AI-associated vocabulary' },
+    ],
     engine: { kind: 'fake', model: 'fake-echo' },
     tells: { before: 1, after: 0 },
   };
-  card.setResult(result);
+  card.setResult(result, 'We delve in.');
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
   const mark = shadow.querySelector('.rewritten mark')!;
   expect(mark.textContent).toBe('dig');
@@ -44,6 +46,10 @@ test('card renders a result with highlight marks and engine label', () => {
   expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(false);
   expect(card.contains(shadow.querySelector('button.apply'))).toBe(true);
   expect(card.contains(document.body)).toBe(false);
+  const rows = shadow.querySelectorAll('.chg');
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.textContent).toContain('delve');
+  expect(rows[0]!.textContent).toContain('dig');
 });
 
 test('card hides Apply when canApply is false', () => {

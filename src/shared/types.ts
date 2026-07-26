@@ -15,6 +15,8 @@ export interface DetectedTell {
 export interface Change {
   /** Indexes into the rewritten text. */
   range: Span;
+  /** Indexes into the original text (zero-width for pure insertions). */
+  from?: Span;
   ruleId?: string;
   reason: string;
 }

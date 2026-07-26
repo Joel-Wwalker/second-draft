@@ -204,7 +204,7 @@ export class HumanizeSession {
     } else if (msg.type === 'done') {
       this.clearRequestTimeout();
       this.result = msg.result;
-      this.card.setResult(msg.result);
+      this.card.setResult(msg.result, this.capturedText);
     } else {
       this.clearRequestTimeout();
       this.card.setError(msg.kind, msg.message);

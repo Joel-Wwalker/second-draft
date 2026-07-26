@@ -23,6 +23,7 @@ test('changes overlapping a detected tell inherit its rule id and reason', () =>
   const changes = diffChanges(before, 'We dig into the plan.', detect(before));
   expect(changes).toHaveLength(1);
   expect(changes[0]).toMatchObject({ ruleId: 'ai-vocab', reason: 'AI-associated vocabulary' });
+  expect(before.slice(changes[0]!.from!.start, changes[0]!.from!.end)).toBe('delve');
 });
 
 test('pure deletion yields a zero-width change', () => {

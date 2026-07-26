@@ -22,3 +22,11 @@ select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; b
 .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 10px 0; }
 .muted { color: var(--muted); font-size: 12px; }
 input[type="checkbox"] { accent-color: var(--accent); }
+details { font-size: 12px; }
+details summary { cursor: pointer; font-weight: 600; }
+#changesList { max-height: 160px; overflow: auto; margin-top: 6px; }
+.chg { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.chg:last-child { border-bottom: 0; }
+.chg .why { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 2px; }
+.chg .b { color: #9f5f64; }
+.chg .a { font-weight: 550; }
