@@ -103,7 +103,13 @@ async function runHumanize(
     const settings = await getSettings();
     const result = await humanize(
       text,
-      { intensity, signal, onChunk, voiceSample: settings.voiceSample || undefined },
+      {
+        intensity,
+        signal,
+        onChunk,
+        voiceSample: settings.voiceSample || undefined,
+        customTells: settings.customTells,
+      },
       { providers: buildProviders(settings) },
     );
     return { ok: true, result };

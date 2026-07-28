@@ -1,7 +1,7 @@
 import type { HumanizeOptions, HumanizeResult, Provider } from '../shared/types';
 import { HumanizerError } from '../shared/types';
 import { diffChanges } from '../shared/diff';
-import { applyFixes, detect } from './rules';
+import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
@@ -21,7 +21,8 @@ export async function humanize(
     throw new HumanizerError('too-long', 'Selection is too long for this engine. Split it or add an API key.');
   }
 
-  const tells = detect(text);
+  const extraRules = customRules(opts.customTells ?? []);
+  const tells = detect(text, extraRules);
   const provider = await firstAvailable(deps.providers);
 
   if (!provider) {
@@ -30,7 +31,7 @@ export async function humanize(
       rewritten,
       changes: diffChanges(text, rewritten, tells),
       engine: { kind: 'rules' },
-      tells: { before: tells.length, after: detect(rewritten).length },
+      tells: { before: tells.length, after: detect(rewritten, extraRules).length },
     };
   }
 
@@ -62,7 +63,7 @@ export async function humanize(
     rewritten,
     changes: diffChanges(text, rewritten, tells),
     engine: provider.info,
-    tells: { before: tells.length, after: detect(rewritten).length },
+    tells: { before: tells.length, after: detect(rewritten, extraRules).length },
   };
 }
 

@@ -32,6 +32,8 @@ export interface EngineInfo {
 export interface HumanizeOptions {
   intensity: Intensity;
   voiceSample?: string;
+  /** User-defined phrases to flag as tells, in addition to the built-in rules. */
+  customTells?: string[];
   signal?: AbortSignal;
   /** Called with the full text so far as the provider streams. Provisional display only. */
   onChunk?: (textSoFar: string) => void;

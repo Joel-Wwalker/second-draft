@@ -16,6 +16,8 @@ export interface Settings {
   disabledSites: string[];
   /** Writing sample used for voice matching; empty means none. */
   voiceSample: string;
+  /** User-defined phrases flagged as tells, one per entry, in addition to the built-in rules. */
+  customTells: string[];
   byok: ByokSettings;
 }
 
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   useFakeProvider: false,
   disabledSites: [],
   voiceSample: '',
+  customTells: [],
   byok: { provider: 'none', apiKey: '', model: '', baseUrl: 'https://api.openai.com/v1' },
 };
 

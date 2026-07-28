@@ -15,6 +15,7 @@ const byokKey = byId<HTMLInputElement>('byokKey');
 const byokModel = byId<HTMLInputElement>('byokModel');
 const byokBaseUrl = byId<HTMLInputElement>('byokBaseUrl');
 const voiceSample = byId<HTMLTextAreaElement>('voiceSample');
+const customTells = byId<HTMLTextAreaElement>('customTells');
 const defaultIntensity = byId<HTMLSelectElement>('defaultIntensity');
 const siteList = byId<HTMLUListElement>('siteList');
 const noSites = byId<HTMLParagraphElement>('noSites');
@@ -39,6 +40,7 @@ async function init(): Promise<void> {
   byokModel.value = settings.byok.model;
   byokBaseUrl.value = settings.byok.baseUrl;
   voiceSample.value = settings.voiceSample;
+  customTells.value = settings.customTells.join('\n');
   defaultIntensity.value = settings.defaultIntensity;
   renderSites(settings);
   syncByokRows();
@@ -82,6 +84,7 @@ async function save(): Promise<void> {
     await updateSettings({
       byok,
       voiceSample: voiceSample.value,
+      customTells: customTells.value.split('\n').filter(line => line.trim() !== ''),
       defaultIntensity: defaultIntensity.value as Intensity,
     });
     if (saveStatus.textContent === 'Saving...') saveStatus.textContent = 'Saved.';

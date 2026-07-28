@@ -100,6 +100,37 @@ export const RULES: Rule[] = [
   },
 ];
 
+const CUSTOM_TELL_MAX_LENGTH = 80;
+
+/** Escape regex metacharacters so a plain phrase matches only itself. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Builds detect-only rules from user-supplied plain phrases (not regexes). Each phrase is
+ * matched case-insensitively, on word boundaries where the phrase's own edges are word
+ * characters, so a phrase never matches inside a larger word. Empty, whitespace-only, and
+ * phrases over 80 characters are dropped rather than turned into a rule.
+ */
+export function customRules(phrases: string[]): Rule[] {
+  const rules: Rule[] = [];
+  for (const raw of phrases) {
+    const phrase = raw.trim();
+    if (!phrase || phrase.length > CUSTOM_TELL_MAX_LENGTH) continue;
+    const escaped = escapeRegExp(phrase);
+    const open = /^\w/.test(phrase) ? '\\b' : '';
+    const close = /\w$/.test(phrase) ? '\\b' : '';
+    rules.push({
+      id: 'custom',
+      reason: 'Your custom tell',
+      pattern: new RegExp(`${open}${escaped}${close}`, 'gi'),
+      fixable: false,
+    });
+  }
+  return rules;
+}
+
 export function quotedRegions(text: string): Span[] {
   const spans: Span[] = [];
   const re = /(?<!\w)"[^"\n]{1,300}"(?!\w)|“[^”\n]{1,300}”/g;
@@ -113,10 +144,10 @@ function intersects(a: Span, b: Span): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
-export function detect(text: string): DetectedTell[] {
+export function detect(text: string, extra: Rule[] = []): DetectedTell[] {
   const quoted = quotedRegions(text);
   const tells: DetectedTell[] = [];
-  for (const rule of RULES) {
+  for (const rule of [...RULES, ...extra]) {
     rule.pattern.lastIndex = 0;
     for (let m = rule.pattern.exec(text); m; m = rule.pattern.exec(text)) {
       const span: Span = { start: m.index, end: m.index + m[0].length };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { applyFixes, detect } from '../src/engine/rules';
+import { applyFixes, customRules, detect } from '../src/engine/rules';
 
 describe('applyFixes', () => {
   test('replaces em dashes with commas', () => {
@@ -61,5 +61,67 @@ describe('detect', () => {
   test('skips quoted regions for skipQuoted rules', () => {
     const tells = detect('say "A—B" now');
     expect(tells.filter(t => t.ruleId === 'em-dash')).toHaveLength(0);
+  });
+});
+
+describe('customRules', () => {
+  test('escapes regex metacharacters so they match literally and never throw', () => {
+    const rules = customRules(['x.y(z)']);
+    expect(rules).toHaveLength(1);
+    expect(() => detect('Notes: x.y(z) appears here.', rules)).not.toThrow();
+    expect(detect('Notes: x.y(z) appears here.', rules).filter(t => t.ruleId === 'custom')).toHaveLength(1);
+    // A literal "." must not act as a wildcard for another character.
+    expect(detect('Notes: xQy(z) appears here.', rules).filter(t => t.ruleId === 'custom')).toHaveLength(0);
+    // Literal "(" ")" must not act as a non-capturing grouping construct.
+    expect(detect('See x.yz today, no parens.', rules).filter(t => t.ruleId === 'custom')).toHaveLength(0);
+  });
+
+  test('never throws building rules from phrases that look like unbalanced regex', () => {
+    expect(() => customRules(['a (b [c', 'weird * + ? group)', '[unterminated', 'a{2,'])).not.toThrow();
+  });
+
+  test('ignores empty, whitespace-only, and overlong phrases (80 chars ok, 81 dropped)', () => {
+    const rules = customRules(['', '   ', '\t\n', 'x'.repeat(81), 'x'.repeat(80), 'keep me']);
+    expect(rules).toHaveLength(2);
+  });
+
+  test('matches case-insensitively but only on word boundaries', () => {
+    const rules = customRules(['cat']);
+    expect(detect('The CAT sat on a mat.', rules).filter(t => t.ruleId === 'custom')).toHaveLength(1);
+    expect(
+      detect('The category is concatenated by a bobcat.', rules).filter(t => t.ruleId === 'custom'),
+    ).toHaveLength(0);
+  });
+
+  test('produces detect-only rules tagged with the shared custom id and reason', () => {
+    const [rule] = customRules(['delve into it']);
+    expect(rule).toMatchObject({ id: 'custom', reason: 'Your custom tell', fixable: false });
+    expect(rule?.replacement).toBeUndefined();
+  });
+});
+
+describe('detect with extra rules', () => {
+  test('extra rules are found alongside the built-in ones', () => {
+    const extra = customRules(['as an ai']);
+    const tells = detect('Well, as an AI I cannot delve into this—sorry.', extra);
+    expect(tells.some(t => t.ruleId === 'custom')).toBe(true);
+    expect(tells.some(t => t.ruleId === 'ai-vocab')).toBe(true);
+    expect(tells.some(t => t.ruleId === 'em-dash')).toBe(true);
+  });
+
+  test('extra rules from one call do not leak into a later call that omits them', () => {
+    const extra = customRules(['unicorn sighting']);
+    expect(detect('There was a unicorn sighting today.', extra).some(t => t.ruleId === 'custom')).toBe(true);
+    // Same text, no extra rules this time: the earlier custom phrase must not still be flagged.
+    expect(detect('There was a unicorn sighting today.')).toHaveLength(0);
+  });
+
+  test('repeated calls with the same extra rules stay correct across different texts', () => {
+    const extra = customRules(['zebra']);
+    expect(detect('a zebra sighting', extra).filter(t => t.ruleId === 'custom')).toHaveLength(1);
+    expect(detect('nothing to see', extra)).toHaveLength(0);
+    expect(
+      detect('a zebra here and another zebra there', extra).filter(t => t.ruleId === 'custom'),
+    ).toHaveLength(2);
   });
 });

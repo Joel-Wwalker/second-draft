@@ -60,4 +60,12 @@ test('legacy records without byok/voiceSample still merge cleanly', async () => 
   const settings = await getSettings();
   expect(settings.byok.provider).toBe('none');
   expect(settings.voiceSample).toBe('');
+  expect(settings.customTells).toEqual([]);
+});
+
+test('customTells defaults to an empty array and round-trips', async () => {
+  const { getSettings, updateSettings } = await import('../src/shared/storage');
+  expect((await getSettings()).customTells).toEqual([]);
+  await updateSettings({ customTells: ['delve into', 'moving forward'] });
+  expect((await getSettings()).customTells).toEqual(['delve into', 'moving forward']);
 });
