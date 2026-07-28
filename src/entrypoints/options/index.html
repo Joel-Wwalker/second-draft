@@ -39,6 +39,10 @@
       <h2>Voice sample (optional)</h2>
       <p class="muted">Paste a sample of your own writing; rewrites will try to match its voice. If you configure an API key, the sample is included in requests to that provider.</p>
       <textarea id="voiceSample" rows="6" maxlength="20000"></textarea>
+      <label>Load from a file (.txt, .md, .docx; up to 2 MB)
+        <input id="voiceFile" type="file" accept=".txt,.md,.docx" />
+      </label>
+      <p id="voiceFileStatus" class="muted"></p>
     </section>
 
     <section>

@@ -14,7 +14,9 @@ h2 { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacin
 section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
 label { display: block; margin: 10px 0; font-size: 13px; }
 input[type="text"], input[type="password"], select, textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 7px 10px; margin-top: 5px; background: var(--ground); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+input[type="file"] { display: block; width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; margin-top: 5px; color: var(--ink); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#voiceFileStatus { margin-top: 8px; }
 button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 button:hover { border-color: var(--muted); }
 button:disabled { opacity: 0.5; cursor: default; }

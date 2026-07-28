@@ -1,7 +1,9 @@
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../../shared/storage';
 import type { ByokSettings, Settings } from '../../shared/storage';
 import type { Intensity } from '../../shared/types';
+import { HumanizerError } from '../../shared/types';
 import { byokOrigin } from '../../shared/byok-origin';
+import { checkVoiceFileName, checkVoiceFileSize, extractDocxText, formatLoadedStatus, truncateVoiceSample } from '../../shared/docx';
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -15,6 +17,8 @@ const byokKey = byId<HTMLInputElement>('byokKey');
 const byokModel = byId<HTMLInputElement>('byokModel');
 const byokBaseUrl = byId<HTMLInputElement>('byokBaseUrl');
 const voiceSample = byId<HTMLTextAreaElement>('voiceSample');
+const voiceFile = byId<HTMLInputElement>('voiceFile');
+const voiceFileStatus = byId<HTMLParagraphElement>('voiceFileStatus');
 const customTells = byId<HTMLTextAreaElement>('customTells');
 const defaultIntensity = byId<HTMLSelectElement>('defaultIntensity');
 const siteList = byId<HTMLUListElement>('siteList');
@@ -45,6 +49,9 @@ async function init(): Promise<void> {
   renderSites(settings);
   syncByokRows();
   byokProvider.addEventListener('change', syncByokRows);
+  voiceFile.addEventListener('change', () => {
+    void loadVoiceFile();
+  });
   saveBtn.addEventListener('click', () => {
     void save();
   });
@@ -61,6 +68,35 @@ function syncByokRows(): void {
   baseUrlRow.hidden = provider !== 'openai';
   if (provider !== 'none' && byokModel.value.trim() === '') {
     byokModel.placeholder = DEFAULT_MODELS[provider];
+  }
+}
+
+async function loadVoiceFile(): Promise<void> {
+  const file = voiceFile.files?.[0];
+  voiceFile.value = ''; // clear now so picking the same file again still fires "change"
+  if (!file) return;
+
+  const nameError = checkVoiceFileName(file.name);
+  if (nameError) {
+    voiceFileStatus.textContent = nameError;
+    return;
+  }
+  const sizeError = checkVoiceFileSize(file.size);
+  if (sizeError) {
+    voiceFileStatus.textContent = sizeError;
+    return;
+  }
+
+  voiceFileStatus.textContent = 'Reading...';
+  try {
+    const raw = file.name.toLowerCase().endsWith('.docx')
+      ? await extractDocxText(await file.arrayBuffer())
+      : await file.text();
+    const { text, truncated } = truncateVoiceSample(raw);
+    voiceSample.value = text;
+    voiceFileStatus.textContent = formatLoadedStatus(text, file.name, truncated);
+  } catch (err) {
+    voiceFileStatus.textContent = err instanceof HumanizerError ? err.message : 'Could not read that file.';
   }
 }
 
