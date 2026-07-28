@@ -1,7 +1,11 @@
 /**
  * Simple, hand-checkable statistics about a person's writing, computed locally.
- * Every number here is meant to be reproducible with a pen: tokens are
- * whitespace separated, sentences are split on terminal punctuation.
+ * Every number here is meant to be reproducible with a pen: words are
+ * whitespace separated tokens, and a sentence ends at terminal punctuation that
+ * is followed by a space or the end of the text. That lookahead keeps "e.g.",
+ * "3.14", "example.com" and "v2.0.1" intact instead of shredding them into
+ * fragments, and `words` is summed from the sentences themselves so the counts
+ * can never drift apart.
  */
 export interface WritingProfile {
   words: number;
@@ -33,6 +37,8 @@ export function analyzeWriting(text: string): WritingProfile | null {
 export function compareToProfile(text: string, profile: WritingProfile): string | null {
   const candidate = stats(text);
   if (candidate.words < MIN_COMPARE_WORDS) return null;
+  // Only ever one note. Sentence length wins when both drift, because rhythm is
+  // the more visible difference to a reader.
   if (Math.abs(candidate.avgSentenceWords - profile.avgSentenceWords) > SENTENCE_DRIFT_WORDS) {
     return `Your writing averages ${profile.avgSentenceWords} word sentences; this runs ${candidate.avgSentenceWords}.`;
   }
@@ -45,10 +51,11 @@ export function compareToProfile(text: string, profile: WritingProfile): string 
 }
 
 function stats(text: string): WritingProfile {
-  const all = tokens(text);
   const perSentence = sentenceWordCounts(text);
   const sentences = perSentence.length;
-  if (all.length === 0 || sentences === 0) {
+  const all = tokens(text);
+  const words = perSentence.reduce((sum, count) => sum + count, 0);
+  if (words === 0 || sentences === 0) {
     return {
       words: 0,
       avgSentenceWords: 0,
@@ -58,18 +65,18 @@ function stats(text: string): WritingProfile {
       longWordRate: 0,
     };
   }
-  const mean = perSentence.reduce((sum, count) => sum + count, 0) / sentences;
+  const mean = words / sentences;
   const variance = perSentence.reduce((sum, count) => sum + (count - mean) ** 2, 0) / sentences;
   const contractions = all.filter(token => /['’][A-Za-z]/.test(token)).length;
   const commas = (text.match(/,/g) ?? []).length;
   const long = all.filter(token => letters(token).length >= LONG_WORD_LETTERS).length;
   return {
-    words: all.length,
+    words,
     avgSentenceWords: round(mean, 1),
     sentenceVariety: round(Math.sqrt(variance), 1),
-    contractionRate: round(contractions / all.length, 2),
+    contractionRate: round(contractions / words, 2),
     commasPerSentence: round(commas / sentences, 2),
-    longWordRate: round(long / all.length, 2),
+    longWordRate: round(long / words, 2),
   };
 }
 
@@ -79,7 +86,7 @@ function tokens(text: string): string[] {
 
 function sentenceWordCounts(text: string): number[] {
   return text
-    .split(/[.!?]+/)
+    .split(/[.!?]+(?=\s|$)/)
     .map(part => tokens(part).length)
     .filter(count => count > 0);
 }

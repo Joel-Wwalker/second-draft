@@ -75,6 +75,48 @@ test('a rewrite too short to judge gets no note', () => {
   expect(compareToProfile('Far too short to judge fairly.', PROFILE)).toBeNull();
 });
 
+test('the compare floor is exact at fifteen words', () => {
+  const fourteen = Array.from({ length: 14 }, () => 'padding').join(' ');
+  const fifteen = Array.from({ length: 15 }, () => 'padding').join(' ');
+  // Both are one long sentence, far from the profile's 10.8 word average, so
+  // anything at or above the floor must produce the sentence-length note.
+  expect(compareToProfile(fourteen, PROFILE)).toBeNull();
+  expect(compareToProfile(fifteen, PROFILE)).toBe(
+    'Your writing averages 10.8 word sentences; this runs 15.',
+  );
+});
+
+test('sentence length wins when both kinds of drift apply', () => {
+  // One sentence of 19 words (against the profile's 10.8) that is also 8
+  // contractions of 19 words = 0.42 (against 0.05). Both thresholds are
+  // crossed; exactly one note comes back, and it is the sentence one.
+  const both =
+    "I can't say it's what you'd write, and I don't think they'd agree, so we won't pretend it's yours.";
+  expect(compareToProfile(both, PROFILE)).toBe(
+    'Your writing averages 10.8 word sentences; this runs 19.',
+  );
+});
+
+test('word counts stay consistent through abbreviations, decimals and urls', () => {
+  // A period only ends a sentence when a space or the end of the text follows,
+  // so "3.14", "example.com", "report.docx" and "v2.0.1" stay single tokens
+  // instead of fragmenting. Sentence word counts: "e.g." does end a sentence by
+  // that rule, so line one splits 6 and 3; then 5, 6, 7, 4, 8, 6.
+  const tricky = [
+    'The plan covers a lot, e.g. tests and docs.',
+    'The value is 3.14 units.',
+    'Read more at example.com for details.',
+    'Open the file report.docx before the meeting.',
+    'We shipped v2.0.1 today.',
+    'The team will review the results next week.',
+    'We can ship it after that.',
+  ].join(' ');
+  const profile = analyzeWriting(tricky);
+  // 6 + 3 + 5 + 6 + 7 + 4 + 8 + 6 = 45 words across 8 sentences.
+  expect(profile?.words).toBe(45);
+  expect(profile?.avgSentenceWords).toBe(5.6);
+});
+
 test('the note names the direction when the author uses more contractions', () => {
   // Eight sentences, 45 words, 9 contractions = 0.2; average 45/8 = 5.6.
   const chattyProfile = analyzeWriting(

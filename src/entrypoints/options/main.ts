@@ -96,7 +96,8 @@ function renderProfile(): void {
     ['Average sentence', pluralWords(profile.avgSentenceWords)],
     ['Variety', pluralWords(profile.sentenceVariety)],
     ['Contractions', asPercent(profile.contractionRate)],
-    ['Commas per sentence', asPercent(profile.commasPerSentence)],
+    // An average, not a fraction: a comma-heavy writer passes one per sentence.
+    ['Commas per sentence', profile.commasPerSentence.toFixed(2)],
   ];
   for (const [label, value] of rows) {
     const row = document.createElement('div');
