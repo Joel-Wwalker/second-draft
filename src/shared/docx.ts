@@ -24,6 +24,13 @@ const METHOD_DEFLATED = 8;
 const DOCUMENT_ENTRY_NAME = 'word/document.xml';
 const MALFORMED_MESSAGE = 'Could not read that .docx file.';
 
+/**
+ * Ceiling on the declared size of word/document.xml. A long paper's XML runs a
+ * few hundred KB; this leaves generous headroom while stopping a small archive
+ * from inflating into hundreds of megabytes.
+ */
+export const MAX_DOCUMENT_XML_BYTES = 8 * 1024 * 1024;
+
 const utf8Decoder = new TextDecoder('utf-8');
 
 function malformed(): HumanizerError {
@@ -47,6 +54,11 @@ export async function extractDocxText(bytes: ArrayBuffer): Promise<string> {
   try {
     const view = new DataView(bytes);
     const entry = findDocumentEntry(view);
+    // Bound the declared size before doing any decompression work: the central directory's
+    // uncompressedSize is attacker-controlled and, for a deflate entry, can be wildly out of
+    // proportion to the archive's on-disk size. Reject it here rather than finding out only
+    // after inflating a small archive into a multi-hundred-MB string.
+    if (entry.uncompressedSize > MAX_DOCUMENT_XML_BYTES) throw malformed();
     const xmlBytes = await readEntryBytes(view, entry);
     const xml = utf8Decoder.decode(xmlBytes);
     return xmlToText(xml);

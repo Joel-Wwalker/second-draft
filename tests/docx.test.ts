@@ -5,6 +5,7 @@ import {
   countWords,
   extractDocxText,
   formatLoadedStatus,
+  MAX_DOCUMENT_XML_BYTES,
   MAX_VOICE_FILE_BYTES,
   truncateVoiceSample,
   VOICE_SAMPLE_CHAR_CAP,
@@ -99,6 +100,18 @@ function documentXml(...paragraphs: string[]): string {
   );
 }
 
+// Fixed wrapper overhead of a single-paragraph documentXml() call, so callers can build a
+// word/document.xml body of an *exact* target byte length (all fill characters are ASCII,
+// so char count === byte count).
+const DOCUMENT_XML_WRAPPER_BYTES = new TextEncoder().encode(documentXml('')).length;
+
+/** Builds a real (non-lying) word/document.xml body whose UTF-8 byte length is exactly targetBytes. */
+function documentXmlOfByteLength(targetBytes: number): string {
+  const fillLength = targetBytes - DOCUMENT_XML_WRAPPER_BYTES;
+  if (fillLength < 0) throw new Error(`targetBytes ${targetBytes} is smaller than the wrapper overhead`);
+  return documentXml('A'.repeat(fillLength));
+}
+
 describe('extractDocxText: happy paths', () => {
   test('deflate-compressed word/document.xml decodes through the real inflate path (mandatory)', async () => {
     const xml = documentXml(
@@ -155,6 +168,25 @@ describe('extractDocxText: happy paths', () => {
     expect(text.length).toBe(VOICE_SAMPLE_CHAR_CAP);
     expect(text).toBe(long.slice(0, VOICE_SAMPLE_CHAR_CAP));
   });
+
+  test('a ZIP with a non-empty trailing archive comment still extracts correctly', async () => {
+    const xml = documentXml('Trailing comment should not confuse EOCD discovery.');
+    const zip = await buildDocxZip(xml, 8);
+    const comment = new TextEncoder().encode('This is a trailing archive comment, unrelated to any entry.');
+
+    // Append the comment after the EOCD record built by buildZip, then patch that record's
+    // comment-length field (its last two bytes) to match, exactly as a real zip tool would.
+    const withComment = new Uint8Array(zip.byteLength + comment.length);
+    withComment.set(new Uint8Array(zip), 0);
+    withComment.set(comment, zip.byteLength);
+    const view = new DataView(withComment.buffer);
+    const eocdOffset = zip.byteLength - 22;
+    expect(view.getUint32(eocdOffset, true)).toBe(0x06054b50); // sanity: real EOCD located pre-comment
+    view.setUint16(eocdOffset + 20, comment.length, true);
+
+    const text = await extractDocxText(withComment.buffer);
+    expect(text).toBe('Trailing comment should not confuse EOCD discovery.');
+  });
 });
 
 describe('extractDocxText: rejects malformed input', () => {
@@ -205,6 +237,70 @@ describe('extractDocxText: rejects malformed input', () => {
     const localHeaderOffsetField = fileRecordLength + 42; // field position within the single central-directory record
     view.setUint32(localHeaderOffsetField, 0xfffffff, true);
     await expect(extractDocxText(zip)).rejects.toMatchObject({ kind: 'internal' });
+  });
+
+  test('a deflate entry whose bytes are not a valid deflate-raw stream throws the documented error', async () => {
+    const name = 'word/document.xml';
+    const nameBytes = new TextEncoder().encode(name);
+    const content = new TextEncoder().encode(documentXml('This body will be overwritten with non-inflatable bytes.'));
+    const zip = await buildZip([{ name, content, method: 8 }]);
+    const view = new DataView(zip);
+
+    // Single-entry zip, so the local header starts at 0: [0,18) fixed fields, compressedSize
+    // at [18,22), then LOCAL_HEADER_SIZE(30) + name bytes is where the compressed payload starts.
+    const compressedSize = view.getUint32(18, true);
+    const dataStart = 30 + nameBytes.length;
+    expect(dataStart + compressedSize).toBeLessThanOrEqual(zip.byteLength); // sanity: region is in-bounds
+
+    // 0xff sets DEFLATE's BFINAL=1 and BTYPE=0b11, a reserved block type the spec forbids, so
+    // DecompressionStream is guaranteed to reject rather than happening to decode successfully.
+    new Uint8Array(zip, dataStart, compressedSize).fill(0xff);
+
+    await expect(extractDocxText(zip)).rejects.toMatchObject({
+      kind: 'internal',
+      message: 'Could not read that .docx file.',
+    });
+  });
+
+  test('an EOCD declaring a central-directory offset past the end of the file throws', async () => {
+    const xml = documentXml('EOCD lies about where the central directory lives.');
+    const zip = await buildDocxZip(xml, 8);
+    const view = new DataView(zip);
+    const eocdOffset = zip.byteLength - 22;
+    expect(view.getUint32(eocdOffset, true)).toBe(0x06054b50); // sanity: real EOCD located
+    view.setUint32(eocdOffset + 16, zip.byteLength + 1000, true); // lie: central dir starts past EOF
+    await expect(extractDocxText(zip)).rejects.toMatchObject({
+      kind: 'internal',
+      message: 'Could not read that .docx file.',
+    });
+  });
+});
+
+describe('extractDocxText: word/document.xml declared-size cap', () => {
+  // Both fixtures below use a *real* (non-lying) declared size: a document.xml body that
+  // genuinely is that many bytes before compression. Deflate compresses a run of a repeated
+  // character to a tiny fraction of its size, so building and round-tripping these is fast even
+  // though the declared/actual uncompressedSize sits right at MAX_DOCUMENT_XML_BYTES - this is
+  // the same shape of archive as the reviewer's PoC (small on disk, huge once inflated), just
+  // sized at the cap boundary instead of far beyond it.
+
+  test('a document.xml one byte over the cap is rejected before decompression is attempted (mutation-verified, see report)', async () => {
+    const xml = documentXmlOfByteLength(MAX_DOCUMENT_XML_BYTES + 1);
+    const zip = await buildDocxZip(xml, 8);
+    await expect(extractDocxText(zip)).rejects.toMatchObject({
+      kind: 'internal',
+      message: 'Could not read that .docx file.',
+    });
+  });
+
+  test('a document.xml exactly at the cap still extracts (off-by-one guard)', async () => {
+    const xml = documentXmlOfByteLength(MAX_DOCUMENT_XML_BYTES);
+    expect(new TextEncoder().encode(xml).length).toBe(MAX_DOCUMENT_XML_BYTES); // sanity: fixture hits the boundary exactly
+    const zip = await buildDocxZip(xml, 8);
+    const text = await extractDocxText(zip);
+    expect(text.length).toBe(MAX_DOCUMENT_XML_BYTES - DOCUMENT_XML_WRAPPER_BYTES);
+    expect(text.startsWith('A')).toBe(true);
+    expect(text.endsWith('A')).toBe(true);
   });
 });
 
