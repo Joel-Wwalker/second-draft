@@ -170,6 +170,137 @@ test('stale responses for superseded ids are ignored', () => {
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
 });
 
+test('regenerate after a result has arrived sends a fresh humanize request with a new id for the same text and intensity, without cancelling the completed one', () => {
+  selectInTextarea();
+  clickChip();
+  const first = port.sent[0] as { id: string; text: string; intensity: string };
+  port.emit({
+    type: 'done',
+    id: first.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect((shadow.querySelector('button.regen') as HTMLButtonElement).hidden).toBe(false);
+
+  (shadow.querySelector('button.regen') as HTMLButtonElement).click();
+
+  const humanizeMsgs = port.sent.filter(m => (m as { type: string }).type === 'humanize') as Array<{
+    id: string;
+    text: string;
+    intensity: string;
+  }>;
+  expect(humanizeMsgs).toHaveLength(2);
+  const second = humanizeMsgs[1]!;
+  expect(second.id).not.toBe(first.id);
+  expect(second.text).toBe(first.text);
+  expect(second.intensity).toBe(first.intensity);
+  // The first request already completed, so regenerating must not cancel it.
+  expect(port.sent).not.toContainEqual({ type: 'cancel', id: first.id });
+});
+
+test('regenerate while the previous request is still streaming cancels it and sends a fresh request with a new id', () => {
+  selectInTextarea();
+  clickChip();
+  const first = port.sent[0] as { id: string; text: string; intensity: string };
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  // No `done` has arrived yet, so button.regen is still hidden per the card's own
+  // contract (covered separately in chip-card.test.ts). Clicking it directly here
+  // exercises HumanizeSession's cancel-in-flight branch regardless of the button's
+  // visual state, the same way other tests in this file drive callbacks straight
+  // off the DOM node rather than simulating pointer visibility.
+  const regenBtn = shadow.querySelector('button.regen') as HTMLButtonElement;
+  expect(regenBtn.hidden).toBe(true);
+
+  regenBtn.click();
+
+  expect(port.sent).toContainEqual({ type: 'cancel', id: first.id });
+  const humanizeMsgs = port.sent.filter(m => (m as { type: string }).type === 'humanize') as Array<{
+    id: string;
+    text: string;
+    intensity: string;
+  }>;
+  expect(humanizeMsgs).toHaveLength(2);
+  const second = humanizeMsgs[1]!;
+  expect(second.id).not.toBe(first.id);
+  expect(second.text).toBe(first.text);
+  expect(second.intensity).toBe(first.intensity);
+});
+
+test('a stale done for the id superseded by regenerate does not render', () => {
+  selectInTextarea();
+  clickChip();
+  const first = port.sent[0] as { id: string };
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  port.emit({
+    type: 'done',
+    id: first.id,
+    result: { rewritten: 'FIRST RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+  });
+  expect(shadow.querySelector('.rewritten')!.textContent).toBe('FIRST RESULT');
+
+  (shadow.querySelector('button.regen') as HTMLButtonElement).click();
+  const second = port.sent.filter(m => (m as { type: string }).type === 'humanize')[1] as { id: string };
+
+  // The superseded id's late response must be ignored even though the card is
+  // back in its streaming state (existing id-guard in onPortMessage).
+  port.emit({
+    type: 'done',
+    id: first.id,
+    result: { rewritten: 'STALE REGEN RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+  });
+  expect(shadow.querySelector('.rewritten')!.textContent).toBe('');
+  expect(shadow.querySelector('.status')!.textContent).toBe('Rewriting...');
+
+  // Sanity: the live (second) id still renders normally, proving the guard is
+  // targeted at the superseded id rather than dropping every done message.
+  port.emit({
+    type: 'done',
+    id: second.id,
+    result: { rewritten: 'SECOND RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+  });
+  expect(shadow.querySelector('.rewritten')!.textContent).toBe('SECOND RESULT');
+});
+
+test('repeated regeneration reuses the same port and does not accumulate timers', () => {
+  let connectCalls = 0;
+  const chromeGlobal = globalThis as unknown as { chrome: { runtime: { connect: () => FakePort } } };
+  const baseConnect = chromeGlobal.chrome.runtime.connect;
+  chromeGlobal.chrome.runtime.connect = () => {
+    connectCalls++;
+    return baseConnect();
+  };
+
+  selectInTextarea();
+  clickChip();
+  expect(connectCalls).toBe(1);
+
+  for (let i = 0; i < 3; i++) {
+    const lastId = (port.sent[port.sent.length - 1] as { id: string }).id;
+    port.emit({
+      type: 'done',
+      id: lastId,
+      result: { rewritten: `result ${i}`, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+    });
+    const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+    (shadow.querySelector('button.regen') as HTMLButtonElement).click();
+  }
+
+  // Still the one port from the first connect -- ensurePort() never reconnects
+  // while a port is already open.
+  expect(connectCalls).toBe(1);
+  const humanizeMsgs = port.sent.filter(m => (m as { type: string }).type === 'humanize') as Array<{ id: string }>;
+  expect(humanizeMsgs).toHaveLength(4); // one initial + three regenerations
+  expect(new Set(humanizeMsgs.map(m => m.id)).size).toBe(4);
+  // Only the current (fourth) request's 60s timeout should be pending -- no
+  // leftover timers from the earlier regenerate cycles.
+  expect(vi.getTimerCount()).toBe(1);
+});
+
 test('stop() removes the runtime listener and ignores late messages', () => {
   expect(runtimeListeners).toHaveLength(1);
   session.stop();
@@ -462,4 +593,38 @@ test('undo after the contenteditable root is removed from the DOM shows the erro
 
   expect(shadow.querySelector('.status')!.textContent).toContain('Could not undo. The text changed again.');
   expect(document.getElementById('humanizer-card-host')).not.toBeNull();
+});
+
+test('after the 10s auto-dismiss, a stale reference to the undo button can no longer undo the applied text', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  const ta = document.querySelector('textarea')!;
+  expect(ta.value).toBe('We dig into the plan boldly.');
+
+  // Grab a reference to Undo before the auto-dismiss timer removes the card from
+  // the document; a detached DOM node keeps its listener, so this is how a stray
+  // or delayed click could still reach the session after the card is gone.
+  const undoBtn = shadow.querySelector('button.undo') as HTMLButtonElement;
+
+  vi.advanceTimersByTime(10_000);
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+
+  // The session's applied record has to be cleared through the same cleanup path
+  // a manual dismiss uses (not just a card-local close()), or this stray click
+  // would silently revert the field back to the original text.
+  undoBtn.click();
+  expect(ta.value).toBe('We dig into the plan boldly.');
 });

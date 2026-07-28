@@ -9,6 +9,7 @@ export interface CardCallbacks {
   onCopy(): void;
   onDismiss(): void;
   onIntensityChange(intensity: Intensity): void;
+  onRegenerate(): void;
   onTextEdited(text: string): void;
   onUndo(): void;
 }
@@ -88,6 +89,7 @@ export class Card {
   private readonly changeRowsEl: HTMLDivElement;
   private readonly engineEl: HTMLElement;
   private readonly applyBtn: HTMLButtonElement;
+  private readonly regenBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
   private readonly dismissBtn: HTMLButtonElement;
   private readonly undoBtn: HTMLButtonElement;
@@ -185,6 +187,11 @@ export class Card {
     this.applyBtn.className = 'apply';
     this.applyBtn.textContent = 'Apply';
     this.applyBtn.addEventListener('click', () => this.cb.onApply());
+    this.regenBtn = doc.createElement('button');
+    this.regenBtn.className = 'regen';
+    this.regenBtn.textContent = 'Try again';
+    this.regenBtn.hidden = true;
+    this.regenBtn.addEventListener('click', () => this.cb.onRegenerate());
     this.copyBtn = doc.createElement('button');
     this.copyBtn.className = 'copy';
     this.copyBtn.textContent = 'Copy';
@@ -205,7 +212,7 @@ export class Card {
       this.cb.onUndo();
     });
 
-    bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.copyBtn, this.undoBtn, this.dismissBtn);
+    bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.regenBtn, this.copyBtn, this.undoBtn, this.dismissBtn);
     this.cardEl.append(this.headEl, this.bodyEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
@@ -217,6 +224,7 @@ export class Card {
   open(rect: { left: number; bottom: number }, opts: { canApply: boolean; intensity: Intensity }): void {
     this.cancelAutoDismiss();
     this.applyBtn.hidden = !opts.canApply;
+    this.regenBtn.hidden = true;
     this.copyBtn.hidden = false;
     this.intensitySel.hidden = false;
     this.undoBtn.hidden = true;
@@ -247,11 +255,13 @@ export class Card {
   }
 
   setStreaming(textSoFar: string): void {
+    this.regenBtn.hidden = true;
     this.bodyEl.textContent = textSoFar;
     this.statusEl.textContent = 'Rewriting...';
   }
 
   setResult(result: HumanizeResult, original: string): void {
+    this.regenBtn.hidden = false;
     this.engineEl.textContent = engineLabel(result.engine);
     this.statusEl.textContent = resultStatus(result);
     this.changeRowsEl.textContent = '';
@@ -310,6 +320,7 @@ export class Card {
   showApplied(): void {
     this.closePopover();
     this.applyBtn.hidden = true;
+    this.regenBtn.hidden = true;
     this.copyBtn.hidden = true;
     this.intensitySel.hidden = true;
     this.undoBtn.hidden = false;
@@ -411,7 +422,10 @@ export class Card {
     this.cancelAutoDismiss();
     this.autoDismissTimer = setTimeout(() => {
       this.autoDismissTimer = null;
-      this.close();
+      // Route through the same callback the Dismiss button uses instead of
+      // closing directly, so the caller's session-level cleanup (clearing the
+      // applied record, cancelling any in-flight work) always runs.
+      this.cb.onDismiss();
     }, AUTO_DISMISS_MS);
   }
 

@@ -13,6 +13,7 @@ const noop = {
   onCopy: () => {},
   onDismiss: () => {},
   onIntensityChange: () => {},
+  onRegenerate: () => {},
   onTextEdited: () => {},
   onUndo: () => {},
 };
@@ -129,6 +130,9 @@ test('showApplied switches to the undo confirmation state', () => {
   expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(true);
   expect((shadow.querySelector('button.copy') as HTMLButtonElement).hidden).toBe(true);
   expect((shadow.querySelector('select.intensity') as HTMLSelectElement).hidden).toBe(true);
+  // setResult (above) makes Try again visible; the applied confirmation is a
+  // single-action bar (Undo next to Dismiss), so it must go back into hiding too.
+  expect((shadow.querySelector('button.regen') as HTMLButtonElement).hidden).toBe(true);
   const undoBtn = shadow.querySelector('button.undo') as HTMLButtonElement;
   expect(undoBtn.hidden).toBe(false);
   expect(undoBtn.textContent).toBe('Undo');
@@ -136,17 +140,55 @@ test('showApplied switches to the undo confirmation state', () => {
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('Replaced in place.');
 });
 
-test('auto-dismiss timer closes the card exactly 10s after showApplied, not before', () => {
+test('button.regen sits left of Copy, hidden on open, visible after setResult, hidden again after setStreaming', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const regenBtn = shadow.querySelector('button.regen') as HTMLButtonElement;
+  expect(regenBtn.textContent).toBe('Try again');
+  expect(regenBtn.hidden).toBe(true);
+  const barButtonClasses = [...shadow.querySelectorAll('.bar button')].map(b => b.className);
+  expect(barButtonClasses.indexOf('regen')).toBeLessThan(barButtonClasses.indexOf('copy'));
+
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+  );
+  expect(regenBtn.hidden).toBe(false);
+
+  card.setStreaming('midway');
+  expect(regenBtn.hidden).toBe(true);
+});
+
+test('clicking button.regen fires onRegenerate', () => {
+  const onRegenerate = vi.fn();
+  const card = new Card(document, { ...noop, onRegenerate });
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.regen') as HTMLButtonElement).click();
+  expect(onRegenerate).toHaveBeenCalledOnce();
+});
+
+test('auto-dismiss timer fires onDismiss exactly 10s after showApplied, not before, and leaves closing to the callback', () => {
   vi.useFakeTimers();
   try {
-    const card = new Card(document, noop);
+    const onDismiss = vi.fn();
+    const card = new Card(document, { ...noop, onDismiss });
     card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
     card.showApplied();
     expect(card.isOpen).toBe(true);
     vi.advanceTimersByTime(9_999);
-    expect(card.isOpen).toBe(true);
+    expect(onDismiss).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(card.isOpen).toBe(false);
+    expect(onDismiss).toHaveBeenCalledOnce();
+    // The card no longer closes itself on auto-dismiss (that bypassed session-level
+    // cleanup); it routes through onDismiss, same as the Dismiss button, and leaves
+    // actually closing to whatever the callback does (HumanizeSession.dismissCard).
+    expect(card.isOpen).toBe(true);
   } finally {
     vi.useRealTimers();
   }

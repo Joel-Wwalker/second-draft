@@ -44,6 +44,7 @@ export class HumanizeSession {
       onCopy: () => this.onCopy(),
       onDismiss: () => this.dismissCard(),
       onIntensityChange: intensity => this.onIntensityChange(intensity),
+      onRegenerate: () => this.onRegenerate(),
       onTextEdited: text => {
         if (this.result) this.result = { ...this.result, rewritten: text };
       },
@@ -258,10 +259,18 @@ export class HumanizeSession {
     this.request();
   }
 
+  /** Same path as onIntensityChange, minus the intensity edit: same text, same intensity, new id. */
+  private onRegenerate(): void {
+    this.cancelInFlight();
+    this.card.setStreaming('');
+    this.request();
+  }
+
   private dismissCard(): void {
     this.cancelInFlight();
     // Drop any stale post-apply selection/Range so it can't be reused once the card
-    // is gone (also covers stop(), which always routes through here).
+    // is gone (also covers stop() and the card's own 10s auto-dismiss after apply,
+    // both of which route through here via the onDismiss callback).
     this.applied = null;
     if (this.card.isOpen) this.card.close();
   }
