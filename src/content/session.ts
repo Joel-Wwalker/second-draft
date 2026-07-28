@@ -254,13 +254,16 @@ export class HumanizeSession {
 
   private onIntensityChange(intensity: Intensity): void {
     this.intensity = intensity;
-    this.cancelInFlight();
-    this.card.setStreaming('');
-    this.request();
+    this.restartRequest();
   }
 
   /** Same path as onIntensityChange, minus the intensity edit: same text, same intensity, new id. */
   private onRegenerate(): void {
+    this.restartRequest();
+  }
+
+  /** Cancels whatever is in flight, resets the card to its streaming state, and requests anew. */
+  private restartRequest(): void {
     this.cancelInFlight();
     this.card.setStreaming('');
     this.request();
