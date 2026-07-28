@@ -575,6 +575,34 @@ test('undo when the field changed underneath surfaces the replace-failed error a
   expect((shadow.querySelector('button.undo') as HTMLButtonElement).hidden).toBe(false);
 });
 
+test('swapping an alternative, applying, then undoing restores the pristine original', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    // The rewrite still contains an AI flavored word, so the card offers a swap.
+    result: {
+      rewritten: 'We delve into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 1 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const alt = shadow.querySelector('button.alt') as HTMLButtonElement;
+  expect(alt.textContent).toBe('delve');
+  alt.click();
+  (shadow.querySelectorAll('button.alt-opt')[0] as HTMLButtonElement).click();
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  // The swapped word, not the engine's rewrite, is what landed in the field.
+  expect(document.querySelector('textarea')!.value).toBe('We dig into the plan boldly.');
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  // Undo returns the pristine original, not the swapped text.
+  expect(document.querySelector('textarea')!.value).toBe('We delve into the plan boldly.');
+});
+
 test('apply then undo restores contenteditable content by relocating the applied text', () => {
   document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly.</div>';
   const el = document.querySelector('div')!;

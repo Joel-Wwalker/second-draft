@@ -101,6 +101,7 @@ export class Card {
     if (e.key === 'Escape') this.cb.onDismiss();
   };
   private open_ = false;
+  private canApply = false;
   private currentText = '';
   private currentChanges: Change[] = [];
   private popoverEl: HTMLElement | null = null;
@@ -230,6 +231,7 @@ export class Card {
 
   open(rect: { left: number; bottom: number }, opts: { canApply: boolean; intensity: Intensity }): void {
     this.cancelAutoDismiss();
+    this.canApply = opts.canApply;
     this.applyBtn.hidden = !opts.canApply;
     this.regenBtn.hidden = true;
     this.copyBtn.hidden = false;
@@ -264,12 +266,16 @@ export class Card {
   }
 
   setStreaming(textSoFar: string): void {
+    // A swap popover from the previous result would write stale text back.
+    this.closePopover();
+    this.applyBtn.hidden = true;
     this.regenBtn.hidden = true;
     this.bodyEl.textContent = textSoFar;
     this.statusEl.textContent = 'Rewriting...';
   }
 
   setResult(result: HumanizeResult, original: string, note?: string): void {
+    this.applyBtn.hidden = !this.canApply;
     this.regenBtn.hidden = false;
     this.engineEl.textContent = engineLabel(result.engine);
     this.statusEl.textContent = resultStatus(result);

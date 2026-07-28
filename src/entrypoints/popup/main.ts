@@ -161,10 +161,8 @@ async function runScan(): Promise<void> {
       text += ' Highlighting is not supported in this browser, so nothing is marked on the page.';
     }
     scanStatus.textContent = text;
-    scanClearBtn.hidden = false;
   } catch {
     scanStatus.textContent = "Could not scan this page. It may not support the extension's content script.";
-    scanClearBtn.hidden = true;
   } finally {
     scanBtn.disabled = false;
   }
@@ -181,5 +179,4 @@ async function clearScan(): Promise<void> {
     }
   }
   scanStatus.textContent = '';
-  scanClearBtn.hidden = true;
 }

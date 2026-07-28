@@ -43,8 +43,10 @@ Productivity / Writing
 ## Permission justifications (for the review form)
 
 - Content script on all sites: shows the Humanize button next to text the user
-  selects and replaces it in place when they click Apply. Core functionality;
-  a per-site disable toggle is built in.
+  selects, replaces it in place when they click Apply, and powers the optional
+  Scan this page action, which reads visible page text locally to count and
+  underline AI tells without changing it. Core functionality; a per-site disable
+  toggle is built in.
 - storage: user settings (intensity, disabled sites, voice sample, optional
   API key), stored locally.
 - contextMenus: the right-click "Humanize selection" entry.

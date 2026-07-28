@@ -1,4 +1,5 @@
 import { detect } from '../engine/rules';
+import type { Rule } from '../engine/rules';
 import type { ScanSummary } from '../shared/types';
 
 export type { ScanSummary };
@@ -45,7 +46,8 @@ export class PageScan {
       typeof CSS !== 'undefined' && typeof CSS.highlights !== 'undefined' && typeof Highlight !== 'undefined';
   }
 
-  run(): ScanSummary {
+  /** Extra rules (the user's custom tells) count the same as the built-in ones. */
+  run(extra: Rule[] = []): ScanSummary {
     this.clear();
     const candidates = Array.from(this.doc.body.querySelectorAll<HTMLElement>(BLOCK_SELECTOR));
     let tells = 0;
@@ -58,7 +60,7 @@ export class PageScan {
       const { text, spans } = this.collectBlockText(el);
       if (text.trim().length < MIN_BLOCK_CHARS) continue;
       blocks++;
-      const hits = detect(text);
+      const hits = detect(text, extra);
       tells += hits.length;
       if (!this.highlightApiAvailable) continue;
       for (const hit of hits) {

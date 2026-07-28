@@ -76,12 +76,26 @@ export function buildSystemPrompt(opts: PromptOptions): string {
 
 function tellSummary(tells: DetectedTell[]): string {
   const counts = new Map<string, number>();
-  for (const tell of tells) counts.set(tell.ruleId, (counts.get(tell.ruleId) ?? 0) + 1);
+  // Custom tells are all one rule id, so name them by the phrase that matched.
+  // "custom" on its own tells the model nothing it can act on.
+  const customPhrases = new Map<string, number>();
+  for (const tell of tells) {
+    if (tell.ruleId === 'custom') {
+      const phrase = tell.excerpt.toLowerCase();
+      customPhrases.set(phrase, (customPhrases.get(phrase) ?? 0) + 1);
+      continue;
+    }
+    counts.set(tell.ruleId, (counts.get(tell.ruleId) ?? 0) + 1);
+  }
   const items: string[] = [];
   for (const [id, count] of counts) {
     const rule = RULES.find(r => r.id === id);
     if (count < (rule?.minCountForPrompt ?? 1)) continue;
     const name = TELL_NAMES[id] ?? id;
+    items.push(count > 1 ? `${name} (${count}x)` : name);
+  }
+  for (const [phrase, count] of customPhrases) {
+    const name = `your phrase "${phrase}"`;
     items.push(count > 1 ? `${name} (${count}x)` : name);
   }
   return items.slice(0, 10).join(', ');

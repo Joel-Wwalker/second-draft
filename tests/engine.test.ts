@@ -90,5 +90,6 @@ test('a custom tell reaches the system prompt sent to the provider', async () =>
     { intensity: 'full', customTells: ['secret phrase'] },
     { providers: [capturing] },
   );
-  expect(capturedPrompt).toContain('Detected in this text: custom.');
+  expect(capturedPrompt).toContain('your phrase "secret phrase"');
+  expect(capturedPrompt).not.toContain('Detected in this text: custom');
 });

@@ -4,7 +4,8 @@ import { applyReplacement, locate } from './replace';
 import { Chip } from './chip';
 import { Card } from './card';
 import { PageScan } from './scan';
-import { detect } from '../engine/rules';
+import { customRules, detect } from '../engine/rules';
+import type { Rule } from '../engine/rules';
 import { getSettings } from '../shared/storage';
 import { analyzeWriting, compareToProfile } from '../shared/profile';
 import type { WritingProfile } from '../shared/profile';
@@ -35,6 +36,7 @@ export class HumanizeSession {
   private capturedText = '';
   private canApply = false;
   private intensity: Intensity = 'full';
+  private customTellRules: Rule[] = [];
   private voiceProfile: WritingProfile | null = null;
   private requestId: string | null = null;
   private result: HumanizeResult | null = null;
@@ -70,6 +72,7 @@ export class HumanizeSession {
     this.doc.defaultView?.addEventListener('pagehide', this.onPageHide);
     void getSettings().then(s => {
       this.intensity = s.defaultIntensity;
+      this.customTellRules = customRules(s.customTells);
       this.voiceProfile = analyzeWriting(s.voiceSample);
     });
   }
@@ -151,7 +154,7 @@ export class HumanizeSession {
     // Same check the background router makes: only our own pages may ask.
     if (sender && sender.id !== chrome.runtime.id) return;
     if (isScanRequest(msg)) {
-      sendResponse?.({ ok: true, summary: this.scan.run() });
+      sendResponse?.({ ok: true, summary: this.scan.run(this.customTellRules) });
     } else if (isScanClearRequest(msg)) {
       this.scan.clear();
       sendResponse?.({ ok: true });
@@ -172,7 +175,7 @@ export class HumanizeSession {
     }
     const rect = selectionRect(this.doc, this.selection);
     const win = this.doc.defaultView;
-    const tellCount = detect(this.selection.text).length;
+    const tellCount = detect(this.selection.text, this.customTellRules).length;
     this.chip.showAt(rect.right + (win?.scrollX ?? 0) - 40, rect.bottom + (win?.scrollY ?? 0) + 6, tellCount);
   }
 

@@ -1,6 +1,6 @@
 # Second Draft privacy policy
 
-Last updated: 2026-07-26
+Last updated: 2026-07-28
 
 Second Draft rewrites text you select to remove signs of AI-generated writing.
 
@@ -22,14 +22,17 @@ The developer never receives your text, your settings, or any usage data.
 
 ## What is stored
 
-Settings (default intensity, disabled sites, your writing voice sample, and
-your API key if you add one) are stored in Chrome's local extension storage on
-your device. Nothing is synced or uploaded. Removing the extension deletes it.
+Settings (default intensity, disabled sites, your writing voice sample, any
+custom tells you add, and your API key if you add one) are stored in Chrome's
+local extension storage on your device. Nothing is synced or uploaded. Removing the extension deletes it.
 
 ## Permissions
 
-- Access to pages you visit is used only to show the Humanize button near text
-  you select and to replace that text when you click Apply.
+- Access to pages you visit is used to show the Humanize button near text you
+  select, to replace that text when you click Apply, and, when you click Scan
+  this page, to read the page's visible text on your device so the extension can
+  count AI tells and underline them. Scanning sends nothing anywhere and never
+  changes the page's text.
 - The optional API-domain permission is requested only when you add an API key,
   and only for the domain you configure.
 
