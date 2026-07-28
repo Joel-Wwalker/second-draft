@@ -24,11 +24,17 @@ export default defineBackground(() => {
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== 'humanize-selection' || tab?.id === undefined) return;
-    void chrome.tabs
-      .sendMessage(tab.id, { type: 'context-humanize', selectionText: info.selectionText ?? '' })
-      .catch(() => {
-        // No content script in this tab (chrome:// page etc.); nothing to do.
-      });
+    sendContextHumanize(tab.id, info.selectionText ?? '');
+  });
+
+  // Keyboard shortcut (default Ctrl+Shift+H / MacCtrl+Shift+H, see wxt.config.ts). Chrome
+  // hands back the tab that was focused when the accelerator fired directly, same as the
+  // context-menu callback above. No selection text is available here, so the message is sent
+  // empty and the content script falls back to reading the live selection itself -- the same
+  // path the context menu already relies on, guard included.
+  chrome.commands.onCommand.addListener((command, tab) => {
+    if (command !== 'humanize-selection' || tab?.id === undefined) return;
+    sendContextHumanize(tab.id, '');
   });
 
   // One-shot path (popup).
@@ -70,6 +76,14 @@ export default defineBackground(() => {
     });
   });
 });
+
+/** Shared by the context menu and the keyboard shortcut: both just tell the active tab's
+ *  content script to humanize a selection, which reads the live selection itself. */
+function sendContextHumanize(tabId: number, selectionText: string): void {
+  void chrome.tabs.sendMessage(tabId, { type: 'context-humanize', selectionText }).catch(() => {
+    // No content script in this tab (chrome:// page etc.); nothing to do.
+  });
+}
 
 function post(port: chrome.runtime.Port, msg: PortServerMessage): void {
   try {

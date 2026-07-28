@@ -29,3 +29,5 @@ rows where noted (Clear extension storage via service-worker console).
 | 22 | Right-click Humanize inside a card-number or OTP field | Nothing happens |
 | 23 | Nano downloadable, no API key | Quick clean result; options page offers the model download |
 | 24 | Non-Ollama local OpenAI-compatible server (LM Studio, llama.cpp) | Works after permission grant, or a clear endpoint error, never a hang |
+| 25 | Select text on a normal page, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Same as right-click Humanize: chip hides, card opens over the selection, rewrite streams in. The accelerator itself is manual-only: neither vitest nor Playwright can trigger a real `chrome.commands` shortcut, so this row is the only coverage past the receiving message handler |
+| 26 | Focus a password field, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Nothing happens: no chip, no card. Same sensitive-field guard as the context-menu path |

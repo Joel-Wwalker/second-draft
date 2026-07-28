@@ -403,6 +403,32 @@ test('context-humanize ignores sensitive fields even with a selectionText fallba
   expect(port.sent).toHaveLength(0);
 });
 
+// Shortcut shape: the background sends selectionText: '' for chrome.commands (unlike the
+// context menu, chrome.commands.onCommand carries no selection text), relying entirely on
+// this handler reading the live selection itself. These two tests drive that exact message
+// shape through the same runtime-message path the context menu uses.
+test('context-humanize with an empty selectionText still humanizes a live editable selection (shortcut shape)', () => {
+  const ta = document.querySelector('textarea')!;
+  ta.focus();
+  ta.setSelectionRange(0, 30);
+  for (const fn of [...runtimeListeners]) fn({ type: 'context-humanize', selectionText: '' });
+  expect(document.getElementById('humanizer-card-host')).not.toBeNull();
+  expect(port.sent).toHaveLength(1);
+  expect(port.sent[0]).toMatchObject({ type: 'humanize', intensity: 'full', text: 'We delve into the plan boldly.' });
+});
+
+test('context-humanize ignores a password field even with a non-empty selectionText fallback (shortcut shape guard)', () => {
+  // Uses a non-empty fallback (unlike the real shortcut, which always sends '') to prove the
+  // guard itself blocks password fields unconditionally, not merely that an empty fallback
+  // happens to fall through the `if (!text) return` below it. Mirrors the cc-number test
+  // above, which proves the same thing for the autocomplete-based branch of the guard.
+  document.body.innerHTML = '<input type="password" value="hunter2hunter2">';
+  document.querySelector('input')!.focus();
+  for (const fn of [...runtimeListeners]) fn({ type: 'context-humanize', selectionText: 'hunter2hunter2' });
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+  expect(port.sent).toHaveLength(0);
+});
+
 test('streaming chunks keep the request alive past the deadline', () => {
   selectInTextarea();
   clickChip();

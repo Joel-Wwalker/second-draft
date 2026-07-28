@@ -9,6 +9,15 @@ export default defineConfig({
     minimum_chrome_version: '138',
     permissions: ['storage', 'contextMenus', 'activeTab'],
     optional_host_permissions: ['https://*/*', 'http://localhost/*', 'http://127.0.0.1/*'],
+    commands: {
+      'humanize-selection': {
+        suggested_key: {
+          default: 'Ctrl+Shift+H',
+          mac: 'MacCtrl+Shift+H',
+        },
+        description: 'Humanize the selected text',
+      },
+    },
     icons: {
       16: 'icons/16.png',
       32: 'icons/32.png',
