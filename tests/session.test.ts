@@ -770,7 +770,7 @@ test('after the 10s auto-dismiss, a stale reference to the undo button can no lo
 test('a scan runtime message runs PageScan and responds with { ok: true, summary }', () => {
   const responses: unknown[] = [];
   for (const fn of [...runtimeListeners]) {
-    fn({ type: 'scan' }, {}, res => responses.push(res));
+    fn({ type: 'scan' }, { id: 'test' }, res => responses.push(res));
   }
   expect(responses).toEqual([{ ok: true, summary: { tells: 0, blocks: 0, highlightsSupported: false } }]);
 });
@@ -778,7 +778,7 @@ test('a scan runtime message runs PageScan and responds with { ok: true, summary
 test('a scan-clear runtime message clears the scan and responds with { ok: true }', () => {
   const responses: unknown[] = [];
   for (const fn of [...runtimeListeners]) {
-    fn({ type: 'scan-clear' }, {}, res => responses.push(res));
+    fn({ type: 'scan-clear' }, { id: 'test' }, res => responses.push(res));
   }
   expect(responses).toEqual([{ ok: true }]);
 });
@@ -792,7 +792,16 @@ test('a scan message after stop() is not answered (stopped guard applies to the 
   expect(scanListener).toBeDefined();
   session.stop();
   const responses: unknown[] = [];
-  scanListener?.({ type: 'scan' }, {}, res => responses.push(res));
+  // A trusted sender id, so the stopped guard is the only thing that can refuse.
+  scanListener?.({ type: 'scan' }, { id: 'test' }, res => responses.push(res));
+  expect(responses).toHaveLength(0);
+});
+
+test('a scan message from a foreign sender is ignored', () => {
+  const responses: unknown[] = [];
+  for (const fn of [...runtimeListeners]) {
+    fn({ type: 'scan' }, { id: 'some-other-extension' }, res => responses.push(res));
+  }
   expect(responses).toHaveLength(0);
 });
 

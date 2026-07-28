@@ -164,6 +164,7 @@ async function runScan(): Promise<void> {
     scanClearBtn.hidden = false;
   } catch {
     scanStatus.textContent = "Could not scan this page. It may not support the extension's content script.";
+    scanClearBtn.hidden = true;
   } finally {
     scanBtn.disabled = false;
   }

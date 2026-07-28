@@ -144,10 +144,12 @@ export class HumanizeSession {
    *  listener's signature or its existing tests at all. */
   private readonly onScanMessage = (
     msg: unknown,
-    _sender?: chrome.runtime.MessageSender,
+    sender?: chrome.runtime.MessageSender,
     sendResponse?: (res: ScanResponse | ScanClearResponse) => void,
   ): void => {
     if (this.stopped) return;
+    // Same check the background router makes: only our own pages may ask.
+    if (sender && sender.id !== chrome.runtime.id) return;
     if (isScanRequest(msg)) {
       sendResponse?.({ ok: true, summary: this.scan.run() });
     } else if (isScanClearRequest(msg)) {
