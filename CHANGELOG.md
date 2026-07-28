@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 (2026-07-28)
+
+Personalization and control.
+
+- Undo for ten seconds after applying a rewrite, and Try again for a fresh one
+- Ctrl+Shift+H humanizes the selection without reaching for the mouse
+- Custom tells: add your own phrases in settings and they are flagged and fed to the prompt
+- Voice sample can be uploaded as .txt, .md, or .docx instead of pasted
+- Writing profile read from that sample, with a note on the card when a rewrite drifts from it
+- Scan a whole page for AI tells without changing any of its text
+- Word alternatives you can tap to swap before applying
+
 ## 1.0.0 (2026-07-26)
 
 First public release, as Second Draft.

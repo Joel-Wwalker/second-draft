@@ -22,6 +22,10 @@ edit with its reason, and an AI-tells score shows how many tells were found
 and how many remain. Apply replaces the text in place. A popup paste box
 covers sites that block in-place editing.
 
+AI flavored words are tappable, so you can swap in a plain alternative before you
+apply, and if you give it a sample of your own writing it will tell you when a
+rewrite drifts away from your usual sentence length and rhythm.
+
 Private by design: rewrites run on your device using Chrome's built-in AI. No
 account, no servers, no tracking, unlimited use. Optionally add your own
 Anthropic or OpenAI-compatible API key for higher quality rewrites; your key

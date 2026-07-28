@@ -7,7 +7,23 @@ Rewrites run on your device through Chrome's built-in Gemini Nano when available
 with an optional bring-your-own-key upgrade (Anthropic or any OpenAI-compatible
 endpoint) configured in the options page.
 
-Status: 1.0.0, pending store submission.
+Status: 1.1.0, pending store submission.
+Demo page: https://joel-wwalker.github.io/second-draft/
+
+## Features
+
+- Select text, click the chip (it shows how many tells are in your selection), review, apply in place
+- A score ring and a tell count that only reaches zero when the rewrite earned it
+- What-changed log: every edit as old to new, with the reason
+- Tappable alternatives for AI flavored words, applied before you commit
+- Undo for ten seconds after applying, and Try again for a different rewrite
+- Ctrl+Shift+H to humanize the selection, or right click anywhere
+- Engines: Chrome's on-device Gemini Nano by default, your own Anthropic or
+  OpenAI-compatible key optionally, deterministic cleanup rules as the floor
+- Your own custom tells, plus a writing profile read from a sample you paste or
+  upload as .txt, .md, or .docx
+- Scan a whole page for tells without changing a character of it
+- Per-site disable, and a popup paste box for sites that block in-place editing
 
 Privacy policy: https://joel-wwalker.github.io/second-draft/privacy-policy (no
 servers, no telemetry; text leaves your device only for a provider you configure).

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Second Draft: humanize AI text</title>
+    <meta
+      name="description"
+      content="A Chrome extension that rewrites AI sounding text so it reads like you wrote it. Runs on your device by default."
+    />
+    <style>
+      :root {
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --surface: #ffffff;
+        --ground: #f8fafc;
+        --accent: #4f46e5;
+        --accent-soft: #eef2ff;
+        --cut: #9f5f64;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --line: #334155;
+          --surface: #1e293b;
+          --ground: #0f172a;
+          --accent: #818cf8;
+          --accent-soft: #262f4a;
+          --cut: #c98b90;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0 20px 72px;
+        background: var(--ground);
+        color: var(--ink);
+        font: 16px/1.6 system-ui, sans-serif;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+      }
+      header {
+        padding: 64px 0 8px;
+      }
+      .mark {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 800;
+        font-size: 20px;
+      }
+      h1 {
+        font-size: 38px;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 20px 0 10px;
+      }
+      .lede {
+        font-size: 19px;
+        color: var(--muted);
+        margin: 0 0 28px;
+        max-width: 60ch;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 48px;
+      }
+      a.btn {
+        display: inline-block;
+        padding: 11px 22px;
+        border-radius: 999px;
+        font-weight: 650;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: var(--surface);
+      }
+      a.btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+        margin: 0 0 14px;
+      }
+      section {
+        margin-bottom: 44px;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 640px) {
+        .pair {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 30px;
+        }
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .panel h3 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .panel p {
+        margin: 0;
+        font-size: 15px;
+      }
+      .panel.after mark {
+        background: var(--accent-soft);
+        color: inherit;
+        border-radius: 4px;
+        padding: 0 2px;
+      }
+      .score {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .score b {
+        color: var(--accent);
+      }
+      ul.feat {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+      }
+      ul.feat li {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-size: 15px;
+      }
+      ul.feat b {
+        display: block;
+        margin-bottom: 2px;
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding-top: 20px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      footer a {
+        color: inherit;
+      }
+      s {
+        color: var(--cut);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="mark">2</span>
+        <h1>AI wrote your first draft. This makes it yours.</h1>
+        <p class="lede">
+          Second Draft is a Chrome extension that strips the tells out of AI written text: em dashes,
+          "delve" and its friends, chatbot filler, and the flat even rhythm that gives a generated
+          paragraph away. Select text anywhere, review every edit, apply it in place.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="https://github.com/Joel-Wwalker/second-draft">Get the source</a>
+          <a class="btn" href="privacy-policy">Privacy policy</a>
+        </div>
+      </header>
+
+      <section>
+        <h2>Before and after</h2>
+        <div class="pair">
+          <div class="panel">
+            <h3>What the model wrote</h3>
+            <p>
+              In today's rapidly evolving landscape, it is crucial to delve into the vibrant tapestry
+              of strategies that organizations leverage to foster meaningful engagement, ensuring
+              lasting impact across teams.
+            </p>
+          </div>
+          <div class="panel after">
+            <h3>What you send</h3>
+            <p>
+              Teams try a lot of things to get people engaged. Some of it sticks. The
+              <mark>part worth copying</mark> is usually the part someone actually
+              <mark>bothered to explain</mark>.
+            </p>
+            <span class="score"><b>AI tells: 6 to 0</b> across 9 edits</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>What it does</h2>
+        <ul class="feat">
+          <li>
+            <b>Shows its work</b>
+            Every edit is listed as <s>the old wording</s> to the new one, with the reason it changed.
+            No black box score, just receipts you can check.
+          </li>
+          <li>
+            <b>Counts the tells</b>
+            You see how many AI tells were found and how many are left. The number only reaches zero
+            when the rewrite earned it.
+          </li>
+          <li>
+            <b>Offers alternatives</b>
+            Words like "delve" or "pivotal" are tappable. Pick a plain replacement and it goes into the
+            text before you apply.
+          </li>
+          <li>
+            <b>Runs on your device</b>
+            The default engine is Chrome's built in model, so your writing never leaves your machine.
+            Add your own API key if you want a larger model.
+          </li>
+          <li>
+            <b>Learns your voice</b>
+            Paste or upload something you wrote. It reads your sentence length, rhythm, and habits, and
+            tells you when a rewrite drifts away from them.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Installing</h2>
+        <p class="note">
+          Not on the Chrome Web Store yet. To run it today: clone the repository, run
+          <code>npm install</code> and <code>npm run build</code>, then load the
+          <code>.output/chrome-mv3</code> folder as an unpacked extension from
+          <code>chrome://extensions</code> with Developer mode on.
+        </p>
+      </section>
+
+      <footer>
+        Free and open source under the MIT license. No accounts, no servers, no tracking. Rewrite
+        patterns derive from the
+        <a href="https://github.com/blader/humanizer">humanizer skill</a>, itself based on Wikipedia's
+        "Signs of AI writing" by WikiProject AI Cleanup.
+      </footer>
+    </div>
+  </body>
+</html>
