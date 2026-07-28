@@ -5,6 +5,8 @@ import { Chip } from './chip';
 import { Card } from './card';
 import { detect } from '../engine/rules';
 import { getSettings } from '../shared/storage';
+import { analyzeWriting, compareToProfile } from '../shared/profile';
+import type { WritingProfile } from '../shared/profile';
 import { HUMANIZE_PORT } from '../shared/messages';
 import type { HumanizeRequest, PortServerMessage } from '../shared/messages';
 import type { HumanizeResult, Intensity } from '../shared/types';
@@ -31,6 +33,7 @@ export class HumanizeSession {
   private capturedText = '';
   private canApply = false;
   private intensity: Intensity = 'full';
+  private voiceProfile: WritingProfile | null = null;
   private requestId: string | null = null;
   private result: HumanizeResult | null = null;
   private applied: { target: EditableSelection; appliedText: string; originalText: string } | null = null;
@@ -59,6 +62,7 @@ export class HumanizeSession {
     chrome.storage.onChanged.addListener(this.onStorageChanged);
     void getSettings().then(s => {
       this.intensity = s.defaultIntensity;
+      this.voiceProfile = analyzeWriting(s.voiceSample);
     });
   }
 
@@ -212,7 +216,12 @@ export class HumanizeSession {
     } else if (msg.type === 'done') {
       this.clearRequestTimeout();
       this.result = msg.result;
-      this.card.setResult(msg.result, this.capturedText);
+      if (this.voiceProfile) {
+        const note = compareToProfile(msg.result.rewritten, this.voiceProfile);
+        this.card.setResult(msg.result, this.capturedText, note ?? undefined);
+      } else {
+        this.card.setResult(msg.result, this.capturedText);
+      }
     } else {
       this.clearRequestTimeout();
       this.card.setError(msg.kind, msg.message);

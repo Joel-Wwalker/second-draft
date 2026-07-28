@@ -31,11 +31,16 @@ let port: FakePort;
 let runtimeListeners: Array<(msg: unknown) => void> = [];
 let storageListeners: Array<(changes: Record<string, { newValue?: unknown }>, area: string) => void> = [];
 let session: import('../src/content/session').HumanizeSession;
+/** Backing store for the chrome.storage.local mock below; re-seeded fresh in each
+ * beforeEach. Kept at describe scope (rather than local to beforeEach) so tests that
+ * need HumanizeSession.start() to read a non-default settings value -- e.g. a voice
+ * sample -- can seed it via restartWithVoiceSample below. */
+let store: Record<string, unknown>;
 
 beforeEach(async () => {
   vi.useFakeTimers();
   port = new FakePort();
-  const store: Record<string, unknown> = {
+  store = {
     settings: { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [] },
   };
   runtimeListeners = [];
@@ -114,6 +119,24 @@ function selectRangeInContentEditable(el: HTMLElement, start: number, end: numbe
   vi.advanceTimersByTime(200);
 }
 
+/**
+ * The shared beforeEach seeds no voiceSample, so HumanizeSession.start()'s
+ * analyzeWriting call reads '' and caches a null profile for most tests. Tests that
+ * need a real cached profile stop the auto-started session, seed the mock store's
+ * settings with a voiceSample, and start a fresh session so its start() reads it.
+ * Several microtask turns are flushed afterward: getSettings() awaits the mocked
+ * chrome.storage.local.get, then start()'s own .then callback runs as a further
+ * continuation, so a single microtask tick is not enough to observe the cached profile.
+ */
+async function restartWithVoiceSample(voiceSample: string): Promise<void> {
+  session.stop();
+  store['settings'] = { defaultIntensity: 'full', useFakeProvider: true, disabledSites: [], voiceSample };
+  const { HumanizeSession } = await import('../src/content/session');
+  session = new HumanizeSession(document);
+  session.start();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+}
+
 test('selection shows the chip; chip click opens the card and sends a request', () => {
   selectInTextarea();
   expect(document.getElementById('humanizer-chip-host')).not.toBeNull();
@@ -143,6 +166,49 @@ test('done result renders and Apply replaces the field text', () => {
   expect(document.querySelector('textarea')!.value).toBe('We dig into the plan boldly.');
   expect(document.getElementById('humanizer-card-host')).not.toBeNull();
   expect(shadow.querySelector('.headline .h')!.textContent).toBe('Applied');
+});
+
+test('a voice-sample profile that a rewrite drifts from adds a profile note to the card', async () => {
+  // Same fixture and math as profile.test.ts's "a rewrite with much longer sentences
+  // reports the drift": avg 10.8 word sentences vs. this rewrite's single 22-word one.
+  const voiceSample = [
+    'I write in short bursts.',
+    'Sometimes a sentence runs much longer than it really needs to, and I let it wander a bit.',
+    "I don't fix that.",
+    "It's just how the words come out when I am not thinking about it too hard.",
+  ].join(' ');
+  await restartWithVoiceSample(voiceSample);
+
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  const drifted =
+    'The quality of the output depends entirely on how carefully the author has considered the structure of the argument being presented here.';
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: { rewritten: drifted, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+  });
+
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const note = shadow.querySelector('.profile-note') as HTMLElement | null;
+  expect(note).not.toBeNull();
+  expect(note!.hidden).toBe(false);
+  expect(note!.textContent).toBe('Your writing averages 10.8 word sentences; this runs 22.');
+});
+
+test('no voice sample means a done result never adds a profile note', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: { rewritten: 'We dig into the plan boldly.', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const note = shadow.querySelector('.profile-note') as HTMLElement | null;
+  expect(note === null || note.hidden).toBe(true);
 });
 
 test('dismiss sends a cancel for the in-flight request', () => {

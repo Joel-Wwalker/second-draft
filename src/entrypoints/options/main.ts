@@ -4,6 +4,7 @@ import type { Intensity } from '../../shared/types';
 import { HumanizerError } from '../../shared/types';
 import { byokOrigin } from '../../shared/byok-origin';
 import { checkVoiceFileName, checkVoiceFileSize, extractDocxText, formatLoadedStatus, truncateVoiceSample } from '../../shared/docx';
+import { analyzeWriting } from '../../shared/profile';
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -19,6 +20,8 @@ const byokBaseUrl = byId<HTMLInputElement>('byokBaseUrl');
 const voiceSample = byId<HTMLTextAreaElement>('voiceSample');
 const voiceFile = byId<HTMLInputElement>('voiceFile');
 const voiceFileStatus = byId<HTMLParagraphElement>('voiceFileStatus');
+const profilePanel = byId<HTMLDivElement>('profilePanel');
+const profileHint = byId<HTMLParagraphElement>('profileHint');
 const customTells = byId<HTMLTextAreaElement>('customTells');
 const defaultIntensity = byId<HTMLSelectElement>('defaultIntensity');
 const siteList = byId<HTMLUListElement>('siteList');
@@ -34,6 +37,8 @@ const NANO_LABELS: Record<LanguageModelAvailability, string> = {
 };
 
 const DEFAULT_MODELS = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o-mini' } as const;
+const PROFILE_DEBOUNCE_MS = 400;
+let profileDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 void init();
 
@@ -48,7 +53,12 @@ async function init(): Promise<void> {
   defaultIntensity.value = settings.defaultIntensity;
   renderSites(settings);
   syncByokRows();
+  renderProfile();
   byokProvider.addEventListener('change', syncByokRows);
+  voiceSample.addEventListener('input', () => {
+    if (profileDebounceTimer !== null) clearTimeout(profileDebounceTimer);
+    profileDebounceTimer = setTimeout(renderProfile, PROFILE_DEBOUNCE_MS);
+  });
   voiceFile.addEventListener('change', () => {
     void loadVoiceFile();
   });
@@ -69,6 +79,45 @@ function syncByokRows(): void {
   if (provider !== 'none' && byokModel.value.trim() === '') {
     byokModel.placeholder = DEFAULT_MODELS[provider];
   }
+}
+
+function renderProfile(): void {
+  const profile = analyzeWriting(voiceSample.value);
+  profilePanel.textContent = '';
+  if (!profile) {
+    profilePanel.hidden = true;
+    profileHint.hidden = false;
+    return;
+  }
+  profileHint.hidden = true;
+  profilePanel.hidden = false;
+  const rows: Array<[string, string]> = [
+    ['Words', profile.words.toLocaleString('en-US')],
+    ['Average sentence', pluralWords(profile.avgSentenceWords)],
+    ['Variety', pluralWords(profile.sentenceVariety)],
+    ['Contractions', asPercent(profile.contractionRate)],
+    ['Commas per sentence', asPercent(profile.commasPerSentence)],
+  ];
+  for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.className = 'profile-row';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'profile-label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('span');
+    valueEl.className = 'profile-value';
+    valueEl.textContent = value;
+    row.append(labelEl, valueEl);
+    profilePanel.append(row);
+  }
+}
+
+function pluralWords(n: number): string {
+  return `${n} word${n === 1 ? '' : 's'}`;
+}
+
+function asPercent(rate: number): string {
+  return `${Math.round(rate * 100)}%`;
 }
 
 async function loadVoiceFile(): Promise<void> {
@@ -94,6 +143,7 @@ async function loadVoiceFile(): Promise<void> {
       : await file.text();
     const { text, truncated } = truncateVoiceSample(raw);
     voiceSample.value = text;
+    renderProfile();
     voiceFileStatus.textContent = formatLoadedStatus(text, file.name, truncated);
   } catch (err) {
     voiceFileStatus.textContent = err instanceof HumanizerError ? err.message : 'Could not read that file.';

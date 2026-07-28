@@ -64,6 +64,33 @@ test('card renders a result with highlight marks and engine label', () => {
   expect(shadow.querySelector('.ring .num')!.textContent).toBe('0');
 });
 
+test('setResult renders a profile note when one is given', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+    'Your writing averages 10.8 word sentences; this runs 22.',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const note = shadow.querySelector('.profile-note') as HTMLElement | null;
+  expect(note).not.toBeNull();
+  expect(note!.textContent).toBe('Your writing averages 10.8 word sentences; this runs 22.');
+  expect(note!.hidden).toBe(false);
+});
+
+test('setResult leaves the profile note hidden and empty when no note is given', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const note = shadow.querySelector('.profile-note') as HTMLElement | null;
+  expect(note === null || (note.hidden && note.textContent === '')).toBe(true);
+});
+
 test('ring headline reports remaining tells when some survive', () => {
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });

@@ -17,6 +17,12 @@ input[type="text"], input[type="password"], select, textarea { width: 100%; box-
 input[type="file"] { display: block; width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; margin-top: 5px; color: var(--ink); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 #voiceFileStatus { margin-top: 8px; }
+.profile { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); }
+.profile-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+.profile-row:last-child { border-bottom: 0; }
+.profile-label { color: var(--muted); }
+.profile-value { font-weight: 600; }
+#profileHint { margin-top: 8px; }
 button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 button:hover { border-color: var(--muted); }
 button:disabled { opacity: 0.5; cursor: default; }

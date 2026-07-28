@@ -32,6 +32,8 @@ const CARD_CSS = `
   .headline { min-width: 0; }
   .headline .h { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
   .status { font-size: 12px; color: #64748b; min-height: 15px; }
+  .profile-note { padding: 0 18px 8px; font-size: 11.5px; color: #7c6f5d; }
+  .profile-note[hidden] { display: none; }
   .body { max-height: 220px; overflow: auto; padding: 2px 18px 14px; white-space: pre-wrap; }
   .rewritten mark { background: #e0e7ff; color: inherit; border-radius: 4px; padding: 0 2px;
     box-shadow: inset 0 -2px 0 rgba(79,70,229,.35); }
@@ -85,6 +87,7 @@ export class Card {
   private readonly ringNum: HTMLElement;
   private readonly bodyEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  private readonly profileNoteEl: HTMLElement;
   private readonly changesEl: HTMLDetailsElement;
   private readonly changeRowsEl: HTMLDivElement;
   private readonly engineEl: HTMLElement;
@@ -117,6 +120,10 @@ export class Card {
 
     this.statusEl = doc.createElement('div');
     this.statusEl.className = 'status';
+
+    this.profileNoteEl = doc.createElement('div');
+    this.profileNoteEl.className = 'profile-note';
+    this.profileNoteEl.hidden = true;
 
     this.headEl = doc.createElement('div');
     this.headEl.className = 'head';
@@ -213,7 +220,7 @@ export class Card {
     });
 
     bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.regenBtn, this.copyBtn, this.undoBtn, this.dismissBtn);
-    this.cardEl.append(this.headEl, this.bodyEl, this.changesEl, bar);
+    this.cardEl.append(this.headEl, this.profileNoteEl, this.bodyEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
 
@@ -237,6 +244,8 @@ export class Card {
     this.changesEl.hidden = true;
     this.changesEl.open = false;
     this.changeRowsEl.textContent = '';
+    this.profileNoteEl.hidden = true;
+    this.profileNoteEl.textContent = '';
     this.currentText = '';
     this.currentChanges = [];
     this.closePopover();
@@ -260,10 +269,12 @@ export class Card {
     this.statusEl.textContent = 'Rewriting...';
   }
 
-  setResult(result: HumanizeResult, original: string): void {
+  setResult(result: HumanizeResult, original: string, note?: string): void {
     this.regenBtn.hidden = false;
     this.engineEl.textContent = engineLabel(result.engine);
     this.statusEl.textContent = resultStatus(result);
+    this.profileNoteEl.textContent = note ?? '';
+    this.profileNoteEl.hidden = !note;
     this.changeRowsEl.textContent = '';
     const rows = formatChanges(result, original);
     this.changesEl.hidden = rows.length === 0;
