@@ -170,6 +170,31 @@ test('stale responses for superseded ids are ignored', () => {
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
 });
 
+test('changing intensity mid-stream cancels the in-flight request and sends a fresh one with the new intensity', () => {
+  selectInTextarea();
+  clickChip();
+  const first = port.sent[0] as { id: string; text: string; intensity: string };
+  // A chunk (not done) keeps the request in flight: this.result stays null, so
+  // the intensity change below must hit cancelInFlight()'s cancel-send branch.
+  port.emit({ type: 'chunk', id: first.id, textSoFar: 'partial' });
+
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('select.intensity') as HTMLSelectElement).value = 'light';
+  shadow.querySelector('select.intensity')!.dispatchEvent(new Event('change'));
+
+  expect(port.sent).toContainEqual({ type: 'cancel', id: first.id });
+  const humanizeMsgs = port.sent.filter(m => (m as { type: string }).type === 'humanize') as Array<{
+    id: string;
+    text: string;
+    intensity: string;
+  }>;
+  expect(humanizeMsgs).toHaveLength(2);
+  const second = humanizeMsgs[1]!;
+  expect(second.id).not.toBe(first.id);
+  expect(second.text).toBe(first.text);
+  expect(second.intensity).toBe('light');
+});
+
 test('regenerate after a result has arrived sends a fresh humanize request with a new id for the same text and intensity, without cancelling the completed one', () => {
   selectInTextarea();
   clickChip();

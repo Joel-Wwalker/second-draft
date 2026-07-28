@@ -240,6 +240,27 @@ test('a second open() after showApplied() restores apply/copy/intensity visibili
   expect((shadow.querySelector('button.undo') as HTMLButtonElement).hidden).toBe(true);
 });
 
+test('open() hides button.regen when it was left visible by a previous result', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const regenBtn = shadow.querySelector('button.regen') as HTMLButtonElement;
+  expect(regenBtn.hidden).toBe(false);
+
+  // A second open() -- e.g. the context menu, or a future keyboard shortcut,
+  // reopening the card while it is still showing "Try again" from a prior result
+  // -- must hide regen again. Nothing else in this sequence touches regen, so
+  // this exercises open()'s own reset line specifically (unlike the "hidden on
+  // open" clause of the regen-visibility test above, which starts from a freshly
+  // constructed card whose regenBtn is already hidden by the constructor default).
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  expect(regenBtn.hidden).toBe(true);
+});
+
 test('a stale timer from an earlier cycle never force-closes a card that was closed and reopened', () => {
   vi.useFakeTimers();
   try {
