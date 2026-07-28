@@ -43,6 +43,9 @@ export class HumanizeSession {
       onCopy: () => this.onCopy(),
       onDismiss: () => this.dismissCard(),
       onIntensityChange: intensity => this.onIntensityChange(intensity),
+      onTextEdited: text => {
+        if (this.result) this.result = { ...this.result, rewritten: text };
+      },
     });
   }
 

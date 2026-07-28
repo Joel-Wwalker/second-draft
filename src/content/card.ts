@@ -1,12 +1,15 @@
 import { engineLabel, resultStatus } from '../shared/labels';
 import { formatChanges } from '../shared/change-log';
-import type { HumanizeResult, HumanizerErrorKind, Intensity } from '../shared/types';
+import { findAlternatives, swapWord } from '../shared/alternatives';
+import type { AltSpan } from '../shared/alternatives';
+import type { Change, HumanizeResult, HumanizerErrorKind, Intensity } from '../shared/types';
 
 export interface CardCallbacks {
   onApply(): void;
   onCopy(): void;
   onDismiss(): void;
   onIntensityChange(intensity: Intensity): void;
+  onTextEdited(text: string): void;
 }
 
 const CARD_CSS = `
@@ -52,6 +55,18 @@ const CARD_CSS = `
   button[hidden] { display: none; }
   select { font: 12.5px system-ui, sans-serif; padding: 5px 9px; border: 1px solid #e2e8f0;
     border-radius: 999px; background: #fff; color: #0f172a; }
+  button.alt { display: inline; font: inherit; padding: 0 2px; border: 0; border-radius: 4px;
+    background: #fff7ed; color: #9a3412; cursor: pointer;
+    box-shadow: inset 0 -2px 0 rgba(234,88,12,.4); }
+  button.alt:hover { background: #ffedd5; color: #7c2d12; }
+  .alts { position: absolute; z-index: 2; background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 12px; padding: 8px; box-shadow: 0 10px 24px rgba(15,23,42,.18);
+    display: flex; flex-direction: column; gap: 4px; min-width: 132px; }
+  .alts-label { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    color: #8b93a1; padding: 0 6px 2px; }
+  button.alt-opt { text-align: left; font: 600 13px system-ui, sans-serif; padding: 6px 10px;
+    border-radius: 8px; background: transparent; color: #0f172a; }
+  button.alt-opt:hover { background: #eef1f5; }
 `;
 
 export class Card {
@@ -76,6 +91,9 @@ export class Card {
     if (e.key === 'Escape') this.cb.onDismiss();
   };
   private open_ = false;
+  private currentText = '';
+  private currentChanges: Change[] = [];
+  private popoverEl: HTMLElement | null = null;
 
   constructor(doc: Document, cb: CardCallbacks) {
     this.doc = doc;
@@ -190,6 +208,9 @@ export class Card {
     this.changesEl.hidden = true;
     this.changesEl.open = false;
     this.changeRowsEl.textContent = '';
+    this.currentText = '';
+    this.currentChanges = [];
+    this.closePopover();
     const win = this.doc.defaultView;
     const viewportW = win?.innerWidth ?? 800;
     const viewportH = win?.innerHeight ?? 600;
@@ -210,7 +231,6 @@ export class Card {
   }
 
   setResult(result: HumanizeResult, original: string): void {
-    renderHighlights(this.doc, this.bodyEl, result);
     this.engineEl.textContent = engineLabel(result.engine);
     this.statusEl.textContent = resultStatus(result);
     this.changeRowsEl.textContent = '';
@@ -239,6 +259,9 @@ export class Card {
     this.setRing(before, after);
     this.headlineEl.textContent =
       before === 0 ? 'Looks human already' : after === 0 ? 'All clear' : `${after} tell${after === 1 ? '' : 's'} left`;
+    this.currentText = result.rewritten;
+    this.currentChanges = [...result.changes];
+    this.renderBody();
   }
 
   setError(kind: HumanizerErrorKind, message: string): void {
@@ -264,6 +287,7 @@ export class Card {
 
   close(): void {
     this.doc.removeEventListener('keydown', this.onKeydown, true);
+    this.closePopover();
     this.host.remove();
     this.open_ = false;
   }
@@ -274,21 +298,90 @@ export class Card {
       (this.host === target || (this.host.shadowRoot?.contains(target) ?? false))
     );
   }
-}
 
-function renderHighlights(doc: Document, container: HTMLElement, result: HumanizeResult): void {
-  container.textContent = '';
-  const { rewritten } = result;
-  const changes = [...result.changes].sort((a, b) => a.range.start - b.range.start);
-  let pos = 0;
-  for (const change of changes) {
-    if (change.range.start < pos || change.range.end <= change.range.start) continue;
-    if (change.range.start > pos) container.append(rewritten.slice(pos, change.range.start));
-    const mark = doc.createElement('mark');
-    mark.textContent = rewritten.slice(change.range.start, change.range.end);
-    mark.title = change.reason;
-    container.append(mark);
-    pos = change.range.end;
+  /** Render the rewrite with change highlights and clickable alternative words. */
+  private renderBody(): void {
+    this.closePopover();
+    this.bodyEl.textContent = '';
+    const text = this.currentText;
+    const changes = [...this.currentChanges]
+      .filter(c => c.range.end > c.range.start)
+      .sort((a, b) => a.range.start - b.range.start);
+    const alts = findAlternatives(text, changes.map(c => c.range));
+    type Piece = { start: number; end: number; kind: 'mark'; reason: string } | { start: number; end: number; kind: 'alt'; span: AltSpan };
+    const pieces: Piece[] = [
+      ...changes.map(c => ({ start: c.range.start, end: c.range.end, kind: 'mark' as const, reason: c.reason })),
+      ...alts.map(a => ({ start: a.start, end: a.end, kind: 'alt' as const, span: a })),
+    ].sort((a, b) => a.start - b.start);
+
+    let pos = 0;
+    for (const piece of pieces) {
+      if (piece.start < pos) continue;
+      if (piece.start > pos) this.bodyEl.append(text.slice(pos, piece.start));
+      if (piece.kind === 'mark') {
+        const mark = this.doc.createElement('mark');
+        mark.textContent = text.slice(piece.start, piece.end);
+        mark.title = piece.reason;
+        this.bodyEl.append(mark);
+      } else {
+        const btn = this.doc.createElement('button');
+        btn.className = 'alt';
+        btn.type = 'button';
+        btn.textContent = piece.span.word;
+        btn.title = `Swap for: ${piece.span.options.join(', ')}`;
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          this.openPopover(btn, piece.span);
+        });
+        this.bodyEl.append(btn);
+      }
+      pos = piece.end;
+    }
+    if (pos < text.length) this.bodyEl.append(text.slice(pos));
   }
-  if (pos < rewritten.length) container.append(rewritten.slice(pos));
+
+  private openPopover(anchor: HTMLElement, span: AltSpan): void {
+    this.closePopover();
+    const pop = this.doc.createElement('div');
+    pop.className = 'alts';
+    const label = this.doc.createElement('div');
+    label.className = 'alts-label';
+    label.textContent = 'Swap for';
+    pop.append(label);
+    for (const option of span.options) {
+      const choice = this.doc.createElement('button');
+      choice.className = 'alt-opt';
+      choice.type = 'button';
+      choice.textContent = option;
+      choice.addEventListener('click', e => {
+        e.stopPropagation();
+        this.applySwap(span, option);
+      });
+      pop.append(choice);
+    }
+    const anchorRect = anchor.getBoundingClientRect();
+    const cardRect = this.cardEl.getBoundingClientRect();
+    pop.style.left = `${Math.max(6, anchorRect.left - cardRect.left)}px`;
+    pop.style.top = `${anchorRect.bottom - cardRect.top + 4}px`;
+    this.cardEl.append(pop);
+    this.popoverEl = pop;
+  }
+
+  private closePopover(): void {
+    this.popoverEl?.remove();
+    this.popoverEl = null;
+  }
+
+  private applySwap(span: AltSpan, option: string): void {
+    const before = this.currentText;
+    this.currentText = swapWord(before, span, option);
+    const delta = this.currentText.length - before.length;
+    this.currentChanges = this.currentChanges.map(c =>
+      c.range.start >= span.end
+        ? { ...c, range: { start: c.range.start + delta, end: c.range.end + delta } }
+        : c,
+    );
+    this.renderBody();
+    this.cb.onTextEdited(this.currentText);
+  }
 }

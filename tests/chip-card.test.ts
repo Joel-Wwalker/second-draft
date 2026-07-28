@@ -8,7 +8,13 @@ beforeEach(() => {
   document.body.innerHTML = '';
 });
 
-const noop = { onApply: () => {}, onCopy: () => {}, onDismiss: () => {}, onIntensityChange: () => {} };
+const noop = {
+  onApply: () => {},
+  onCopy: () => {},
+  onDismiss: () => {},
+  onIntensityChange: () => {},
+  onTextEdited: () => {},
+};
 
 test('chip mounts on show, fires on mousedown, unmounts on hide', () => {
   const onClick = vi.fn();
@@ -89,4 +95,23 @@ test('error state shows the message', () => {
   card.setError('too-long', 'Input is too large.');
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
   expect(shadow.querySelector('.status')!.textContent).toContain('Input is too large.');
+});
+
+test('alternative words are clickable and swapping edits the pending text', () => {
+  const edits: string[] = [];
+  const card = new Card(document, { ...noop, onTextEdited: t => edits.push(t) });
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We delve here today.', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 1 } },
+    'We delve here today.',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  const alt = shadow.querySelector('button.alt') as HTMLButtonElement;
+  expect(alt.textContent).toBe('delve');
+  alt.click();
+  const options = [...shadow.querySelectorAll('button.alt-opt')].map(b => b.textContent);
+  expect(options).toEqual(['dig', 'look', 'get']);
+  (shadow.querySelectorAll('button.alt-opt')[0] as HTMLButtonElement).click();
+  expect(edits).toEqual(['We dig here today.']);
+  expect(shadow.querySelector('.rewritten')!.textContent).toBe('We dig here today.');
 });
