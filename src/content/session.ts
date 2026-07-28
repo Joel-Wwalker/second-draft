@@ -3,6 +3,7 @@ import type { EditableSelection } from './selection';
 import { applyReplacement } from './replace';
 import { Chip } from './chip';
 import { Card } from './card';
+import { detect } from '../engine/rules';
 import { getSettings } from '../shared/storage';
 import { HUMANIZE_PORT } from '../shared/messages';
 import type { HumanizeRequest, PortServerMessage } from '../shared/messages';
@@ -126,7 +127,8 @@ export class HumanizeSession {
     }
     const rect = selectionRect(this.doc, this.selection);
     const win = this.doc.defaultView;
-    this.chip.showAt(rect.right + (win?.scrollX ?? 0) - 40, rect.bottom + (win?.scrollY ?? 0) + 6);
+    const tellCount = detect(this.selection.text).length;
+    this.chip.showAt(rect.right + (win?.scrollX ?? 0) - 40, rect.bottom + (win?.scrollY ?? 0) + 6, tellCount);
   }
 
   private onChipClick(): void {

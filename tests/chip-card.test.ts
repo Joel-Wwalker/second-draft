@@ -16,11 +16,13 @@ test('chip mounts on show, fires on mousedown, unmounts on hide', () => {
   chip.showAt(10, 20);
   const host = document.getElementById('humanizer-chip-host')!;
   const btn = host.shadowRoot!.querySelector('button')!;
-  expect(btn.textContent).toBe('Humanize');
+  expect(btn.textContent).toContain('Humanize');
   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
   expect(onClick).toHaveBeenCalledOnce();
   expect(chip.contains(btn)).toBe(true);
   expect(chip.contains(document.body)).toBe(false);
+  chip.showAt(10, 20, 3);
+  expect(host.shadowRoot!.querySelectorAll('span')[1]!.textContent).toBe('3');
   chip.hide();
   expect(document.getElementById('humanizer-chip-host')).toBeNull();
 });
@@ -50,6 +52,20 @@ test('card renders a result with highlight marks and engine label', () => {
   expect(rows).toHaveLength(1);
   expect(rows[0]!.textContent).toContain('delve');
   expect(rows[0]!.textContent).toContain('dig');
+  expect(shadow.querySelector('.headline .h')!.textContent).toBe('All clear');
+  expect(shadow.querySelector('.ring .num')!.textContent).toBe('0');
+});
+
+test('ring headline reports remaining tells when some survive', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'still delve here', changes: [], engine: { kind: 'rules' }, tells: { before: 3, after: 2 } },
+    'still delve here',
+  );
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.headline .h')!.textContent).toBe('2 tells left');
+  expect(shadow.querySelector('.ring .num')!.textContent).toBe('2');
 });
 
 test('card hides Apply when canApply is false', () => {

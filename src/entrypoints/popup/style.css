@@ -30,3 +30,11 @@ details summary { cursor: pointer; font-weight: 600; }
 .chg .why { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 2px; }
 .chg .b { color: #9f5f64; }
 .chg .a { font-weight: 550; }
+
+#go { border-radius: 999px; padding: 7px 20px; font-weight: 700; box-shadow: 0 1px 2px rgba(79,70,229,.35); }
+#copy, #openOptions { border-radius: 999px; }
+textarea { border-radius: 10px; }
+details summary { padding: 4px 0; }
+#changesList { border: 1px solid var(--line); border-radius: 10px; }
+.chg { padding: 8px 10px; }
+.chg .why { font-weight: 700; letter-spacing: .05em; text-transform: uppercase; font-size: 10px; }

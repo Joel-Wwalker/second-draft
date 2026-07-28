@@ -11,33 +11,47 @@ export interface CardCallbacks {
 
 const CARD_CSS = `
   :host { all: initial; }
-  .card { position: fixed; z-index: 2147483647; width: 380px; max-width: 92vw;
+  .card { position: fixed; z-index: 2147483647; width: 396px; max-width: 92vw;
     max-height: calc(100vh - 16px); overflow: auto;
-    background: #ffffff; color: #0f172a; font: 13.5px/1.55 system-ui, sans-serif;
-    border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 12px 32px rgba(15,23,42,.18); }
-  .body { max-height: 260px; overflow: auto; padding: 12px 14px; white-space: pre-wrap; }
-  .rewritten mark { background: #e0e7ff; color: inherit; border-radius: 3px; }
-  .bar { display: flex; gap: 8px; align-items: center; padding: 10px 14px;
-    border-top: 1px solid #e2e8f0; }
-  .status { padding: 0 14px 8px; color: #64748b; min-height: 16px; font-size: 12px; }
-  .engine { color: #64748b; margin-right: auto; font-size: 11.5px; }
-  button { font: 600 12.5px system-ui, sans-serif; padding: 5px 12px; border: 1px solid #e2e8f0;
-    border-radius: 6px; background: #fff; color: #0f172a; cursor: pointer; }
-  button:hover { border-color: #94a3b8; }
-  button.apply { background: #4f46e5; border-color: #4f46e5; color: #fff; }
-  button.apply:hover { background: #4338ca; }
-  button[hidden] { display: none; }
-  select { font: 12.5px system-ui, sans-serif; padding: 4px 8px; border: 1px solid #e2e8f0;
-    border-radius: 6px; background: #fff; color: #0f172a; }
-  .changes { border-top: 1px solid #e2e8f0; padding: 8px 14px; font-size: 12px; }
-  .changes summary { cursor: pointer; color: #64748b; font-weight: 600; }
-  .changes .rows { max-height: 150px; overflow: auto; margin-top: 6px; }
-  .chg { padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+    background: #ffffff; color: #0f172a; font: 14px/1.6 system-ui, sans-serif;
+    border: 1px solid rgba(15,23,42,.07); border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 12px 28px -6px rgba(15,23,42,.16), 0 32px 64px -12px rgba(15,23,42,.14); }
+  .head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 10px; }
+  .ring { width: 44px; height: 44px; flex: none; position: relative; }
+  .ring svg { transform: rotate(-90deg); display: block; }
+  .ring .num { position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 13px; font-weight: 800; color: #4338ca; }
+  .headline { min-width: 0; }
+  .headline .h { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .status { font-size: 12px; color: #64748b; min-height: 15px; }
+  .body { max-height: 220px; overflow: auto; padding: 2px 18px 14px; white-space: pre-wrap; }
+  .rewritten mark { background: #e0e7ff; color: inherit; border-radius: 4px; padding: 0 2px;
+    box-shadow: inset 0 -2px 0 rgba(79,70,229,.35); }
+  .changes { padding: 0 18px 12px; font-size: 12.5px; }
+  .changes summary { cursor: pointer; color: #64748b; font-weight: 600; padding: 6px 0; }
+  .changes .rows { max-height: 168px; overflow: auto; border: 1px solid #eef1f5;
+    border-radius: 12px; margin-top: 4px; }
+  .chg { padding: 8px 12px; border-bottom: 1px solid #f4f6f9; }
   .chg:last-child { border-bottom: 0; }
-  .chg .why { display: block; font-size: 10.5px; color: #64748b; margin-bottom: 2px; }
+  .chg .why { display: block; font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: #8b93a1; margin-bottom: 2px; }
   .chg .b { color: #9f5f64; text-decoration-color: #d4a3a8; }
-  .chg .a { color: #0f172a; font-weight: 550; }
+  .chg .a { color: #0f172a; font-weight: 600; }
   .changes[hidden] { display: none; }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 12px 18px;
+    background: #fbfbfd; border-top: 1px solid #eef1f5; }
+  .engine { color: #64748b; margin-right: auto; font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 6px; }
+  .engine::before { content: ""; width: 7px; height: 7px; border-radius: 99px; background: #4f46e5; }
+  button { font: 600 13px system-ui, sans-serif; padding: 8px 13px; border: 0;
+    border-radius: 999px; background: transparent; color: #64748b; cursor: pointer; }
+  button:hover { color: #0f172a; background: #eef1f5; }
+  button.apply { background: #4f46e5; color: #fff; font-weight: 700; padding: 8px 20px;
+    box-shadow: 0 1px 2px rgba(79,70,229,.4); }
+  button.apply:hover { background: #4338ca; color: #fff; }
+  button[hidden] { display: none; }
+  select { font: 12.5px system-ui, sans-serif; padding: 5px 9px; border: 1px solid #e2e8f0;
+    border-radius: 999px; background: #fff; color: #0f172a; }
 `;
 
 export class Card {
@@ -45,6 +59,10 @@ export class Card {
   private readonly cb: CardCallbacks;
   private readonly host: HTMLElement;
   private readonly cardEl: HTMLElement;
+  private readonly headEl: HTMLElement;
+  private readonly headlineEl: HTMLElement;
+  private readonly ringFg: SVGCircleElement;
+  private readonly ringNum: HTMLElement;
   private readonly bodyEl: HTMLElement;
   private readonly statusEl: HTMLElement;
   private readonly changesEl: HTMLDetailsElement;
@@ -70,10 +88,48 @@ export class Card {
 
     this.cardEl = doc.createElement('div');
     this.cardEl.className = 'card';
-    this.bodyEl = doc.createElement('div');
-    this.bodyEl.className = 'body rewritten';
+
     this.statusEl = doc.createElement('div');
     this.statusEl.className = 'status';
+
+    this.headEl = doc.createElement('div');
+    this.headEl.className = 'head';
+    const ring = doc.createElement('div');
+    ring.className = 'ring';
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '44');
+    svg.setAttribute('height', '44');
+    svg.setAttribute('viewBox', '0 0 44 44');
+    const track = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    track.setAttribute('cx', '22');
+    track.setAttribute('cy', '22');
+    track.setAttribute('r', '19');
+    track.setAttribute('fill', 'none');
+    track.setAttribute('stroke', '#eef1f5');
+    track.setAttribute('stroke-width', '4');
+    this.ringFg = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    this.ringFg.setAttribute('cx', '22');
+    this.ringFg.setAttribute('cy', '22');
+    this.ringFg.setAttribute('r', '19');
+    this.ringFg.setAttribute('fill', 'none');
+    this.ringFg.setAttribute('stroke', '#4f46e5');
+    this.ringFg.setAttribute('stroke-width', '4');
+    this.ringFg.setAttribute('stroke-linecap', 'round');
+    this.ringFg.setAttribute('stroke-dasharray', '119.4');
+    this.ringFg.setAttribute('stroke-dashoffset', '119.4');
+    svg.append(track, this.ringFg);
+    this.ringNum = doc.createElement('div');
+    this.ringNum.className = 'num';
+    ring.append(svg, this.ringNum);
+    const headline = doc.createElement('div');
+    headline.className = 'headline';
+    this.headlineEl = doc.createElement('div');
+    this.headlineEl.className = 'h';
+    headline.append(this.headlineEl, this.statusEl);
+    this.headEl.append(ring, headline);
+
+    this.bodyEl = doc.createElement('div');
+    this.bodyEl.className = 'body rewritten';
 
     this.changesEl = doc.createElement('details');
     this.changesEl.className = 'changes';
@@ -115,7 +171,7 @@ export class Card {
     this.dismissBtn.addEventListener('click', () => this.cb.onDismiss());
 
     bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.copyBtn, this.dismissBtn);
-    this.cardEl.append(this.bodyEl, this.statusEl, this.changesEl, bar);
+    this.cardEl.append(this.headEl, this.bodyEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
 
@@ -129,6 +185,8 @@ export class Card {
     this.bodyEl.textContent = '';
     this.engineEl.textContent = '';
     this.statusEl.textContent = 'Rewriting...';
+    this.headlineEl.textContent = 'Humanizing';
+    this.setRing(0, 0);
     this.changesEl.hidden = true;
     this.changesEl.open = false;
     this.changeRowsEl.textContent = '';
@@ -176,11 +234,26 @@ export class Card {
       item.append(why, line);
       this.changeRowsEl.append(item);
     }
+    this.changesEl.open = rows.length > 0 && rows.length <= 3;
+    const { before, after } = result.tells;
+    this.setRing(before, after);
+    this.headlineEl.textContent =
+      before === 0 ? 'Looks human already' : after === 0 ? 'All clear' : `${after} tell${after === 1 ? '' : 's'} left`;
   }
 
   setError(kind: HumanizerErrorKind, message: string): void {
     this.statusEl.textContent = `Error: ${message}`;
     this.engineEl.textContent = kind;
+    this.headlineEl.textContent = 'Could not rewrite';
+    this.setRing(0, 0);
+  }
+
+  /** Fill the ring by how many tells were cleared; empty when there were none to clear. */
+  private setRing(before: number, after: number): void {
+    const cleared = before === 0 ? 1 : Math.max(0, before - after) / before;
+    const circumference = 119.4;
+    this.ringFg.setAttribute('stroke-dashoffset', String(Math.round(circumference * (1 - cleared) * 10) / 10));
+    this.ringNum.textContent = String(after);
   }
 
   /** Never-clobber refusal: flip to copy-primary. */
