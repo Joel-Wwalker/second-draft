@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { PortServerMessage } from '../src/shared/messages';
+import { PageScan } from '../src/content/scan';
 
 // jsdom does not implement Range.getBoundingClientRect (every real browser does; it's
 // standard CSSOM View). session.ts calls it while positioning the card over a
@@ -27,8 +28,21 @@ class FakePort {
   disconnect(): void {}
 }
 
+/**
+ * chrome.runtime.onMessage listeners are typed with optional sender/sendResponse (rather than
+ * mirroring the real chrome.runtime.MessageListener's required 3-arg shape exactly) so this one
+ * array can hold both HumanizeSession's original context-humanize listener -- which existing
+ * tests below call with a single argument -- and its newer scan-message listener, which the new
+ * scan tests call with all three, sendResponse included.
+ */
+type RuntimeListener = (
+  msg: unknown,
+  sender?: chrome.runtime.MessageSender,
+  sendResponse?: (res: unknown) => void,
+) => void;
+
 let port: FakePort;
-let runtimeListeners: Array<(msg: unknown) => void> = [];
+let runtimeListeners: RuntimeListener[] = [];
 let storageListeners: Array<(changes: Record<string, { newValue?: unknown }>, area: string) => void> = [];
 let session: import('../src/content/session').HumanizeSession;
 /** Backing store for the chrome.storage.local mock below; re-seeded fresh in each
@@ -50,8 +64,8 @@ beforeEach(async () => {
       id: 'test',
       connect: () => port,
       onMessage: {
-        addListener: (fn: (msg: unknown) => void): void => void runtimeListeners.push(fn),
-        removeListener: (fn: (msg: unknown) => void): void => {
+        addListener: (fn: RuntimeListener): void => void runtimeListeners.push(fn),
+        removeListener: (fn: RuntimeListener): void => {
           const i = runtimeListeners.indexOf(fn);
           if (i >= 0) runtimeListeners.splice(i, 1);
         },
@@ -392,8 +406,11 @@ test('repeated regeneration reuses the same port and does not accumulate timers'
   expect(vi.getTimerCount()).toBe(1);
 });
 
-test('stop() removes the runtime listener and ignores late messages', () => {
-  expect(runtimeListeners).toHaveLength(1);
+test('stop() removes both runtime listeners (context-humanize and scan) and ignores late messages', () => {
+  // Two listeners: the original context-humanize/apply-flow handler, and the newer
+  // scan-message handler added alongside PageScan. Registration order is asserted
+  // implicitly by the next test, which relies on index 0 being the original handler.
+  expect(runtimeListeners).toHaveLength(2);
   session.stop();
   expect(runtimeListeners).toHaveLength(0);
   expect(document.getElementById('humanizer-card-host')).toBeNull();
@@ -744,4 +761,53 @@ test('after the 10s auto-dismiss, a stale reference to the undo button can no lo
   // would silently revert the field back to the original text.
   undoBtn.click();
   expect(ta.value).toBe('We dig into the plan boldly.');
+});
+
+// Scan-message wiring: proves HumanizeSession routes { type: 'scan' } / { type: 'scan-clear' }
+// to PageScan and responds correctly. The default fixture from beforeEach is a lone <textarea>,
+// which is deliberately not scannable content (inputs are always skipped), so these wiring
+// tests expect an empty summary; PageScan's own counting behavior is covered in scan.test.ts.
+test('a scan runtime message runs PageScan and responds with { ok: true, summary }', () => {
+  const responses: unknown[] = [];
+  for (const fn of [...runtimeListeners]) {
+    fn({ type: 'scan' }, {}, res => responses.push(res));
+  }
+  expect(responses).toEqual([{ ok: true, summary: { tells: 0, blocks: 0, highlightsSupported: false } }]);
+});
+
+test('a scan-clear runtime message clears the scan and responds with { ok: true }', () => {
+  const responses: unknown[] = [];
+  for (const fn of [...runtimeListeners]) {
+    fn({ type: 'scan-clear' }, {}, res => responses.push(res));
+  }
+  expect(responses).toEqual([{ ok: true }]);
+});
+
+test('a scan message after stop() is not answered (stopped guard applies to the scan listener too)', () => {
+  // Mirrors 'a retained runtime listener reference is inert after stop()' above: capture the
+  // listener reference BEFORE stop() removes it from chrome.runtime.onMessage's own list, then
+  // invoke the retained reference directly. Iterating runtimeListeners itself after stop() would
+  // find it already emptied and pass vacuously, without ever exercising the stopped guard.
+  const scanListener = runtimeListeners[1]; // onScanMessage, registered second in start()
+  expect(scanListener).toBeDefined();
+  session.stop();
+  const responses: unknown[] = [];
+  scanListener?.({ type: 'scan' }, {}, res => responses.push(res));
+  expect(responses).toHaveLength(0);
+});
+
+test('pagehide clears any active scan (back/forward-cache safety)', () => {
+  const clearSpy = vi.spyOn(PageScan.prototype, 'clear');
+  clearSpy.mockClear();
+  window.dispatchEvent(new Event('pagehide'));
+  expect(clearSpy).toHaveBeenCalled();
+  clearSpy.mockRestore();
+});
+
+test('stop() clears any active scan', () => {
+  const clearSpy = vi.spyOn(PageScan.prototype, 'clear');
+  clearSpy.mockClear();
+  session.stop();
+  expect(clearSpy).toHaveBeenCalled();
+  clearSpy.mockRestore();
 });

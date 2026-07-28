@@ -3,12 +3,13 @@ import type { EditableSelection } from './selection';
 import { applyReplacement, locate } from './replace';
 import { Chip } from './chip';
 import { Card } from './card';
+import { PageScan } from './scan';
 import { detect } from '../engine/rules';
 import { getSettings } from '../shared/storage';
 import { analyzeWriting, compareToProfile } from '../shared/profile';
 import type { WritingProfile } from '../shared/profile';
-import { HUMANIZE_PORT } from '../shared/messages';
-import type { HumanizeRequest, PortServerMessage } from '../shared/messages';
+import { HUMANIZE_PORT, isScanClearRequest, isScanRequest } from '../shared/messages';
+import type { HumanizeRequest, PortServerMessage, ScanClearResponse, ScanResponse } from '../shared/messages';
 import type { HumanizeResult, Intensity } from '../shared/types';
 
 const CHIP_DEBOUNCE_MS = 150;
@@ -25,6 +26,7 @@ export class HumanizeSession {
   private readonly doc: Document;
   private readonly chip: Chip;
   private readonly card: Card;
+  private readonly scan: PageScan;
   private port: chrome.runtime.Port | null = null;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private timeout: ReturnType<typeof setTimeout> | null = null;
@@ -42,6 +44,7 @@ export class HumanizeSession {
   constructor(doc: Document) {
     this.doc = doc;
     this.chip = new Chip(doc, () => this.onChipClick());
+    this.scan = new PageScan(doc);
     this.card = new Card(doc, {
       onApply: () => this.onApply(),
       onCopy: () => this.onCopy(),
@@ -59,7 +62,12 @@ export class HumanizeSession {
     this.doc.addEventListener('selectionchange', this.onSelectionChange);
     this.doc.addEventListener('mousedown', this.onMouseDown, true);
     chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
+    chrome.runtime.onMessage.addListener(this.onScanMessage);
     chrome.storage.onChanged.addListener(this.onStorageChanged);
+    // pagehide (not popstate/pushState: see PageScan's known SPA-navigation gap in the task
+    // report) covers back/forward-cache restores, where the document survives navigation and a
+    // stale highlight could otherwise reappear.
+    this.doc.defaultView?.addEventListener('pagehide', this.onPageHide);
     void getSettings().then(s => {
       this.intensity = s.defaultIntensity;
       this.voiceProfile = analyzeWriting(s.voiceSample);
@@ -74,9 +82,12 @@ export class HumanizeSession {
     this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mousedown', this.onMouseDown, true);
     chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
+    chrome.runtime.onMessage.removeListener(this.onScanMessage);
     chrome.storage.onChanged.removeListener(this.onStorageChanged);
+    this.doc.defaultView?.removeEventListener('pagehide', this.onPageHide);
     this.chip.hide();
     this.dismissCard();
+    this.scan.clear();
     this.port?.disconnect();
     this.port = null;
   }
@@ -125,6 +136,28 @@ export class HumanizeSession {
     this.chip.hide();
     this.openCardAtSelection();
     this.request();
+  };
+
+  /** Separate from onRuntimeMessage (context-humanize/apply flow) rather than folded into it:
+   *  page scan is a page-wide, selection-independent feature, and keeping it a distinct
+   *  listener means this one's params can carry sendResponse without touching the other
+   *  listener's signature or its existing tests at all. */
+  private readonly onScanMessage = (
+    msg: unknown,
+    _sender?: chrome.runtime.MessageSender,
+    sendResponse?: (res: ScanResponse | ScanClearResponse) => void,
+  ): void => {
+    if (this.stopped) return;
+    if (isScanRequest(msg)) {
+      sendResponse?.({ ok: true, summary: this.scan.run() });
+    } else if (isScanClearRequest(msg)) {
+      this.scan.clear();
+      sendResponse?.({ ok: true });
+    }
+  };
+
+  private readonly onPageHide = (): void => {
+    this.scan.clear();
   };
 
   private updateChip(): void {

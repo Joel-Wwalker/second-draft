@@ -20,6 +20,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 #go:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 10px 0; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 .muted { color: var(--muted); font-size: 12px; }
 input[type="checkbox"] { accent-color: var(--accent); }
 details { font-size: 12px; }

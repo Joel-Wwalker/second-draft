@@ -1,4 +1,11 @@
-import type { BackgroundRequest, HumanizeResponse } from '../../shared/messages';
+import type {
+  BackgroundRequest,
+  HumanizeResponse,
+  ScanClearRequest,
+  ScanClearResponse,
+  ScanRequest,
+  ScanResponse,
+} from '../../shared/messages';
 import type { Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
 import { engineLabel as engineLabelFor, resultStatus } from '../../shared/labels';
@@ -19,6 +26,9 @@ const changesList = byId<HTMLDivElement>('changesList');
 const siteRow = byId<HTMLDivElement>('siteRow');
 const siteToggle = byId<HTMLInputElement>('siteToggle');
 const siteHost = byId<HTMLSpanElement>('siteHost');
+const scanBtn = byId<HTMLButtonElement>('scan');
+const scanClearBtn = byId<HTMLButtonElement>('scanClear');
+const scanStatus = byId<HTMLParagraphElement>('scanStatus');
 
 void init();
 
@@ -36,6 +46,12 @@ async function init(): Promise<void> {
   });
   openOptions.addEventListener('click', () => {
     void chrome.runtime.openOptionsPage();
+  });
+  scanBtn.addEventListener('click', () => {
+    void runScan();
+  });
+  scanClearBtn.addEventListener('click', () => {
+    void clearScan();
   });
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = tab?.url;
@@ -118,4 +134,51 @@ async function run(): Promise<void> {
   } finally {
     go.disabled = false;
   }
+}
+
+function pluralize(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`;
+}
+
+async function activeTabId(): Promise<number | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id;
+}
+
+async function runScan(): Promise<void> {
+  const tabId = await activeTabId();
+  if (tabId === undefined) {
+    scanStatus.textContent = 'No active tab to scan.';
+    return;
+  }
+  scanBtn.disabled = true;
+  try {
+    const req: ScanRequest = { type: 'scan' };
+    const res = await chrome.tabs.sendMessage<ScanRequest, ScanResponse>(tabId, req);
+    const { tells, blocks, highlightsSupported } = res.summary;
+    let text = `${pluralize(tells, 'tell')} across ${pluralize(blocks, 'paragraph')}.`;
+    if (!highlightsSupported) {
+      text += ' Highlighting is not supported in this browser, so nothing is marked on the page.';
+    }
+    scanStatus.textContent = text;
+    scanClearBtn.hidden = false;
+  } catch {
+    scanStatus.textContent = "Could not scan this page. It may not support the extension's content script.";
+  } finally {
+    scanBtn.disabled = false;
+  }
+}
+
+async function clearScan(): Promise<void> {
+  const tabId = await activeTabId();
+  if (tabId !== undefined) {
+    try {
+      const req: ScanClearRequest = { type: 'scan-clear' };
+      await chrome.tabs.sendMessage<ScanClearRequest, ScanClearResponse>(tabId, req);
+    } catch {
+      // No content script listening in this tab; nothing left to clear from the popup's side.
+    }
+  }
+  scanStatus.textContent = '';
+  scanClearBtn.hidden = true;
 }

@@ -47,6 +47,20 @@ export interface HumanizeResult {
   tells: { before: number; after: number };
 }
 
+export interface ScanSummary {
+  /** Total detected tells across every scanned block. */
+  tells: number;
+  /** Number of blocks that met the length gate and were actually scanned (0-tell blocks count). */
+  blocks: number;
+  /**
+   * True when the CSS Custom Highlight API was available this run, so hits were visually
+   * marked on the page, not merely counted. False means the runtime lacks that API (a known
+   * jsdom-test limit; real support started in Chrome 105, well under this extension's
+   * minimum_chrome_version), and the popup must say so rather than implying marks appeared.
+   */
+  highlightsSupported: boolean;
+}
+
 export interface RewriteRequest {
   text: string;
   systemPrompt: string;
