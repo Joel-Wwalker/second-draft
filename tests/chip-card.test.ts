@@ -180,6 +180,24 @@ test('open() clears a pending auto-dismiss timer left over from a previous cycle
   }
 });
 
+test('a second open() after showApplied() restores apply/copy/intensity visibility and hides undo', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.showApplied();
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(true);
+  expect((shadow.querySelector('button.copy') as HTMLButtonElement).hidden).toBe(true);
+  expect((shadow.querySelector('select.intensity') as HTMLSelectElement).hidden).toBe(true);
+  expect((shadow.querySelector('button.undo') as HTMLButtonElement).hidden).toBe(false);
+
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+
+  expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(false);
+  expect((shadow.querySelector('button.copy') as HTMLButtonElement).hidden).toBe(false);
+  expect((shadow.querySelector('select.intensity') as HTMLSelectElement).hidden).toBe(false);
+  expect((shadow.querySelector('button.undo') as HTMLButtonElement).hidden).toBe(true);
+});
+
 test('a stale timer from an earlier cycle never force-closes a card that was closed and reopened', () => {
   vi.useFakeTimers();
   try {

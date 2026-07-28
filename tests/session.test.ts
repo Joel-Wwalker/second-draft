@@ -101,6 +101,19 @@ function selectWholeContentEditable(el: HTMLElement): void {
   vi.advanceTimersByTime(200);
 }
 
+/** Selects [start, end) of el's first (single) text node -- a partial span, not the whole element. */
+function selectRangeInContentEditable(el: HTMLElement, start: number, end: number): void {
+  const textNode = el.firstChild!;
+  const range = document.createRange();
+  range.setStart(textNode, start);
+  range.setEnd(textNode, end);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.dispatchEvent(new Event('selectionchange'));
+  vi.advanceTimersByTime(200);
+}
+
 test('selection shows the chip; chip click opens the card and sends a request', () => {
   selectInTextarea();
   expect(document.getElementById('humanizer-chip-host')).not.toBeNull();
@@ -346,4 +359,107 @@ test('undo on contenteditable refuses when the applied text becomes ambiguous, l
   (shadow.querySelector('button.undo') as HTMLButtonElement).click();
   expect(shadow.querySelector('.status')!.textContent).toContain('Could not undo. The text changed again.');
   expect(el.textContent).toBe(beforeUndo);
+});
+
+test('apply then undo on a partial mid-sentence span restores the exact original text across multiple text nodes', () => {
+  // Unlike selectWholeContentEditable (whole-element selection), a PARTIAL span
+  // selection means replaceInEditable's deleteContents+insertNode fallback splits the
+  // element's single text node into several siblings ("We " | rewritten | " boldly,
+  // said the team."). rangeFromTextOffsets's TreeWalker loop -- the thing under test
+  // here -- is what lets undo re-locate the applied text across that multi-node shape;
+  // a naive single-node implementation (e.g. treating root.firstChild as the only text
+  // node) cannot find it. Confirmed empirically (see task report) that this DOM shape
+  // is genuinely multi-node in jsdom, not just in theory.
+  const original = 'We delve into the plan boldly, said the team.';
+  document.body.innerHTML = `<div contenteditable="true">${original}</div>`;
+  const el = document.querySelector('div')!;
+  const start = original.indexOf('delve into the plan');
+  const end = start + 'delve into the plan'.length;
+  const selected = original.slice(start, end);
+  expect(selected).toBe('delve into the plan'); // sanity: exactly the intended middle span, >= 10 chars
+
+  selectRangeInContentEditable(el, start, end);
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  expect(req).toMatchObject({ text: selected });
+  const rewrittenSpan = 'dug into the strategy';
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: rewrittenSpan,
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We dug into the strategy boldly, said the team.');
+  // Confirms the DOM genuinely has multiple text-node siblings after apply (not one
+  // fresh node), so the undo below can only succeed by walking them.
+  expect(el.childNodes.length).toBeGreaterThan(1);
+
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We delve into the plan boldly, said the team.');
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('clicking Undo a second time after a successful undo is a safe no-op', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  const undoBtn = shadow.querySelector('button.undo') as HTMLButtonElement;
+  undoBtn.click();
+  const ta = document.querySelector('textarea')!;
+  expect(ta.value).toBe('We delve into the plan boldly.');
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+  const sentBeforeSecondClick = port.sent.length;
+
+  expect(() => undoBtn.click()).not.toThrow();
+
+  expect(ta.value).toBe('We delve into the plan boldly.');
+  expect(port.sent).toHaveLength(sentBeforeSecondClick);
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('undo after the contenteditable root is removed from the DOM shows the error and does not throw', () => {
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly.</div>';
+  const el = document.querySelector('div')!;
+  selectWholeContentEditable(el);
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We dig into the plan boldly.');
+  el.remove();
+  expect(el.isConnected).toBe(false);
+
+  const undoBtn = shadow.querySelector('button.undo') as HTMLButtonElement;
+  expect(() => undoBtn.click()).not.toThrow();
+
+  expect(shadow.querySelector('.status')!.textContent).toContain('Could not undo. The text changed again.');
+  expect(document.getElementById('humanizer-card-host')).not.toBeNull();
 });

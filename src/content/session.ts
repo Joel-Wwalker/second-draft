@@ -260,6 +260,9 @@ export class HumanizeSession {
 
   private dismissCard(): void {
     this.cancelInFlight();
+    // Drop any stale post-apply selection/Range so it can't be reused once the card
+    // is gone (also covers stop(), which always routes through here).
+    this.applied = null;
     if (this.card.isOpen) this.card.close();
   }
 }
