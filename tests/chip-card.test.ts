@@ -14,6 +14,7 @@ const noop = {
   onDismiss: () => {},
   onIntensityChange: () => {},
   onTextEdited: () => {},
+  onUndo: () => {},
 };
 
 test('chip mounts on show, fires on mousedown, unmounts on hide', () => {
@@ -114,4 +115,114 @@ test('alternative words are clickable and swapping edits the pending text', () =
   (shadow.querySelectorAll('button.alt-opt')[0] as HTMLButtonElement).click();
   expect(edits).toEqual(['We dig here today.']);
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('We dig here today.');
+});
+
+test('showApplied switches to the undo confirmation state', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setResult(
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 } },
+    'We delve in.',
+  );
+  card.showApplied();
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect((shadow.querySelector('button.apply') as HTMLButtonElement).hidden).toBe(true);
+  expect((shadow.querySelector('button.copy') as HTMLButtonElement).hidden).toBe(true);
+  expect((shadow.querySelector('select.intensity') as HTMLSelectElement).hidden).toBe(true);
+  const undoBtn = shadow.querySelector('button.undo') as HTMLButtonElement;
+  expect(undoBtn.hidden).toBe(false);
+  expect(undoBtn.textContent).toBe('Undo');
+  expect(shadow.querySelector('.headline .h')!.textContent).toBe('Applied');
+  expect(shadow.querySelector('.rewritten')!.textContent).toBe('Replaced in place.');
+});
+
+test('auto-dismiss timer closes the card exactly 10s after showApplied, not before', () => {
+  vi.useFakeTimers();
+  try {
+    const card = new Card(document, noop);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    expect(card.isOpen).toBe(true);
+    vi.advanceTimersByTime(9_999);
+    expect(card.isOpen).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(card.isOpen).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('close() clears the pending auto-dismiss timer', () => {
+  vi.useFakeTimers();
+  try {
+    const card = new Card(document, noop);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    card.close();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('open() clears a pending auto-dismiss timer left over from a previous cycle', () => {
+  vi.useFakeTimers();
+  try {
+    const card = new Card(document, noop);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a stale timer from an earlier cycle never force-closes a card that was closed and reopened', () => {
+  vi.useFakeTimers();
+  try {
+    const card = new Card(document, noop);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    card.close();
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    vi.advanceTimersByTime(10_000);
+    expect(card.isOpen).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('clicking Undo fires onUndo and cancels the auto-dismiss timer', () => {
+  vi.useFakeTimers();
+  try {
+    const onUndo = vi.fn();
+    const card = new Card(document, { ...noop, onUndo });
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+    (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+    expect(onUndo).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(10_000);
+    expect(card.isOpen).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('clicking Dismiss after showApplied cancels the auto-dismiss timer', () => {
+  vi.useFakeTimers();
+  try {
+    const card = new Card(document, noop);
+    card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+    card.showApplied();
+    const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+    (shadow.querySelector('button.dismiss') as HTMLButtonElement).click();
+    vi.advanceTimersByTime(10_000);
+    expect(card.isOpen).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });

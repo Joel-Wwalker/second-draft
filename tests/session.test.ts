@@ -2,6 +2,16 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { PortServerMessage } from '../src/shared/messages';
 
+// jsdom does not implement Range.getBoundingClientRect (every real browser does; it's
+// standard CSSOM View). session.ts calls it while positioning the card over a
+// contenteditable selection, so tests that drive a live contenteditable selection need
+// this stub or they throw before reaching the behavior under test.
+if (!Range.prototype.getBoundingClientRect) {
+  Range.prototype.getBoundingClientRect = function (this: Range): DOMRect {
+    return { x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, toJSON: () => ({}) } as DOMRect;
+  };
+}
+
 class FakePort {
   name = 'humanize';
   sent: unknown[] = [];
@@ -81,6 +91,16 @@ function clickChip(): void {
   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 }
 
+function selectWholeContentEditable(el: HTMLElement): void {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.dispatchEvent(new Event('selectionchange'));
+  vi.advanceTimersByTime(200);
+}
+
 test('selection shows the chip; chip click opens the card and sends a request', () => {
   selectInTextarea();
   expect(document.getElementById('humanizer-chip-host')).not.toBeNull();
@@ -108,7 +128,8 @@ test('done result renders and Apply replaces the field text', () => {
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('We dig into the plan boldly.');
   (shadow.querySelector('button.apply') as HTMLButtonElement).click();
   expect(document.querySelector('textarea')!.value).toBe('We dig into the plan boldly.');
-  expect(document.getElementById('humanizer-card-host')).toBeNull();
+  expect(document.getElementById('humanizer-card-host')).not.toBeNull();
+  expect(shadow.querySelector('.headline .h')!.textContent).toBe('Applied');
 });
 
 test('dismiss sends a cancel for the in-flight request', () => {
@@ -224,4 +245,105 @@ test('streaming chunks keep the request alive past the deadline', () => {
   expect(shadow.querySelector('.status')!.textContent).not.toContain('No response');
   vi.advanceTimersByTime(61_000);
   expect(shadow.querySelector('.status')!.textContent).toContain('No response');
+});
+
+test('apply then undo restores the original textarea value; no new humanize request is sent', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  expect(document.querySelector('textarea')!.value).toBe('We dig into the plan boldly.');
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  expect(document.querySelector('textarea')!.value).toBe('We delve into the plan boldly.');
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+  expect(port.sent.filter(m => (m as { type: string }).type === 'humanize')).toHaveLength(1);
+});
+
+test('undo when the field changed underneath surfaces the replace-failed error and leaves the field untouched', () => {
+  selectInTextarea();
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  const ta = document.querySelector('textarea')!;
+  expect(ta.value).toBe('We dig into the plan boldly.');
+  // The field changes underneath before the user clicks Undo:
+  ta.value = 'Something else entirely.';
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  expect(shadow.querySelector('.status')!.textContent).toContain('Could not undo. The text changed again.');
+  expect(ta.value).toBe('Something else entirely.');
+  expect(document.getElementById('humanizer-card-host')).not.toBeNull();
+  expect((shadow.querySelector('button.undo') as HTMLButtonElement).hidden).toBe(false);
+});
+
+test('apply then undo restores contenteditable content by relocating the applied text', () => {
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly.</div>';
+  const el = document.querySelector('div')!;
+  selectWholeContentEditable(el);
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We dig into the plan boldly.');
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We delve into the plan boldly.');
+  expect(document.getElementById('humanizer-card-host')).toBeNull();
+});
+
+test('undo on contenteditable refuses when the applied text becomes ambiguous, leaving content untouched', () => {
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly.</div>';
+  const el = document.querySelector('div')!;
+  selectWholeContentEditable(el);
+  clickChip();
+  const req = port.sent[0] as { id: string };
+  port.emit({
+    type: 'done',
+    id: req.id,
+    result: {
+      rewritten: 'We dig into the plan boldly.',
+      changes: [],
+      engine: { kind: 'fake', model: 'fake-echo' },
+      tells: { before: 1, after: 0 },
+    },
+  });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  (shadow.querySelector('button.apply') as HTMLButtonElement).click();
+  expect(el.textContent).toBe('We dig into the plan boldly.');
+  // A second, identical occurrence appears elsewhere in the same editable root:
+  el.append(document.createTextNode(' We dig into the plan boldly.'));
+  const beforeUndo = el.textContent;
+  (shadow.querySelector('button.undo') as HTMLButtonElement).click();
+  expect(shadow.querySelector('.status')!.textContent).toContain('Could not undo. The text changed again.');
+  expect(el.textContent).toBe(beforeUndo);
 });

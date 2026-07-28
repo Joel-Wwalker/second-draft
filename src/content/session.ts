@@ -1,6 +1,6 @@
 import { getEditableSelection, getPlainSelection, isSensitiveTarget } from './selection';
 import type { EditableSelection } from './selection';
-import { applyReplacement } from './replace';
+import { applyReplacement, locate } from './replace';
 import { Chip } from './chip';
 import { Card } from './card';
 import { detect } from '../engine/rules';
@@ -33,6 +33,7 @@ export class HumanizeSession {
   private intensity: Intensity = 'full';
   private requestId: string | null = null;
   private result: HumanizeResult | null = null;
+  private applied: { target: EditableSelection; appliedText: string; originalText: string } | null = null;
   private stopped = false;
 
   constructor(doc: Document) {
@@ -46,6 +47,7 @@ export class HumanizeSession {
       onTextEdited: text => {
         if (this.result) this.result = { ...this.result, rewritten: text };
       },
+      onUndo: () => this.onUndo(),
     });
   }
 
@@ -218,11 +220,28 @@ export class HumanizeSession {
 
   private onApply(): void {
     if (!this.result || !this.captured) return;
-    const ok = applyReplacement(this.captured, this.result.rewritten, this.doc);
+    const target = this.captured;
+    const appliedText = this.result.rewritten;
+    const originalText = this.capturedText;
+    const ok = applyReplacement(target, appliedText, this.doc);
     if (!ok) {
       this.card.showApplyFailed();
       return;
     }
+    this.applied = { target, appliedText, originalText };
+    this.card.showApplied();
+  }
+
+  private onUndo(): void {
+    if (!this.applied) return;
+    const { target, appliedText, originalText } = this.applied;
+    const undoTarget = locateApplied(target, appliedText, this.doc);
+    const ok = undoTarget !== null && applyReplacement(undoTarget, originalText, this.doc);
+    if (!ok) {
+      this.card.setError('replace-failed', 'Could not undo. The text changed again.');
+      return;
+    }
+    this.applied = null;
     this.card.close();
   }
 
@@ -256,4 +275,63 @@ function selectionRect(
   const el = sel.kind === 'field' ? sel.el : sel.root;
   const r = el.getBoundingClientRect();
   return { left: r.left, right: r.right, bottom: r.bottom };
+}
+
+/**
+ * Selection describing where the applied text currently sits, so applyReplacement's
+ * never-clobber checks can safely write the original back in its place.
+ *
+ * Field: replaceInField already relocates by matching `text` when the passed-in
+ * offsets have drifted, so anchoring the guess at the original start (where the
+ * applied text landed if nothing else in the field changed) is enough to hand off;
+ * a stale guess just falls through to that existing relocate-or-refuse path.
+ *
+ * Editable: there is no such fallback inside replaceInEditable, so the current
+ * location has to be found here, refusing when the applied text is missing or
+ * no longer unique.
+ */
+function locateApplied(target: EditableSelection, appliedText: string, doc: Document): EditableSelection | null {
+  if (target.kind === 'field') {
+    return { kind: 'field', el: target.el, start: target.start, end: target.start + appliedText.length, text: appliedText };
+  }
+  if (!target.root.isConnected) return null;
+  const text = target.root.textContent ?? '';
+  const start = locate(text, appliedText);
+  if (start === null) return null;
+  const range = rangeFromTextOffsets(target.root, doc, start, start + appliedText.length);
+  return range ? { kind: 'editable', root: target.root, range, text: appliedText } : null;
+}
+
+/**
+ * Range spanning [start, end) of root's flattened text content, walking possibly
+ * several sibling text nodes (a plain in-place edit commonly splits one text node
+ * into several). Returns null if the DOM changed shape enough that the offsets no
+ * longer land inside a text node.
+ */
+function rangeFromTextOffsets(root: HTMLElement, doc: Document, start: number, end: number): Range | null {
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let pos = 0;
+  let startNode: Text | null = null;
+  let startOffset = 0;
+  let endNode: Text | null = null;
+  let endOffset = 0;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node as Text;
+    const len = text.data.length;
+    if (!startNode && start <= pos + len) {
+      startNode = text;
+      startOffset = start - pos;
+    }
+    if (!endNode && end <= pos + len) {
+      endNode = text;
+      endOffset = end - pos;
+    }
+    pos += len;
+    if (startNode && endNode) break;
+  }
+  if (!startNode || !endNode) return null;
+  const range = doc.createRange();
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
+  return range;
 }

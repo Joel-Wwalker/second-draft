@@ -10,7 +10,11 @@ export interface CardCallbacks {
   onDismiss(): void;
   onIntensityChange(intensity: Intensity): void;
   onTextEdited(text: string): void;
+  onUndo(): void;
 }
+
+/** How long the post-apply confirmation stays up before it auto-dismisses. */
+const AUTO_DISMISS_MS = 10_000;
 
 const CARD_CSS = `
   :host { all: initial; }
@@ -86,6 +90,7 @@ export class Card {
   private readonly applyBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
   private readonly dismissBtn: HTMLButtonElement;
+  private readonly undoBtn: HTMLButtonElement;
   private readonly intensitySel: HTMLSelectElement;
   private readonly onKeydown = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') this.cb.onDismiss();
@@ -94,6 +99,7 @@ export class Card {
   private currentText = '';
   private currentChanges: Change[] = [];
   private popoverEl: HTMLElement | null = null;
+  private autoDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(doc: Document, cb: CardCallbacks) {
     this.doc = doc;
@@ -186,9 +192,20 @@ export class Card {
     this.dismissBtn = doc.createElement('button');
     this.dismissBtn.className = 'dismiss';
     this.dismissBtn.textContent = 'Dismiss';
-    this.dismissBtn.addEventListener('click', () => this.cb.onDismiss());
+    this.dismissBtn.addEventListener('click', () => {
+      this.cancelAutoDismiss();
+      this.cb.onDismiss();
+    });
+    this.undoBtn = doc.createElement('button');
+    this.undoBtn.className = 'undo';
+    this.undoBtn.textContent = 'Undo';
+    this.undoBtn.hidden = true;
+    this.undoBtn.addEventListener('click', () => {
+      this.cancelAutoDismiss();
+      this.cb.onUndo();
+    });
 
-    bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.copyBtn, this.dismissBtn);
+    bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.copyBtn, this.undoBtn, this.dismissBtn);
     this.cardEl.append(this.headEl, this.bodyEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
@@ -198,7 +215,11 @@ export class Card {
   }
 
   open(rect: { left: number; bottom: number }, opts: { canApply: boolean; intensity: Intensity }): void {
+    this.cancelAutoDismiss();
     this.applyBtn.hidden = !opts.canApply;
+    this.copyBtn.hidden = false;
+    this.intensitySel.hidden = false;
+    this.undoBtn.hidden = true;
     this.intensitySel.value = opts.intensity;
     this.bodyEl.textContent = '';
     this.engineEl.textContent = '';
@@ -285,7 +306,21 @@ export class Card {
     this.statusEl.textContent = 'The text changed since you selected it. Use Copy instead.';
   }
 
+  /** Post-apply confirmation: Apply, Copy, and the intensity picker no longer apply. */
+  showApplied(): void {
+    this.closePopover();
+    this.applyBtn.hidden = true;
+    this.copyBtn.hidden = true;
+    this.intensitySel.hidden = true;
+    this.undoBtn.hidden = false;
+    this.headlineEl.textContent = 'Applied';
+    this.statusEl.textContent = '';
+    this.bodyEl.textContent = 'Replaced in place.';
+    this.armAutoDismiss();
+  }
+
   close(): void {
+    this.cancelAutoDismiss();
     this.doc.removeEventListener('keydown', this.onKeydown, true);
     this.closePopover();
     this.host.remove();
@@ -370,6 +405,21 @@ export class Card {
   private closePopover(): void {
     this.popoverEl?.remove();
     this.popoverEl = null;
+  }
+
+  private armAutoDismiss(): void {
+    this.cancelAutoDismiss();
+    this.autoDismissTimer = setTimeout(() => {
+      this.autoDismissTimer = null;
+      this.close();
+    }, AUTO_DISMISS_MS);
+  }
+
+  private cancelAutoDismiss(): void {
+    if (this.autoDismissTimer !== null) {
+      clearTimeout(this.autoDismissTimer);
+      this.autoDismissTimer = null;
+    }
   }
 
   private applySwap(span: AltSpan, option: string): void {
