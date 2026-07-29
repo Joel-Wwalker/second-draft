@@ -156,6 +156,14 @@ async function runScan(): Promise<void> {
     const req: ScanRequest = { type: 'scan' };
     const res = await chrome.tabs.sendMessage<ScanRequest, ScanResponse>(tabId, req);
     const { tells, blocks, highlightsSupported } = res.summary;
+    if (blocks === 0) {
+      // Canvas based editors (Google Docs is the common one) draw text as
+      // pixels, so there are no paragraphs to read. Say that rather than
+      // reporting a zero that looks like a failure.
+      scanStatus.textContent =
+        'No readable text on this page. Some editors, Google Docs among them, draw text on a canvas, so there is nothing to scan. Paste the text into the box above instead.';
+      return;
+    }
     let text = `${pluralize(tells, 'tell')} across ${pluralize(blocks, 'paragraph')}.`;
     if (!highlightsSupported) {
       text += ' Highlighting is not supported in this browser, so nothing is marked on the page.';

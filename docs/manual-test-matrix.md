@@ -9,7 +9,7 @@ rows where noted (Clear extension storage via service-worker console).
 | 2 | LinkedIn post editor: same | Same |
 | 3 | X (Twitter) reply box: same | Same |
 | 4 | Reddit new composer | Chip may not appear (shadow DOM, known); right-click Humanize works via Copy |
-| 5 | Google Docs | Chip does not appear (canvas); popup paste box round-trip works |
+| 5 | Google Docs | Chip does not appear (canvas). "Scan this page" reports that there is no readable text and points at the paste box, rather than reporting zero tells. Popup paste box round-trip works |
 | 6 | WordPress classic editor (iframe) | Chip does not appear (top-frame only, known); context menu on selection opens card with Copy |
 | 7 | Plain http:// page with a textarea | Chip works; no crash (randomUUID fallback) |
 | 8 | Reload the extension while a tab is open, then select + Humanize | Card shows "extension reloaded" error; after page reload everything works |
