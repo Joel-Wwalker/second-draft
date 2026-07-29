@@ -5,44 +5,39 @@
 [![Tests](https://img.shields.io/badge/tests-216%20unit%20%2B%203%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
-**AI wrote your first draft. This makes it yours.**
+A Chrome extension that rewrites AI-sounding text so it reads like a person
+wrote it. Select text on any page, review the edits, apply them in place.
 
-A Chrome extension that strips the tells out of AI written text: em dashes,
-"delve" and its friends, chatbot filler, and the flat even rhythm that gives a
-generated paragraph away. Select text anywhere, review every edit with its
-reason, apply it in place.
+It removes em dashes, AI vocabulary like "delve" and "tapestry", chatbot filler,
+forced rule-of-three lists, and other patterns from Wikipedia's "Signs of AI
+writing" research.
 
-Rewrites run on your device by default, through Chrome's built-in Gemini Nano.
-Nothing is sent anywhere unless you configure your own API key.
+Rewrites run on your device using Chrome's built-in Gemini Nano. Nothing is sent
+anywhere unless you add your own API key.
 
-**[Demo page](https://joel-wwalker.github.io/second-draft/)** ·
+**[Demo](https://joel-wwalker.github.io/second-draft/)** ·
 **[Privacy policy](https://joel-wwalker.github.io/second-draft/privacy-policy)** ·
 **[Changelog](CHANGELOG.md)**
 
-Status: 1.2.0, pending Chrome Web Store submission.
+Version 1.2.0. Not yet on the Chrome Web Store.
 
-## What it does
+## Features
 
-- **Select and rewrite.** A chip appears near your selection showing how many
-  tells are in it. Click, review, apply in place.
-- **Shows its work.** Every edit is listed as struck original to replacement,
-  with the reason it changed. No black box score.
-- **Counts the tells.** A ring fills as tells are cleared. It only reaches zero
-  when the rewrite earned it, including in rules-only mode.
-- **Offers alternatives.** Words like "delve" are tappable; pick a plain
-  replacement and it goes in before you apply.
-- **Undo and retry.** Ten seconds to take an apply back, and Try again for a
-  different rewrite.
-- **Learns your voice.** Paste or upload a sample (.txt, .md, .docx). It reads
-  your sentence length and habits, and flags rewrites that drift from them.
-- **Scans a page.** Count and underline tells across a whole article without
-  changing a character of it.
-- **Stays out of the way.** Per-site disable, a keyboard shortcut, a right click
-  entry, and a paste box for sites that block in-place editing.
+- Select text and a button appears, showing how many AI tells are in it
+- Every edit is listed as old text to new text, with the reason it changed
+- A count of tells found and tells remaining after the rewrite
+- AI-flavored words are clickable; pick a plain replacement before applying
+- Undo within ten seconds of applying, or regenerate a different rewrite
+- Keyboard shortcut (Ctrl+Shift+H) and a right-click menu entry
+- Add your own phrases to flag
+- Upload a writing sample (.txt, .md, .docx) to see your sentence statistics and
+  get warned when a rewrite drifts from them
+- Scan a whole page to count and underline tells without changing the text
+- Disable per site; paste box in the popup for sites that block editing
 
 ## Install
 
-Not on the Chrome Web Store yet. To run it today:
+Not on the Chrome Web Store yet.
 
 ```bash
 git clone https://github.com/Joel-Wwalker/second-draft.git
@@ -51,28 +46,25 @@ npm install
 npm run build
 ```
 
-Then open `chrome://extensions`, turn on Developer mode, choose **Load
-unpacked**, and select the `.output/chrome-mv3` folder.
+Open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and
+select `.output/chrome-mv3`.
 
-Requires Chrome 138 or newer. The on-device model downloads once from the
-extension's options page; without it the extension falls back to deterministic
-cleanup rules and says so rather than pretending.
+Requires Chrome 138 or newer. Download the on-device model from the extension's
+options page. Without it, the extension uses its deterministic cleanup rules and
+labels results accordingly.
 
 ## How it works
 
-Three layers, in order of trust:
+1. **Rules.** Twelve patterns detect AI tells. Four are fixed directly in code
+   (em dashes, curly quotes, emoji, chatbot filler). The rest are reported to
+   the model in the prompt.
+2. **Engine.** Gemini Nano on device, or an Anthropic or OpenAI-compatible
+   endpoint if you add a key. Both stream.
+3. **Enforcement.** The rules run again on the model's output. A prompt cannot
+   guarantee there are no em dashes; code can.
 
-1. **Deterministic rules.** Twelve patterns drawn from Wikipedia's "Signs of AI
-   writing" research. Some are fixable in code (em dashes, curly quotes, emoji,
-   chatbot filler); the rest are detect-only and inform the prompt.
-2. **A rewrite engine.** Chrome's on-device Gemini Nano, or your own Anthropic
-   or OpenAI-compatible endpoint. Both stream.
-3. **Enforcement.** The rules layer runs again on whatever the model returns.
-   A prompt cannot guarantee "no em dashes"; code can. The model is asked, the
-   rules layer guarantees.
-
-The text-processing engine is a pure module with no DOM and no extension APIs,
-which is why adding three engines needed no changes to the pipeline. See
+The text-processing code is a pure module with no DOM or extension API access.
+That is why adding three engines required no pipeline changes. Details in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development
@@ -84,64 +76,55 @@ npm run typecheck  # tsc --noEmit
 npm run build      # -> .output/chrome-mv3
 npm run e2e        # Playwright against the built extension (build first)
 npm run zip        # store upload artifact
-npm run icons      # regenerate the placeholder icons
+npm run icons      # regenerate placeholder icons
 ```
 
-TypeScript strict with `noUncheckedIndexedAccess`, no `any`, and zero runtime
-dependencies. The `.docx` reader is a hand-rolled ZIP parser over the platform's
-`DecompressionStream` rather than a library.
+TypeScript strict with `noUncheckedIndexedAccess`, no `any`, zero runtime
+dependencies. The `.docx` reader is a ZIP parser written against the platform's
+`DecompressionStream` instead of a library.
 
 ## Testing
 
-216 unit tests and 3 Playwright end-to-end tests that drive the real built
-extension in a real browser, all running in CI on every push.
+216 unit tests and 3 Playwright tests that drive the built extension in a real
+browser. CI runs both on every push.
 
-The bar is worth stating plainly: **a test that would still pass with its
-feature deleted does not count as coverage.** Guards are mutation-proven (break
-the guard, watch the named test fail, restore it), and fixtures assert
-hand-counted values rather than whatever the implementation happened to emit.
-Real defects were caught this way, including a regex that deleted trademark
-symbols, a chunker that could overflow the model's context, and a `.docx`
-upload that inflated 199 KB into 200 MB.
+Guards are verified by mutation: break the guard, confirm the named test fails,
+restore it. Fixtures assert hand-counted values rather than whatever the code
+returned. This caught a regex that deleted trademark symbols, a chunker that
+could overflow the model's context, and a `.docx` upload that expanded 199 KB
+into 200 MB.
 
-What automated tests cannot reach is written down rather than assumed.
-[docs/manual-test-matrix.md](docs/manual-test-matrix.md) is the 46 row
-pre-release checklist covering real sites, real models, and the browser APIs
-that do not exist in a test environment.
+[docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 46 rows covering
+what automated tests cannot: real sites, real models, and browser APIs that do
+not exist in a test runner.
 
 ## Project layout
 
 ```
 src/
-├── engine/        pure text processing: rules, prompts, providers, pipeline
+├── engine/        rules, prompts, providers, pipeline
 ├── shared/        types, diff, storage, profile, docx, sse, redaction
 ├── content/       selection, replacement, chip, card, page scan, session
 ├── entrypoints/   background service worker, popup, options
 └── types/         ambient types for Chrome's Prompt API
 docs/              privacy policy, store listing, test matrix, architecture
-docs/superpowers/  the specs and implementation plans this was built from
+docs/superpowers/  the specs and plans this was built from
 ```
-
-`docs/superpowers/` is the written history: design specs and implementation
-plans, each executed task by task with an independent review before merge. It is
-unusual to publish, and it is the most honest record of how this was built.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read
-[CONTRIBUTING.md](CONTRIBUTING.md) first, especially the testing expectations.
-Security reports go through [SECURITY.md](SECURITY.md), not public issues.
+See [CONTRIBUTING.md](CONTRIBUTING.md), particularly the testing requirements.
+Report security issues through [SECURITY.md](SECURITY.md) rather than public
+issues.
 
 ## License
 
-Copyright (c) 2026 Joel Walker. Released under the GNU Affero General Public
-License v3 or later (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
-
-Commercial licensing without the AGPL's obligations is available from the
-copyright holder: see [COMMERCIAL.md](COMMERCIAL.md).
+Copyright (c) 2026 Joel Walker. AGPL v3 or later (see [LICENSE](LICENSE) and
+[NOTICE](NOTICE)). Commercial licenses without the AGPL requirements are
+available: [COMMERCIAL.md](COMMERCIAL.md).
 
 ## Attribution
 
-Rewrite patterns derive from [blader/humanizer](https://github.com/blader/humanizer)
-SKILL.md v2.8.2 (MIT, vendored at `docs/skill-source/` with its license intact),
-which is based on Wikipedia's "Signs of AI writing" by WikiProject AI Cleanup.
+Rewrite patterns come from [blader/humanizer](https://github.com/blader/humanizer)
+SKILL.md v2.8.2 (MIT, vendored at `docs/skill-source/`), based on Wikipedia's
+"Signs of AI writing" by WikiProject AI Cleanup.
