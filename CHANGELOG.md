@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 (2026-07-28)
+
+- Relicensed from MIT to the GNU Affero General Public License v3 or later.
+  Copies obtained under MIT keep those terms. Commercial licensing without the
+  AGPL's obligations is available; see COMMERCIAL.md. The vendored humanizer
+  skill stays MIT with its notice intact.
+
 ## 1.1.0 (2026-07-28)
 
 Personalization and control.

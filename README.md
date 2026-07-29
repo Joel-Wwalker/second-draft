@@ -40,6 +40,12 @@ servers, no telemetry; text leaves your device only for a provider you configure
 
 Design spec: `docs/superpowers/specs/2026-07-25-humanizer-chrome-extension-design.md`
 
+## License
+
+Copyright (c) 2026 Joel Walker, released under the GNU Affero General Public
+License v3 or later (see `LICENSE`). Commercial licensing without the AGPL's
+obligations is available: see `COMMERCIAL.md`.
+
 ## Attribution
 
 Rewrite patterns derive from [blader/humanizer](https://github.com/blader/humanizer)
