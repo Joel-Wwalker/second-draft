@@ -46,6 +46,11 @@ const CARD_CSS = `
   .headline { min-width: 0; }
   .headline .h { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
   .status { font-size: 12px; color: #64748b; min-height: 15px; }
+  .fidelity { padding: 8px 18px; margin: 0 18px 10px; font-size: 12px; border-radius: 10px;
+    background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .fidelity[hidden] { display: none; }
+  .fidelity b { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 3px; }
   .profile-note { padding: 0 18px 8px; font-size: 11.5px; color: #7c6f5d; }
   .profile-note[hidden] { display: none; }
   .body { max-height: 220px; overflow: auto; padding: 2px 18px 14px; white-space: pre-wrap; }
@@ -102,6 +107,7 @@ export class Card {
   private readonly ringNum: HTMLElement;
   private readonly bodyEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  private readonly fidelityEl: HTMLElement;
   private readonly profileNoteEl: HTMLElement;
   private readonly changesEl: HTMLDetailsElement;
   private readonly changeRowsEl: HTMLDivElement;
@@ -117,6 +123,7 @@ export class Card {
   };
   private open_ = false;
   private canApply = false;
+  private needsConfirm = false;
   private currentText = '';
   private currentChanges: Change[] = [];
   private popoverEl: HTMLElement | null = null;
@@ -181,6 +188,10 @@ export class Card {
     this.bodyEl = doc.createElement('div');
     this.bodyEl.className = 'body rewritten';
 
+    this.fidelityEl = doc.createElement('div');
+    this.fidelityEl.className = 'fidelity';
+    this.fidelityEl.hidden = true;
+
     this.changesEl = doc.createElement('details');
     this.changesEl.className = 'changes';
     const summary = doc.createElement('summary');
@@ -210,7 +221,16 @@ export class Card {
     this.applyBtn = doc.createElement('button');
     this.applyBtn.className = 'apply';
     this.applyBtn.textContent = 'Apply';
-    this.applyBtn.addEventListener('click', () => this.cb.onApply());
+    this.applyBtn.addEventListener('click', () => {
+      // A rewrite that may have lost content does not get applied on one click.
+      if (this.needsConfirm) {
+        this.needsConfirm = false;
+        this.applyBtn.textContent = 'Apply anyway';
+        this.fidelityEl.append(this.doc.createTextNode(' Click Apply anyway to replace the text.'));
+        return;
+      }
+      this.cb.onApply();
+    });
     this.regenBtn = doc.createElement('button');
     this.regenBtn.className = 'regen';
     this.regenBtn.textContent = 'Try again';
@@ -237,7 +257,7 @@ export class Card {
     });
 
     bar.append(this.engineEl, this.intensitySel, this.applyBtn, this.regenBtn, this.copyBtn, this.undoBtn, this.dismissBtn);
-    this.cardEl.append(this.headEl, this.profileNoteEl, this.bodyEl, this.changesEl, bar);
+    this.cardEl.append(this.headEl, this.profileNoteEl, this.bodyEl, this.fidelityEl, this.changesEl, bar);
     shadow.append(style, this.cardEl);
   }
 
@@ -265,6 +285,10 @@ export class Card {
     this.changeRowsEl.textContent = '';
     this.profileNoteEl.hidden = true;
     this.profileNoteEl.textContent = '';
+    this.fidelityEl.hidden = true;
+    this.fidelityEl.textContent = '';
+    this.needsConfirm = false;
+    this.applyBtn.textContent = 'Apply';
     this.currentText = '';
     this.currentChanges = [];
     this.closePopover();
@@ -300,6 +324,7 @@ export class Card {
     this.statusEl.textContent = resultStatus(result);
     this.profileNoteEl.textContent = note ?? '';
     this.profileNoteEl.hidden = !note;
+    this.renderFidelity(result.fidelity);
     this.changeRowsEl.textContent = '';
     const rows = formatChanges(result, original);
     this.changesEl.hidden = rows.length === 0;
@@ -339,6 +364,23 @@ export class Card {
     this.setRing(0, 0);
   }
 
+
+  /** Show what a rewrite may have dropped, and arm the extra Apply click. */
+  private renderFidelity(issues: HumanizeResult['fidelity']): void {
+    this.fidelityEl.textContent = '';
+    this.needsConfirm = issues.length > 0;
+    this.applyBtn.textContent = 'Apply';
+    this.fidelityEl.hidden = issues.length === 0;
+    if (issues.length === 0) return;
+    const label = this.doc.createElement('b');
+    label.textContent = issues.length === 1 ? 'Check this' : 'Check these';
+    this.fidelityEl.append(label);
+    for (const issue of issues) {
+      const line = this.doc.createElement('div');
+      line.textContent = issue.message;
+      this.fidelityEl.append(line);
+    }
+  }
 
   /** Spin the ring and animate the status line while a rewrite is in flight. */
   private setWorking(on: boolean): void {

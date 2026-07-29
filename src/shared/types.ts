@@ -1,3 +1,4 @@
+import type { FidelityIssue } from './fidelity';
 export type Intensity = 'light' | 'full';
 
 export interface Span {
@@ -45,6 +46,8 @@ export interface HumanizeResult {
   engine: EngineInfo;
   /** Detected AI-tell counts before and after the rewrite. */
   tells: { before: number; after: number };
+  /** Content the rewrite may have lost. Empty when it looks faithful. */
+  fidelity: FidelityIssue[];
 }
 
 export interface ScanSummary {

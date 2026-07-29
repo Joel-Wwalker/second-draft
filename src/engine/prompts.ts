@@ -30,6 +30,12 @@ Change as little as possible. Only fix these AI tells where they appear:
 - Straighten curly quotes and remove emoji.
 Keep everything else exactly as written.`;
 
+// The sentence-mixing, contraction, and concrete-wording instructions were
+// informed by the lever taxonomy in harshaneel/humanize (MIT). Its
+// perplexity-injection lever is deliberately not adopted: choosing deliberately
+// unpredictable vocabulary lowers a detector score at the cost of readability,
+// which is the opposite of this product's goal. The no-invented-details clause
+// is ours, because asking a model for specificity invites fabrication.
 const FULL_CORE = `${CONTRACT}
 Rewrite so the text reads like a person wrote it, keeping the meaning and register:
 - Cut significance inflation (stands as, testament to, pivotal moment, underscores).
@@ -49,6 +55,13 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - End without a generic upbeat conclusion.
 - Replace AI-flavored words (delve, tapestry, testament, pivotal, crucial, vibrant, interplay, intricate) with plain ones.
 - Replace every em dash and en dash. Straighten curly quotes. No emoji.
+- Mix sentence lengths on purpose. Put a short sentence next to a long one
+  instead of settling into one steady length.
+- Use contractions where the register allows them. Most people write "it's" and
+  "does not" in the same paragraph.
+- Prefer concrete wording over abstract wording, and keep every specific already
+  in the text: names, numbers, dates, places. Do not invent details that were
+  not there.
 Rewrite even when none of the listed tells appear: smooth, generic, evenly paced prose where every sentence has the same shape is itself an AI tell. Vary sentence length, break parallel structures, and swap vague phrasing for concrete wording. Returning the text unchanged or nearly unchanged is a failure. The rewrite must read noticeably different while keeping the same meaning, register, and rough length.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;

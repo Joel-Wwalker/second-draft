@@ -1,6 +1,7 @@
 import type { HumanizeOptions, HumanizeResult, Provider } from '../shared/types';
 import { HumanizerError } from '../shared/types';
 import { diffChanges } from '../shared/diff';
+import { checkFidelity } from '../shared/fidelity';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -32,6 +33,7 @@ export async function humanize(
       changes: diffChanges(text, rewritten, tells),
       engine: { kind: 'rules' },
       tells: { before: tells.length, after: detect(rewritten, extraRules).length },
+      fidelity: checkFidelity(text, rewritten),
     };
   }
 
@@ -64,6 +66,7 @@ export async function humanize(
     changes: diffChanges(text, rewritten, tells),
     engine: provider.info,
     tells: { before: tells.length, after: detect(rewritten, extraRules).length },
+    fidelity: checkFidelity(text, rewritten),
   };
 }
 

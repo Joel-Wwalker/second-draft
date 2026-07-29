@@ -48,3 +48,14 @@ test('heuristic tells respect minCountForPrompt', () => {
   const p = buildSystemPrompt({ intensity: 'full', tells: one, target: 'byok' });
   expect(p).not.toContain('Detected in this text');
 });
+
+test('the full prompt asks for rhythm, contractions, and concreteness without inventing facts', () => {
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).toContain('Mix sentence lengths on purpose');
+  expect(full).toContain('Use contractions where the register allows');
+  expect(full).toContain('Do not invent details that were');
+  // The light pass stays minimal: it only removes tells, it does not restyle.
+  const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
+  expect(light).not.toContain('Mix sentence lengths');
+  expect(light).not.toContain('Use contractions');
+});
