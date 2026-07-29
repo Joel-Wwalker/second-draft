@@ -73,6 +73,24 @@ export function findAlternatives(text: string, skip: Array<{ start: number; end:
   return spans;
 }
 
+/**
+ * Move ranges that sit after a swapped word. Swapping "delve" for "dig" makes
+ * the text two characters shorter, and every highlight downstream has to move
+ * with it or it lands on the wrong words.
+ */
+export function shiftRangesAfter<T extends { range: { start: number; end: number } }>(
+  items: readonly T[],
+  after: number,
+  delta: number,
+): T[] {
+  if (delta === 0) return [...items];
+  return items.map(item =>
+    item.range.start >= after
+      ? { ...item, range: { start: item.range.start + delta, end: item.range.end + delta } }
+      : item,
+  );
+}
+
 /** Replace a span, matching the original word's capitalization. */
 export function swapWord(text: string, span: { start: number; end: number }, option: string): string {
   const original = text.slice(span.start, span.end);

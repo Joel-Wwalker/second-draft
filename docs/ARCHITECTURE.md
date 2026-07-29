@@ -84,23 +84,40 @@ result. A rules-only pass says so.
 
 Two directions, both validated by type guards with the sender id checked:
 
-- **Popup to background**, one-shot `chrome.runtime.sendMessage`, carrying a
-  correlation `id`. A long-lived port with cancel support also exists for
-  streaming consumers, and `{ type: 'cancel', id }` maps to an `AbortSignal`
-  that reaches `fetch` and the Prompt API session.
+- **Popup to background**, over a long-lived port, because rewrites stream.
+  Every request carries a correlation `id` so a superseded answer cannot render
+  over a newer one, `{ type: 'cancel', id }` maps to an `AbortSignal` that
+  reaches `fetch` and the Prompt API session, and closing the popup disconnects
+  the port, which is what cancels work in flight. The popup also runs its own
+  idle timeout, because "the service worker never answered" is a real state in
+  MV3. A one-shot `sendMessage` handler exists alongside it for callers that do
+  not need streaming.
 - **Popup and background to the content script**, `chrome.tabs.sendMessage`:
   `capture` hands over the selected text, `apply` writes a rewrite back into it,
   `undo` restores the original. The content script answers and nothing else.
 
-Right click parks the selected text in `chrome.storage.local` and asks Chrome to
-open the popup. `chrome.action.openPopup()` needs a user gesture and is not
-available in every build, so a failure is not fatal: the text stays parked and a
-badge on the toolbar icon tells the user to click it.
+Right click opens the popup first and parks the selected text second, because
+`chrome.action.openPopup()` needs the click's user gesture and every `await`
+spends it. The popup opens empty and waits briefly for the text to land.
+`openPopup()` is also missing from some builds, so a failure is not fatal: the
+text stays parked and a badge on the toolbar icon tells the user to click it.
+
+The parked text is deliberately short-lived. It expires after 60 seconds, is
+deleted the moment the popup reads it, and is dropped when its tab closes or
+Chrome restarts. Text nobody read must not turn up in a popup opened later for
+something else.
+
+A round trip to the page that throws is not the same as a page that answered
+"nothing here". The per-site switch and the credential guard both live in the
+content script, so if that script does not answer, the background reads nothing
+at all. Chrome hands the context menu its own copy of the selected text, and that
+copy is used only after the script has answered.
 
 ## Storage
 
-One key in `chrome.storage.local`, never synced. Reads merge over defaults so an
-older install that predates a field still works. API keys live here and nowhere
+Two keys in `chrome.storage.local`, never synced: the settings object, and the
+short-lived selection a right click hands to the popup. Settings reads merge over
+defaults so an older install that predates a field still works. API keys live here and nowhere
 else, and error strings are redacted before they can reach a log or the UI.
 
 ## Where the tests live

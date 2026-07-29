@@ -8,7 +8,7 @@ export interface ChangeRow {
 
 const SNIPPET_MAX = 90;
 
-/** Rows for the "What changed" log; pure so both card and popup can render it. */
+/** Rows for the "What changed" log; pure, so the renderer stays dumb. */
 export function formatChanges(result: HumanizeResult, original: string): ChangeRow[] {
   return result.changes.map(change => ({
     reason: change.reason,

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-170%20unit%20%2B%202%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-199%20unit%20%2B%208%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -26,7 +26,9 @@ Version 1.3.0. Not yet on the Chrome Web Store.
 - Select text, right click, choose Humanize; the popup opens and starts on its own
 - Every edit is listed as old text to new text, with the reason it changed
 - A count of tells found and tells remaining, and a check that no numbers,
-  names, dates, or quotations went missing (a lossy rewrite is retried once)
+  names, dates, or quotations went missing. A rewrite that drops one is redone
+  automatically, once. On the API-key path that second pass costs a second
+  request.
 - AI-flavored words are clickable; pick a plain replacement before applying
 - Apply the rewrite back into the page, undo it, or try again for a different one
 - Keyboard shortcut (Ctrl+Shift+H) and a right-click menu entry
@@ -85,14 +87,19 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-170 unit tests and 2 Playwright tests that drive the built extension in a real
+199 unit tests and 8 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,
 restore it. Fixtures assert hand-counted values rather than whatever the code
 returned. This caught a regex that deleted trademark symbols, a chunker that
-could overflow the model's context, and a `.docx` upload that expanded 199 KB
-into 200 MB.
+could overflow the model's context, a `.docx` upload that expanded 199 KB into
+200 MB, and a right-click path that read selections on sites the extension was
+switched off for.
+
+Some of it can only be tested in a real browser. `document.execCommand` does not
+exist in a test runner, so the replacement path that keeps a site's own undo
+stack working is covered by Playwright rather than unit tests.
 
 [docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 44 rows covering
 what automated tests cannot: real sites, real models, and browser APIs that do

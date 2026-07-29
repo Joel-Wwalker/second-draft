@@ -68,14 +68,22 @@ export async function humanize(
   // it lost. One retry only: the on-device model is slow enough that a third
   // attempt costs more waiting than it tends to buy.
   if (best.fidelity.length > 0) {
-    retried = true;
+    throwIfAborted(opts.signal);
     const lost = best.fidelity.map(issue => issue.message).join(' ');
-    const second = await attempt(
-      `${systemPrompt}
+    try {
+      const second = await attempt(
+        `${systemPrompt}
 
 A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
-    );
-    if (second.fidelity.length < best.fidelity.length) best = second;
+      );
+      retried = true;
+      if (second.fidelity.length < best.fidelity.length) best = second;
+    } catch (err) {
+      // A retry that fails must not be worse than no retry. The first rewrite
+      // is finished and usable; keep it, and let the caller show what is
+      // missing from it. An abort is the exception, since the caller asked.
+      if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
+    }
   }
 
   return {

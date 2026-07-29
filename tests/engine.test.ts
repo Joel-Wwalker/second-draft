@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { humanize, stripWrapping } from '../src/engine';
 import { FakeProvider } from '../src/engine/providers/fake';
+import { HumanizerError } from '../src/shared/types';
 import type { RewriteRequest } from '../src/shared/types';
 
 test('falls back to rules-only when no provider is available', async () => {
@@ -150,4 +151,76 @@ test('when both attempts lose content the first is kept and still reported', asy
   expect(res.retried).toBe(true);
   // Still surfaced rather than hidden: the user is told what is missing.
   expect(res.fidelity.length).toBeGreaterThan(0);
+});
+
+test('a retry that fails keeps the first rewrite instead of losing it', async () => {
+  // The first pass is finished and usable, merely lossy. A rate limit or a dead
+  // socket on the second pass must not turn that into an error for the user.
+  let call = 0;
+  const flakySecond = {
+    info: { kind: 'fake' as const, model: 'flaky-second' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      if (call === 2) throw new Error('429 rate limited');
+      return 'The factory opened under Martinez.';
+    },
+  };
+  const res = await humanize(
+    'The Lisbon factory opened in 1994 under Martinez.',
+    { intensity: 'full' },
+    { providers: [flakySecond] },
+  );
+  expect(call).toBe(2);
+  expect(res.rewritten).toBe('The factory opened under Martinez.');
+  // A second pass was attempted but never completed, so it is not claimed.
+  expect(res.retried).toBe(false);
+  // What the first pass dropped is still reported rather than hidden.
+  expect(res.fidelity.length).toBeGreaterThan(0);
+});
+
+test('an abort during the retry is passed on rather than swallowed', async () => {
+  const ctl = new AbortController();
+  let call = 0;
+  const aborting = {
+    info: { kind: 'fake' as const, model: 'aborting' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      if (call === 2) {
+        ctl.abort();
+        throw new HumanizerError('aborted');
+      }
+      return 'The factory opened under Martinez.';
+    },
+  };
+  await expect(
+    humanize(
+      'The Lisbon factory opened in 1994 under Martinez.',
+      { intensity: 'full', signal: ctl.signal },
+      { providers: [aborting] },
+    ),
+  ).rejects.toMatchObject({ kind: 'aborted' });
+});
+
+test('a signal aborted after the first pass stops the retry from running', async () => {
+  const ctl = new AbortController();
+  let call = 0;
+  const provider = {
+    info: { kind: 'fake' as const, model: 'one-shot' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      ctl.abort(); // the user closed the popup while the first pass ran
+      return 'The factory opened under Martinez.';
+    },
+  };
+  await expect(
+    humanize(
+      'The Lisbon factory opened in 1994 under Martinez.',
+      { intensity: 'full', signal: ctl.signal },
+      { providers: [provider] },
+    ),
+  ).rejects.toMatchObject({ kind: 'aborted' });
+  expect(call).toBe(1);
 });

@@ -79,8 +79,21 @@ export class HumanizeSession {
     if (!current) return false;
     if (!applyReplacement(current, originalText, this.doc)) return false;
     this.applied = null;
-    this.captured = current.kind === 'field' ? { ...current, text: originalText } : null;
+    // Re-arm capture over the restored text, so Apply works a second time and
+    // start/end/text cannot disagree about what is where.
+    this.captured = this.recapture(current, originalText);
     return true;
+  }
+
+  /** Describe the text just restored, so a later apply lands on it. */
+  private recapture(target: EditableSelection, text: string): EditableSelection | null {
+    if (target.kind === 'field') {
+      return { kind: 'field', el: target.el, start: target.start, end: target.start + text.length, text };
+    }
+    const at = locate(target.root.textContent ?? '', text);
+    if (at === null) return null;
+    const range = rangeFromTextOffsets(target.root, at, at + text.length, this.doc);
+    return range ? { kind: 'editable', root: target.root, range, text } : null;
   }
 
   /** Describe where the applied text sits now, so undo goes through the same guards. */

@@ -9,10 +9,16 @@ test('text handed over from a page selection humanizes on its own', async ({ con
   // Stand in for the right-click handoff: the background parks the selection and
   // opens the popup, which should pick it up and start without being told.
   const seed = await context.newPage();
-  await seed.goto(`chrome-extension://${extensionId}/popup.html`);
+  await seed.goto(`chrome-extension://${extensionId}/options.html`);
   await seed.evaluate(() =>
     chrome.storage.local.set({
-      pendingSelection: { text: 'We delve into the plan—boldly.', canApply: false, tabId: -1 },
+      pendingSelection: {
+        kind: 'text',
+        text: 'We delve into the plan—boldly.',
+        canApply: false,
+        tabId: -1,
+        at: Date.now(),
+      },
     }),
   );
   await seed.close();

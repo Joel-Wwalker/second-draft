@@ -1,17 +1,19 @@
 import type {
   ApplyRequest,
   ApplyResponse,
-  BackgroundRequest,
-  HumanizeResponse,
+  CancelRequest,
+  HumanizeRequest,
+  PendingRefusal,
   PendingSelection,
+  PortServerMessage,
   UndoRequest,
 } from '../../shared/messages';
-import { PENDING_KEY } from '../../shared/messages';
+import { HUMANIZE_PORT, PENDING_KEY, isPendingFresh, isPendingSelection } from '../../shared/messages';
 import type { HumanizeResult, Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
 import { engineLabel as engineLabelFor, resultStatus } from '../../shared/labels';
 import { formatChanges } from '../../shared/change-log';
-import { findAlternatives, swapWord } from '../../shared/alternatives';
+import { findAlternatives, shiftRangesAfter, swapWord } from '../../shared/alternatives';
 import type { AltSpan } from '../../shared/alternatives';
 import { analyzeWriting, compareToProfile } from '../../shared/profile';
 import type { Change } from '../../shared/types';
@@ -20,7 +22,8 @@ const byId = <T extends HTMLElement>(id: string): T => document.getElementById(i
 
 const input = byId<HTMLTextAreaElement>('input');
 const out = byId<HTMLDivElement>('out');
-const intensity = byId<HTMLSelectElement>('intensity');
+const outField = byId<HTMLDivElement>('outField');
+const intensityGroup = byId<HTMLDivElement>('intensity');
 const go = byId<HTMLButtonElement>('go');
 const copy = byId<HTMLButtonElement>('copy');
 const regen = byId<HTMLButtonElement>('regen');
@@ -43,22 +46,33 @@ const siteToggle = byId<HTMLInputElement>('siteToggle');
 const siteHost = byId<HTMLSpanElement>('siteHost');
 
 const RING_CIRCUMFERENCE = 106.8;
+/** Give up if nothing arrives for this long. "The worker never answered" is a real MV3 state. */
+const REQUEST_TIMEOUT_MS = 60_000;
+/** A right click opens this window before the text has been parked, so wait for it. */
+const HANDOFF_WAIT_MS = 1500;
+
+type HandedText = Extract<PendingSelection, { kind: 'text' }>;
 
 /** Where the text came from, when it arrived from a page selection. */
-let pending: PendingSelection | null = null;
+let pending: HandedText | null = null;
 /** The rewrite currently on screen, including any alternative words swapped in. */
 let current: { text: string; changes: Change[]; result: HumanizeResult } | null = null;
+/** The long-lived connection rewrites stream over. */
+let port: chrome.runtime.Port | null = null;
+let inFlight: { id: string; original: string; timer: ReturnType<typeof setTimeout> } | null = null;
+let requests = 0;
+let intensity: Intensity = 'light';
 
 void init();
 
 async function init(): Promise<void> {
   const settings = await getSettings();
-  intensity.value = settings.defaultIntensity;
-  intensity.addEventListener('change', () => {
-    void updateSettings({ defaultIntensity: intensity.value as Intensity });
-  });
-  go.addEventListener('click', () => void run());
-  regen.addEventListener('click', () => void run());
+  setIntensity(settings.defaultIntensity, false);
+  for (const option of intensityGroup.querySelectorAll<HTMLButtonElement>('.seg-opt')) {
+    option.addEventListener('click', () => setIntensity(option.dataset['value'] as Intensity, true));
+  }
+  go.addEventListener('click', () => run());
+  regen.addEventListener('click', () => run());
   copy.addEventListener('click', () => void navigator.clipboard.writeText(out.textContent ?? '').catch(() => {}));
   openOptions.addEventListener('click', () => void chrome.runtime.openOptionsPage());
   applyBtn.addEventListener('click', () => void applyToPage());
@@ -68,46 +82,164 @@ async function init(): Promise<void> {
   await showEngine(settings);
 
   // Text handed over by a right click or the keyboard shortcut starts on its own.
-  const stored = await chrome.storage.local.get(PENDING_KEY);
-  const handed = stored[PENDING_KEY] as PendingSelection | undefined;
-  if (handed?.text) {
+  const handed = await takePending();
+  if (handed?.kind === 'text') {
     pending = handed;
-    await chrome.storage.local.remove(PENDING_KEY);
-    void chrome.action.setBadgeText({ text: '' });
     input.value = handed.text;
-    void run();
+    run();
+  } else if (handed?.kind === 'refused') {
+    showRefusal(handed.reason);
   }
 }
 
-async function run(): Promise<void> {
+/**
+ * Read the parked selection, if there is one worth having. The background opens
+ * this window before it parks the text, so a right click arrives a moment after
+ * we start. Anything stale is dropped rather than run: a selection nobody read
+ * must not rewrite itself in a popup opened days later for something else.
+ */
+function takePending(): Promise<PendingSelection | null> {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = (value: PendingSelection | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.storage.onChanged.removeListener(onChanged);
+      resolve(value);
+    };
+    const tryRead = (): void => {
+      void consumePending().then(parked => {
+        if (parked) finish(parked);
+      });
+    };
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string): void => {
+      if (area === 'local' && PENDING_KEY in changes) tryRead();
+    };
+    const timer = setTimeout(() => finish(null), HANDOFF_WAIT_MS);
+    chrome.storage.onChanged.addListener(onChanged);
+    tryRead();
+  });
+}
+
+async function consumePending(): Promise<PendingSelection | null> {
+  const stored = await chrome.storage.local.get(PENDING_KEY);
+  const parked: unknown = stored[PENDING_KEY];
+  if (parked === undefined) return null;
+  // Whatever it was, it has been read now. Clearing it here is what stops the
+  // same text from running again the next time this popup opens.
+  await chrome.storage.local.remove(PENDING_KEY);
+  void chrome.action.setBadgeText({ text: '' });
+  if (!isPendingSelection(parked) || !isPendingFresh(parked, Date.now())) return null;
+  return parked;
+}
+
+const REFUSALS: Record<PendingRefusal, { headline: string; status: string }> = {
+  none: {
+    headline: 'Nothing selected',
+    status: 'Select some text on the page, then right click and choose Humanize.',
+  },
+  sensitive: {
+    headline: 'Nothing captured',
+    status: 'Second Draft does not read password, payment, or one-time-code fields.',
+  },
+  unavailable: {
+    headline: 'Not running on that page',
+    status: 'It may be turned off for this site, or the page may not allow extensions. You can paste text here instead.',
+  },
+};
+
+function showRefusal(reason: PendingRefusal): void {
+  headline.textContent = REFUSALS[reason].headline;
+  status.textContent = REFUSALS[reason].status;
+}
+
+function run(): void {
   const text = input.value.trim();
   if (!text) return;
+  if (inFlight) cancelInFlight();
   setWorking(true);
   resetResult();
+  const id = `req-${++requests}`;
   try {
-    const req: BackgroundRequest = {
-      type: 'humanize',
-      id: crypto.randomUUID(),
-      text,
-      intensity: intensity.value as Intensity,
-    };
-    const res = (await chrome.runtime.sendMessage(req)) as HumanizeResponse;
-    if (res.ok) render(res.result, text);
-    else fail(res.message);
+    const req: HumanizeRequest = { type: 'humanize', id, text, intensity };
+    connect().postMessage(req);
   } catch (err) {
-    fail(String(err));
-  } finally {
     setWorking(false);
+    fail(String(err));
+    return;
   }
+  inFlight = { id, original: text, timer: armTimeout(id) };
+}
+
+/**
+ * Rewrites stream, so this is a long-lived port rather than a one-shot message.
+ * Closing the popup disconnects it, which is what cancels the work in flight.
+ */
+function connect(): chrome.runtime.Port {
+  if (port) return port;
+  const opened = chrome.runtime.connect({ name: HUMANIZE_PORT });
+  opened.onMessage.addListener(msg => onPortMessage(msg as PortServerMessage));
+  opened.onDisconnect.addListener(() => {
+    if (port === opened) port = null;
+    if (!inFlight) return;
+    clearInFlight();
+    setWorking(false);
+    fail('The background worker stopped before it answered. Try again.');
+  });
+  port = opened;
+  return opened;
+}
+
+function onPortMessage(msg: PortServerMessage): void {
+  if (!inFlight || msg.id !== inFlight.id) return; // superseded or cancelled
+  if (msg.type === 'chunk') {
+    outField.hidden = false;
+    out.textContent = msg.textSoFar;
+    // Text arriving is proof of life, so the timeout is an idle timeout.
+    clearTimeout(inFlight.timer);
+    inFlight = { ...inFlight, timer: armTimeout(msg.id) };
+    return;
+  }
+  const { original } = inFlight;
+  clearInFlight();
+  setWorking(false);
+  if (msg.type === 'done') render(msg.result, original);
+  else fail(msg.message);
+}
+
+function armTimeout(id: string): ReturnType<typeof setTimeout> {
+  return setTimeout(() => {
+    if (inFlight?.id !== id) return;
+    cancelInFlight();
+    setWorking(false);
+    fail('Nothing came back for a minute. Try again, or try a shorter piece of text.');
+  }, REQUEST_TIMEOUT_MS);
+}
+
+function cancelInFlight(): void {
+  if (!inFlight) return;
+  const req: CancelRequest = { type: 'cancel', id: inFlight.id };
+  try {
+    port?.postMessage(req);
+  } catch {
+    // Port already gone; the background aborts everything on disconnect.
+  }
+  clearInFlight();
+}
+
+function clearInFlight(): void {
+  if (inFlight) clearTimeout(inFlight.timer);
+  inFlight = null;
 }
 
 function render(result: HumanizeResult, original: string): void {
   current = { text: result.rewritten, changes: [...result.changes], result };
-  out.hidden = false;
+  outField.hidden = false;
   resultRow.hidden = false;
   copy.disabled = false;
   engineLabel.textContent = engineLabelFor(result.engine);
-  status.textContent = resultStatus(result) + (result.retried ? ' Rewritten twice to keep your facts.' : '');
+  status.textContent = resultStatus(result) + retryNote(result);
   setRing(result.tells.before, result.tells.after);
   headline.textContent =
     result.tells.before === 0
@@ -121,6 +253,24 @@ function render(result: HumanizeResult, original: string): void {
   applyBtn.hidden = !(pending?.canApply ?? false);
   undoBtn.hidden = true;
   renderBody();
+}
+
+function setIntensity(next: Intensity, remember: boolean): void {
+  intensity = next;
+  for (const option of intensityGroup.querySelectorAll<HTMLButtonElement>('.seg-opt')) {
+    const on = option.dataset['value'] === next;
+    option.classList.toggle('on', on);
+    option.setAttribute('aria-pressed', String(on));
+  }
+  if (remember) void updateSettings({ defaultIntensity: next });
+}
+
+/** A second pass ran. Say so, without claiming it worked when it did not. */
+function retryNote(result: HumanizeResult): string {
+  if (!result.retried) return '';
+  return result.fidelity.length === 0
+    ? ' Rewrote it twice to keep your facts.'
+    : ' Rewrote it twice; what is still missing is below.';
 }
 
 /** Rewrite text with change highlights and clickable alternative words. */
@@ -179,12 +329,7 @@ function openAlts(anchor: HTMLElement, span: AltSpan): void {
       if (!current) return;
       const before = current.text;
       current.text = swapWord(before, span, option);
-      const delta = current.text.length - before.length;
-      current.changes = current.changes.map(c =>
-        c.range.start >= span.end
-          ? { ...c, range: { start: c.range.start + delta, end: c.range.end + delta } }
-          : c,
-      );
+      current.changes = shiftRangesAfter(current.changes, span.end, current.text.length - before.length);
       pop.remove();
       renderBody();
     });
@@ -273,7 +418,7 @@ async function undoOnPage(): Promise<void> {
 
 function resetResult(): void {
   current = null;
-  out.hidden = true;
+  outField.hidden = true;
   out.textContent = '';
   resultRow.hidden = true;
   copy.disabled = true;

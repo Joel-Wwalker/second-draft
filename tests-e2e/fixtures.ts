@@ -21,7 +21,11 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
 
 export const expect = test.expect;
 
-/** Seed extension settings via a real extension page; never evaluates in the service worker. */
+/**
+ * Seed extension settings via a real extension page; never evaluates in the service
+ * worker, whose first evaluate call hangs. The options page is used rather than the
+ * popup, because the popup consumes any selection parked for it.
+ */
 export async function setExtensionSettings(
   context: BrowserContext,
   extensionId: string,
@@ -29,7 +33,7 @@ export async function setExtensionSettings(
 ): Promise<void> {
   const page = await context.newPage();
   try {
-    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+    await page.goto(`chrome-extension://${extensionId}/options.html`);
     await page.evaluate(s => chrome.storage.local.set({ settings: s }), settings);
   } finally {
     await page.close();

@@ -19,7 +19,7 @@ export type HumanizeResponse =
   | { ok: true; result: HumanizeResult }
   | { ok: false; kind: HumanizerErrorKind; message: string };
 
-/** Streamed over a long-lived port to the content-script card. */
+/** Streamed over a long-lived port to the popup. */
 export type PortServerMessage =
   | { type: 'chunk'; id: string; textSoFar: string }
   | { type: 'done'; id: string; result: HumanizeResult }
@@ -70,6 +70,20 @@ export type CaptureResponse =
 
 export type ApplyResponse = { ok: boolean };
 
+/**
+ * Validate what came back from the page. The background has to tell three
+ * outcomes apart: the page answered with text, the page answered that it will
+ * not hand any over, and the page never answered at all. Only the first two
+ * mean the credential guard and the per-site switch actually ran.
+ */
+export function isCaptureResponse(msg: unknown): msg is CaptureResponse {
+  if (typeof msg !== 'object' || msg === null) return false;
+  const m = msg as Record<string, unknown>;
+  if (m['ok'] === true) return typeof m['text'] === 'string' && typeof m['canApply'] === 'boolean';
+  if (m['ok'] === false) return m['reason'] === 'none' || m['reason'] === 'sensitive';
+  return false;
+}
+
 export function isCaptureRequest(msg: unknown): msg is CaptureRequest {
   return isTagged(msg, 'capture');
 }
@@ -91,9 +105,51 @@ function isTagged(msg: unknown, type: string): boolean {
 /** Storage key holding text handed from a page selection to the popup. */
 export const PENDING_KEY = 'pendingSelection';
 
-export interface PendingSelection {
-  text: string;
-  /** False when the text came from somewhere the popup cannot write back to. */
-  canApply: boolean;
-  tabId: number;
+/**
+ * How long parked text stays good for. Long enough to cover a slow popup open,
+ * short enough that a selection nobody read cannot resurface days later and
+ * rewrite itself in a popup the user opened for something else.
+ */
+export const PENDING_TTL_MS = 60_000;
+
+/**
+ * What a right click hands to the popup. A refusal is parked too, so the popup
+ * can say why it has nothing instead of sitting there empty.
+ */
+export type PendingSelection =
+  | {
+      kind: 'text';
+      text: string;
+      /** False when the text came from somewhere the popup cannot write back to. */
+      canApply: boolean;
+      tabId: number;
+      at: number;
+    }
+  | { kind: 'refused'; reason: PendingRefusal; at: number };
+
+export type PendingRefusal =
+  /** Nothing was selected. */
+  | 'none'
+  /** A password, payment, or one-time-code field. Never captured. */
+  | 'sensitive'
+  /** The page never answered: turned off for this site, restricted, or still loading. */
+  | 'unavailable';
+
+export function isPendingSelection(value: unknown): value is PendingSelection {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (typeof v['at'] !== 'number') return false;
+  if (v['kind'] === 'text') {
+    return typeof v['text'] === 'string' && typeof v['canApply'] === 'boolean' && typeof v['tabId'] === 'number';
+  }
+  if (v['kind'] === 'refused') {
+    return v['reason'] === 'none' || v['reason'] === 'sensitive' || v['reason'] === 'unavailable';
+  }
+  return false;
+}
+
+export function isPendingFresh(pending: PendingSelection, now: number): boolean {
+  const age = now - pending.at;
+  // A clock that jumped backwards must not make stale text look fresh forever.
+  return age >= 0 && age <= PENDING_TTL_MS;
 }

@@ -7,7 +7,7 @@ Short name: Second Draft.
 
 ## Short description (132 chars max)
 
-Make AI drafts sound like you. Select text, click Humanize, review the changes, apply. Runs on your device by default.
+Select text, right click, choose Humanize, and the popup rewrites it, keeping your facts. Runs on your device by default.
 
 ## Description
 
@@ -16,15 +16,22 @@ telltale signs of AI-generated writing, including em dashes, curly quotes,
 "delve" and its friends, chatbot filler, rule-of-three cadence, and
 promotional fluff.
 
-Select text in almost any editable field, click the Humanize chip, and review
-a before-and-after with every change explained: a What-changed log lists each
-edit with its reason, and an AI-tells score shows how many tells were found
-and how many remain. Apply replaces the text in place. A popup paste box
-covers sites that block in-place editing.
+Select text on almost any page, right click, and choose Humanize, or press
+Ctrl+Shift+H. A popup opens and starts rewriting right away: no extra clicks.
+It shows a score for the AI tells found and cleared, the rewrite with each
+change marked, and a What-changed log that lists every edit with its reason.
+Apply to page puts the rewrite back where the text came from, and Undo
+restores the original. On pages that will not take text back, such as an
+article or a Google Docs canvas, Copy is available instead.
 
-AI flavored words are tappable, so you can swap in a plain alternative before you
-apply, and if you give it a sample of your own writing it will tell you when a
-rewrite drifts away from your usual sentence length and rhythm.
+If a rewrite drops a number, a name, a date, or a quotation, Second Draft
+quietly tries again on its own, using what went missing to guide the second
+attempt. Anything still missing after that is called out on screen instead of
+hidden.
+
+AI-flavored words in the rewrite are clickable, so you can swap in a plain
+alternative before you apply. Give it a sample of your own writing, and it
+will note when a rewrite drifts from your usual sentence length or rhythm.
 
 Private by design: rewrites run on your device using Chrome's built-in AI. No
 account, no servers, no tracking, unlimited use. Optionally add your own
@@ -42,13 +49,19 @@ Productivity / Writing
 
 ## Permission justifications (for the review form)
 
-- Content script on all sites: reads the text the user selects when they choose
-  Humanize from the right-click menu, and writes the rewrite back in place when
-  they click Apply. Core functionality; a per-site disable toggle is built in.
-- storage: user settings (intensity, disabled sites, voice sample, optional
-  API key), stored locally.
+- Content script on all sites: reads the text the user selects when they
+  choose Humanize from the right-click menu or the Ctrl+Shift+H shortcut, and
+  writes the rewrite back in place when they click Apply to page in the
+  popup. Also answers Undo, which restores the original text. Core
+  functionality; a per-site disable toggle is built in, and password,
+  card-number, and one-time-code fields are never read.
+- storage: user settings (intensity, disabled sites, voice sample, custom
+  tells, optional API key), stored locally. Also holds the text a right-click
+  or keyboard-shortcut selection hands to the popup, kept for at most 60
+  seconds or until the popup reads it, whichever comes first.
 - contextMenus: the right-click "Humanize selection" entry.
-- activeTab: lets the popup show and toggle the current site's disable switch.
+- activeTab: lets the popup read the current tab's address to show and toggle
+  its per-site disable switch.
 - Optional host permissions: requested only when the user configures their own
   API key, limited to the provider domain they enter.
 - Optional host permissions are declared broadly (https, plus http localhost
@@ -58,7 +71,9 @@ Productivity / Writing
 
 ## Assets still needed from the owner
 
-- Screenshots (1280x800): chip on a selection, the result card, the options page.
+- Screenshots (1280x800): the popup mid-rewrite with the score ring and
+  highlighted changes, the popup's What-changed log expanded, and the options
+  page.
 - Final icon approval (current icon is a generated placeholder).
 - Developer account ($5 one-time).
 - Privacy policy URL (live): https://joel-wwalker.github.io/second-draft/privacy-policy

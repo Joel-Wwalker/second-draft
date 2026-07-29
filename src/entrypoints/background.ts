@@ -8,8 +8,9 @@ import type { Settings } from '../shared/storage';
 import { redactError } from '../shared/redact';
 import { HumanizerError } from '../shared/types';
 import type { Intensity, Provider } from '../shared/types';
-import { HUMANIZE_PORT, PENDING_KEY, isCancelRequest, isHumanizeRequest } from '../shared/messages';
-import type { CaptureRequest, CaptureResponse, HumanizeResponse, PortServerMessage } from '../shared/messages';
+import { HUMANIZE_PORT, isCancelRequest, isHumanizeRequest } from '../shared/messages';
+import type { HumanizeResponse, PortServerMessage } from '../shared/messages';
+import { discardPending, discardPendingForTab, handOff } from '../background/handoff';
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -44,7 +45,16 @@ export default defineBackground(() => {
     },
   );
 
-  // Streaming path (content-script card).
+  // Parked text belongs to one moment and one tab. Drop it when either is gone,
+  // so it cannot turn up in a popup the user opened for something else.
+  chrome.tabs.onRemoved.addListener(tabId => {
+    void discardPendingForTab(tabId);
+  });
+  chrome.runtime.onStartup.addListener(() => {
+    void discardPending();
+  });
+
+  // Streaming path (popup).
   chrome.runtime.onConnect.addListener(port => {
     if (port.sender?.id !== chrome.runtime.id || port.name !== HUMANIZE_PORT) return;
     const running = new Map<string, AbortController>();
@@ -73,41 +83,6 @@ export default defineBackground(() => {
     });
   });
 });
-
-/** Shared by the context menu and the keyboard shortcut: both just tell the active tab's
- *  content script to humanize a selection, which reads the live selection itself. */
-/**
- * Ask the page for the selected text, park it for the popup, and open the popup.
- * openPopup needs a user gesture and is not available in every Chrome build, so
- * a failure is not fatal: the text stays parked and a badge tells the user to
- * click the toolbar icon.
- */
-async function handOff(tabId: number, fallbackText: string): Promise<void> {
-  let text = '';
-  let canApply = false;
-  try {
-    const res = await chrome.tabs.sendMessage<CaptureRequest, CaptureResponse>(tabId, { type: 'capture' });
-    if (res.ok) {
-      text = res.text;
-      canApply = res.canApply;
-    } else if (res.reason === 'sensitive') {
-      return; // never hand over a password or card field
-    }
-  } catch {
-    // No content script in this tab; fall back to whatever Chrome gave us.
-  }
-  if (!text) text = fallbackText;
-  if (!text.trim()) return;
-  await chrome.storage.local.set({ [PENDING_KEY]: { text, canApply, tabId } });
-  try {
-    await chrome.action.openPopup();
-    void chrome.action.setBadgeText({ text: '' });
-  } catch {
-    // Could not open it for the user; point them at the toolbar instead.
-    void chrome.action.setBadgeBackgroundColor({ color: '#4f46e5' });
-    void chrome.action.setBadgeText({ text: '1' });
-  }
-}
 
 function post(port: chrome.runtime.Port, msg: PortServerMessage): void {
   try {

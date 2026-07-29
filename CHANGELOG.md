@@ -11,6 +11,25 @@ The popup is now the whole interface.
   quietly, and told what it lost. Anything still missing is named on screen
 - Removed the floating button that appeared over a selection
 - Removed page scanning and its underlines
+- Rewrites stream into the popup, closing it cancels the work, and a request
+  that goes quiet for a minute gives up instead of spinning
+- A right click on a password, payment, or one-time-code field now says so
+  instead of appearing to do nothing
+
+Security, all in the new right-click path:
+
+- On a site you had turned the extension off for, a right click could still read
+  the selection through Chrome's own copy of it, because that copy was used
+  whenever the page did not answer. The per-site switch and the credential guard
+  both live in the page script, so a page that does not answer now means nothing
+  is read at all.
+- Same hole, same cause, for credential fields on such a site.
+- Selected text handed to the popup was left in local storage with no expiry, so
+  a selection the popup never read could turn up and rewrite itself in a popup
+  opened later for something else. It now expires after 60 seconds, is deleted
+  the moment it is read, and is dropped when its tab closes or Chrome restarts.
+- A rewrite that lost content and then hit an error on its second pass reported
+  the error instead of the usable first result.
 
 ## 1.2.0 (2026-07-28)
 

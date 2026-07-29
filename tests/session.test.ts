@@ -150,3 +150,88 @@ test('stop removes the listener and clears what was captured', () => {
   expect(answered).toBe(false);
   expect(document.querySelector('textarea')!.value).toBe('We delve into the plan boldly.');
 });
+
+test('the text nodes really are split, so the walker above is exercised', () => {
+  // Pins the assumption the cross-node test rests on. If jsdom ever stops
+  // splitting on replace, that test would quietly become a single-node case.
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly, said the team.</div>';
+  const el = document.querySelector('div')!;
+  const range = document.createRange();
+  range.setStart(el.firstChild!, 3);
+  range.setEnd(el.firstChild!, 22);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'dig into the strategy' });
+  expect(el.childNodes.length).toBeGreaterThan(1);
+});
+
+test('a field can be applied to again after an undo', () => {
+  const ta = selectAllOfTextarea();
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'We dig into the plan boldly.' });
+  send({ type: 'undo' });
+  expect(ta.value).toBe('We delve into the plan boldly.');
+  // Undo re-arms the capture, so a second Apply lands on the restored text.
+  expect(send({ type: 'apply', text: 'We look into the plan boldly.' })).toEqual({ ok: true });
+  expect(ta.value).toBe('We look into the plan boldly.');
+});
+
+test('a contenteditable can be applied to again after an undo', () => {
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly, said the team.</div>';
+  const el = document.querySelector('div')!;
+  const range = document.createRange();
+  range.setStart(el.firstChild!, 3);
+  range.setEnd(el.firstChild!, 22);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'dig into the strategy' });
+  send({ type: 'undo' });
+  expect(el.textContent).toBe('We delve into the plan boldly, said the team.');
+  expect(send({ type: 'apply', text: 'look into the outline' })).toEqual({ ok: true });
+  expect(el.textContent).toBe('We look into the outline boldly, said the team.');
+});
+
+test('undo refuses when the field has been taken off the page', () => {
+  const ta = selectAllOfTextarea();
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'We dig into the plan boldly.' });
+  ta.remove();
+  expect(send({ type: 'undo' })).toEqual({ ok: false });
+});
+
+test('undo refuses when the contenteditable has been taken off the page', () => {
+  document.body.innerHTML = '<div contenteditable="true">We delve into the plan boldly, said the team.</div>';
+  const el = document.querySelector('div')!;
+  const range = document.createRange();
+  range.setStart(el.firstChild!, 3);
+  range.setEnd(el.firstChild!, 22);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'dig into the strategy' });
+  el.remove();
+  expect(send({ type: 'undo' })).toEqual({ ok: false });
+});
+
+test('a second undo is a safe no-op', () => {
+  const ta = selectAllOfTextarea();
+  send({ type: 'capture' });
+  send({ type: 'apply', text: 'We dig into the plan boldly.' });
+  expect(send({ type: 'undo' })).toEqual({ ok: true });
+  expect(send({ type: 'undo' })).toEqual({ ok: false });
+  expect(ta.value).toBe('We delve into the plan boldly.');
+});
+
+test('a text field with a credential id is never captured', () => {
+  // type="text" with no name or autocomplete, which the field path used to miss.
+  document.body.innerHTML = '<input type="text" id="cc-number" value="4111111111111111">';
+  const input = document.querySelector('input')!;
+  input.focus();
+  input.setSelectionRange(0, 16);
+  expect(send({ type: 'capture' })).toEqual({ ok: false, reason: 'sensitive' });
+});
