@@ -46,6 +46,7 @@ test('card renders a result with highlight marks and engine label', () => {
     engine: { kind: 'fake', model: 'fake-echo' },
     tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
   };
   card.setResult(result, 'We delve in.');
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -69,7 +70,7 @@ test('setResult renders a profile note when one is given', () => {
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
     'Your writing averages 10.8 word sentences; this runs 22.',
   );
@@ -84,7 +85,7 @@ test('setResult leaves the profile note hidden and empty when no note is given',
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -96,7 +97,7 @@ test('ring headline reports remaining tells when some survive', () => {
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'still delve here', changes: [], engine: { kind: 'rules' }, tells: { before: 3, after: 2 }, fidelity: [] },
+    { rewritten: 'still delve here', changes: [], engine: { kind: 'rules' }, tells: { before: 3, after: 2 }, fidelity: [], retried: false },
     'still delve here',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -132,7 +133,7 @@ test('alternative words are clickable and swapping edits the pending text', () =
   const card = new Card(document, { ...noop, onTextEdited: t => edits.push(t) });
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We delve here today.', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 1 }, fidelity: [] },
+    { rewritten: 'We delve here today.', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 1 }, fidelity: [], retried: false },
     'We delve here today.',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -150,7 +151,7 @@ test('showApplied switches to the undo confirmation state', () => {
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
   );
   card.showApplied();
@@ -179,7 +180,7 @@ test('button.regen sits left of Copy, hidden on open, visible after setResult, h
   expect(barButtonClasses.indexOf('regen')).toBeLessThan(barButtonClasses.indexOf('copy'));
 
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
   );
   expect(regenBtn.hidden).toBe(false);
@@ -193,7 +194,7 @@ test('clicking button.regen fires onRegenerate', () => {
   const card = new Card(document, { ...noop, onRegenerate });
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -272,7 +273,7 @@ test('open() hides button.regen when it was left visible by a previous result', 
   const card = new Card(document, noop);
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'We dig in.', changes: [], engine: { kind: 'fake', model: 'fake-echo' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'We delve in.',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -346,7 +347,7 @@ test('the card shows a working state while a rewrite is in flight and drops it o
   expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(true);
   expect(shadow.querySelector('.rewritten')!.classList.contains('streaming')).toBe(true);
   card.setResult(
-    { rewritten: 'done text', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'done text', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'done text',
   );
   expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(false);
@@ -374,6 +375,7 @@ test('a rewrite that may have lost content shows a warning and needs a second Ap
       engine: { kind: 'rules' },
       tells: { before: 1, after: 0 },
       fidelity: [{ kind: 'missing-facts', message: 'Missing from the rewrite: 1994.' }],
+      retried: false,
     },
     'The company was founded in 1994 and grew steadily for a decade after that.',
   );
@@ -394,7 +396,7 @@ test('a faithful rewrite hides the warning and applies on one click', () => {
   const card = new Card(document, { ...noop, onApply: () => { applied += 1; } });
   card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
   card.setResult(
-    { rewritten: 'ok', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    { rewritten: 'ok', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     'ok',
   );
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;

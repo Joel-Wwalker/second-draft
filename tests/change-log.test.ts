@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { formatChanges } from '../src/shared/change-log';
 import type { HumanizeResult } from '../src/shared/types';
 
-const base = { engine: { kind: 'rules' as const }, tells: { before: 1, after: 0 }, fidelity: [] };
+const base = { engine: { kind: 'rules' as const }, tells: { before: 1, after: 0 }, fidelity: [], retried: false };
 
 test('maps changes to before/after rows with reasons', () => {
   const result: HumanizeResult = {

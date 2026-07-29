@@ -15,7 +15,7 @@ test('falls back to the raw kind for unknown values', () => {
 test('resultStatus reports changes and the tell score', () => {
   const base = { rewritten: 'x', engine: { kind: 'rules' as const } };
   expect(
-    resultStatus({ ...base, changes: [{ range: { start: 0, end: 1 }, reason: 'Reworded' }], tells: { before: 3, after: 1 }, fidelity: [] }),
+    resultStatus({ ...base, changes: [{ range: { start: 0, end: 1 }, reason: 'Reworded' }], tells: { before: 3, after: 1 }, fidelity: [], retried: false }),
   ).toBe('1 change · AI tells: 3 → 1');
-  expect(resultStatus({ ...base, changes: [], tells: { before: 0, after: 0 }, fidelity: [] })).toBe('0 changes · no AI tells detected');
+  expect(resultStatus({ ...base, changes: [], tells: { before: 0, after: 0 }, fidelity: [], retried: false })).toBe('0 changes · no AI tells detected');
 });

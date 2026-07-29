@@ -48,6 +48,8 @@ export interface HumanizeResult {
   tells: { before: number; after: number };
   /** Content the rewrite may have lost. Empty when it looks faithful. */
   fidelity: FidelityIssue[];
+  /** True when a lossy first attempt was silently rewritten a second time. */
+  retried: boolean;
 }
 
 export interface ScanSummary {

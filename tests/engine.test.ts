@@ -93,3 +93,61 @@ test('a custom tell reaches the system prompt sent to the provider', async () =>
   expect(capturedPrompt).toContain('your phrase "secret phrase"');
   expect(capturedPrompt).not.toContain('Detected in this text: custom');
 });
+
+test('a lossy first rewrite is retried silently and the better attempt wins', async () => {
+  const original = 'Martinez raised $4.2M in 1994 for the second factory in Lisbon.';
+  const prompts: string[] = [];
+  let call = 0;
+  const flaky = {
+    info: { kind: 'fake' as const, model: 'flaky' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: { systemPrompt: string }): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      // First pass drops every fact; second keeps them.
+      return call === 1
+        ? 'Someone raised money for another factory.'
+        : 'Martinez raised $4.2M in 1994 for a second factory in Lisbon.';
+    },
+  };
+  const res = await humanize(original, { intensity: 'full' }, { providers: [flaky] });
+  expect(call).toBe(2);
+  expect(res.retried).toBe(true);
+  expect(res.fidelity).toEqual([]);
+  expect(res.rewritten).toContain('$4.2M');
+  // The retry prompt names what was lost so the model knows what to protect.
+  expect(prompts[1]).toContain('A previous attempt lost content');
+  expect(prompts[1]).toContain('$4.2M');
+});
+
+test('a faithful first rewrite is not retried', async () => {
+  let call = 0;
+  const clean = {
+    info: { kind: 'fake' as const, model: 'clean' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      return 'We dig into the plan today with the same detail as before.';
+    },
+  };
+  const res = await humanize('We delve into the plan today with the same detail as before.', { intensity: 'full' }, { providers: [clean] });
+  expect(call).toBe(1);
+  expect(res.retried).toBe(false);
+});
+
+test('when both attempts lose content the first is kept and still reported', async () => {
+  let call = 0;
+  const bad = {
+    info: { kind: 'fake' as const, model: 'bad' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      return call === 1 ? 'Lost the 1994 date only.' : 'Lost everything at all.';
+    },
+  };
+  const res = await humanize('The Lisbon factory opened in 1994 under Martinez.', { intensity: 'full' }, { providers: [bad] });
+  expect(call).toBe(2);
+  expect(res.retried).toBe(true);
+  // Still surfaced rather than hidden: the user is told what is missing.
+  expect(res.fidelity.length).toBeGreaterThan(0);
+});

@@ -173,6 +173,7 @@ test('done result renders and Apply replaces the field text', () => {
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -202,7 +203,7 @@ test('a voice-sample profile that a rewrite drifts from adds a profile note to t
   port.emit({
     type: 'done',
     id: req.id,
-    result: { rewritten: drifted, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: drifted, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
 
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -219,7 +220,7 @@ test('no voice sample means a done result never adds a profile note', () => {
   port.emit({
     type: 'done',
     id: req.id,
-    result: { rewritten: 'We dig into the plan boldly.', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'We dig into the plan boldly.', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
   const note = shadow.querySelector('.profile-note') as HTMLElement | null;
@@ -246,7 +247,7 @@ test('stale responses for superseded ids are ignored', () => {
   port.emit({
     type: 'done',
     id: first.id,
-    result: { rewritten: 'STALE', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'STALE', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).not.toBe('STALE');
 });
@@ -289,6 +290,7 @@ test('regenerate after a result has arrived sends a fresh humanize request with 
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -346,7 +348,7 @@ test('a stale done for the id superseded by regenerate does not render', () => {
   port.emit({
     type: 'done',
     id: first.id,
-    result: { rewritten: 'FIRST RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'FIRST RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('FIRST RESULT');
 
@@ -358,7 +360,7 @@ test('a stale done for the id superseded by regenerate does not render', () => {
   port.emit({
     type: 'done',
     id: first.id,
-    result: { rewritten: 'STALE REGEN RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'STALE REGEN RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('');
   expect(shadow.querySelector('.status')!.textContent).toBe('Rewriting');
@@ -368,7 +370,7 @@ test('a stale done for the id superseded by regenerate does not render', () => {
   port.emit({
     type: 'done',
     id: second.id,
-    result: { rewritten: 'SECOND RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'SECOND RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('SECOND RESULT');
 });
@@ -391,7 +393,7 @@ test('repeated regeneration reuses the same port and does not accumulate timers'
     port.emit({
       type: 'done',
       id: lastId,
-      result: { rewritten: `result ${i}`, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+      result: { rewritten: `result ${i}`, changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
     });
     const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
     (shadow.querySelector('button.regen') as HTMLButtonElement).click();
@@ -453,7 +455,7 @@ test('a done response cancels the timeout', () => {
   port.emit({
     type: 'done',
     id: req.id,
-    result: { rewritten: 'ok result here', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [] },
+    result: { rewritten: 'ok result here', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 }, fidelity: [], retried: false },
   });
   vi.advanceTimersByTime(120_000);
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -540,6 +542,7 @@ test('apply then undo restores the original textarea value; no new humanize requ
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -564,6 +567,7 @@ test('undo when the field changed underneath surfaces the replace-failed error a
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -593,6 +597,7 @@ test('swapping an alternative, applying, then undoing restores the pristine orig
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 1 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -623,6 +628,7 @@ test('apply then undo restores contenteditable content by relocating the applied
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -648,6 +654,7 @@ test('undo on contenteditable refuses when the applied text becomes ambiguous, l
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -692,6 +699,7 @@ test('apply then undo on a partial mid-sentence span restores the exact original
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -719,6 +727,7 @@ test('clicking Undo a second time after a successful undo is a safe no-op', () =
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -752,6 +761,7 @@ test('undo after the contenteditable root is removed from the DOM shows the erro
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
@@ -780,6 +790,7 @@ test('after the 10s auto-dismiss, a stale reference to the undo button can no lo
       engine: { kind: 'fake', model: 'fake-echo' },
       tells: { before: 1, after: 0 },
       fidelity: [],
+      retried: false,
     },
   });
   const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
