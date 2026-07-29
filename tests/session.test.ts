@@ -359,7 +359,7 @@ test('a stale done for the id superseded by regenerate does not render', () => {
     result: { rewritten: 'STALE REGEN RESULT', changes: [], engine: { kind: 'fake' }, tells: { before: 1, after: 0 } },
   });
   expect(shadow.querySelector('.rewritten')!.textContent).toBe('');
-  expect(shadow.querySelector('.status')!.textContent).toBe('Rewriting...');
+  expect(shadow.querySelector('.status')!.textContent).toBe('Rewriting');
 
   // Sanity: the live (second) id still renders normally, proving the guard is
   // targeted at the superseded id rather than dropping every done message.

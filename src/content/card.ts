@@ -27,6 +27,20 @@ const CARD_CSS = `
   .head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 10px; }
   .ring { width: 44px; height: 44px; flex: none; position: relative; }
   .ring svg { transform: rotate(-90deg); display: block; }
+  /* While a rewrite is in flight the score ring doubles as a spinner and the
+     status line animates, so a slow first token never looks like a freeze. */
+  .ring.working svg { animation: sd-spin 1.1s linear infinite; }
+  .working-dots::after { content: ''; animation: sd-dots 1.4s steps(4, end) infinite; }
+  .rewritten.streaming::after { content: ''; display: inline-block; width: 2px; height: 1em;
+    margin-left: 2px; vertical-align: text-bottom; background: #4f46e5;
+    animation: sd-blink 1s step-end infinite; }
+  @keyframes sd-spin { to { transform: rotate(307deg); } }
+  @keyframes sd-dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+  @keyframes sd-blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ring.working svg, .working-dots::after, .rewritten.streaming::after { animation: none; }
+    .working-dots::after { content: '...'; }
+  }
   .ring .num { position: absolute; inset: 0; display: grid; place-items: center;
     font-size: 13px; font-weight: 800; color: #4338ca; }
   .headline { min-width: 0; }
@@ -83,6 +97,7 @@ export class Card {
   private readonly cardEl: HTMLElement;
   private readonly headEl: HTMLElement;
   private readonly headlineEl: HTMLElement;
+  private readonly ringEl: HTMLElement;
   private readonly ringFg: SVGCircleElement;
   private readonly ringNum: HTMLElement;
   private readonly bodyEl: HTMLElement;
@@ -130,6 +145,7 @@ export class Card {
     this.headEl.className = 'head';
     const ring = doc.createElement('div');
     ring.className = 'ring';
+    this.ringEl = ring;
     const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '44');
     svg.setAttribute('height', '44');
@@ -240,9 +256,10 @@ export class Card {
     this.intensitySel.value = opts.intensity;
     this.bodyEl.textContent = '';
     this.engineEl.textContent = '';
-    this.statusEl.textContent = 'Rewriting...';
+    this.statusEl.textContent = 'Rewriting';
     this.headlineEl.textContent = 'Humanizing';
     this.setRing(0, 0);
+    this.setWorking(true);
     this.changesEl.hidden = true;
     this.changesEl.open = false;
     this.changeRowsEl.textContent = '';
@@ -271,10 +288,12 @@ export class Card {
     this.applyBtn.hidden = true;
     this.regenBtn.hidden = true;
     this.bodyEl.textContent = textSoFar;
-    this.statusEl.textContent = 'Rewriting...';
+    this.statusEl.textContent = 'Rewriting';
+    this.setWorking(true);
   }
 
   setResult(result: HumanizeResult, original: string, note?: string): void {
+    this.setWorking(false);
     this.applyBtn.hidden = !this.canApply;
     this.regenBtn.hidden = false;
     this.engineEl.textContent = engineLabel(result.engine);
@@ -313,10 +332,24 @@ export class Card {
   }
 
   setError(kind: HumanizerErrorKind, message: string): void {
+    this.setWorking(false);
     this.statusEl.textContent = `Error: ${message}`;
     this.engineEl.textContent = kind;
     this.headlineEl.textContent = 'Could not rewrite';
     this.setRing(0, 0);
+  }
+
+
+  /** Spin the ring and animate the status line while a rewrite is in flight. */
+  private setWorking(on: boolean): void {
+    this.ringEl.classList.toggle('working', on);
+    this.statusEl.classList.toggle('working-dots', on);
+    this.bodyEl.classList.toggle('streaming', on);
+    if (on) {
+      // A partial arc reads as a spinner; setRing overwrites this when a result lands.
+      this.ringFg.setAttribute('stroke-dashoffset', '90');
+      this.ringNum.textContent = '';
+    }
   }
 
   /** Fill the ring by how many tells were cleared; empty when there were none to clear. */
@@ -335,6 +368,7 @@ export class Card {
 
   /** Post-apply confirmation: Apply, Copy, and the intensity picker no longer apply. */
   showApplied(): void {
+    this.setWorking(false);
     this.closePopover();
     this.applyBtn.hidden = true;
     this.regenBtn.hidden = true;

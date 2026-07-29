@@ -334,3 +334,30 @@ test('clicking Dismiss after showApplied cancels the auto-dismiss timer', () => 
     vi.useRealTimers();
   }
 });
+
+test('the card shows a working state while a rewrite is in flight and drops it on a result', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(true);
+  expect(shadow.querySelector('.status')!.classList.contains('working-dots')).toBe(true);
+  card.setStreaming('partial text');
+  expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(true);
+  expect(shadow.querySelector('.rewritten')!.classList.contains('streaming')).toBe(true);
+  card.setResult(
+    { rewritten: 'done text', changes: [], engine: { kind: 'rules' }, tells: { before: 1, after: 0 } },
+    'done text',
+  );
+  expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(false);
+  expect(shadow.querySelector('.status')!.classList.contains('working-dots')).toBe(false);
+  expect(shadow.querySelector('.rewritten')!.classList.contains('streaming')).toBe(false);
+});
+
+test('an error also drops the working state', () => {
+  const card = new Card(document, noop);
+  card.open({ left: 0, bottom: 0 }, { canApply: true, intensity: 'full' });
+  card.setError('network', 'No connection.');
+  const shadow = document.getElementById('humanizer-card-host')!.shadowRoot!;
+  expect(shadow.querySelector('.ring')!.classList.contains('working')).toBe(false);
+  expect(shadow.querySelector('.status')!.classList.contains('working-dots')).toBe(false);
+});

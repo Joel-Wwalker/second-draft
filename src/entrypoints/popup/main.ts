@@ -93,7 +93,9 @@ async function run(): Promise<void> {
   go.disabled = true;
   copy.disabled = true;
   output.value = '';
-  status.textContent = 'Rewriting...';
+  status.textContent = 'Rewriting';
+  status.classList.add('working-dots');
+  go.textContent = 'Working';
   engineLabel.textContent = '';
   changesBox.hidden = true;
   changesBox.open = false;
@@ -133,6 +135,8 @@ async function run(): Promise<void> {
     status.textContent = `Error: ${String(err)}`;
   } finally {
     go.disabled = false;
+    go.textContent = 'Humanize';
+    status.classList.remove('working-dots');
   }
 }
 
