@@ -1,29 +1,75 @@
 :root {
   --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --surface: #ffffff; --ground: #f8fafc;
   --accent: #4f46e5; --accent-hover: #4338ca;
+  --ring: rgba(79, 70, 229, 0.22); --thumb: #c9d2df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --ink: #e2e8f0; --muted: #94a3b8; --line: #334155; --surface: #1e293b; --ground: #0f172a;
     --accent: #6366f1; --accent-hover: #818cf8;
+    --ring: rgba(129, 140, 248, 0.3); --thumb: #45536b;
   }
 }
+* { scrollbar-width: thin; scrollbar-color: var(--thumb) transparent; }
+/* label { display: block } below beats the browser's [hidden] rule, which left the
+   API key, Model, and Base URL rows on screen when they were meant to be hidden. */
+[hidden] { display: none !important; }
 body { max-width: 640px; margin: 0 auto; padding: 28px 18px 48px; font: 14px/1.55 system-ui, sans-serif; background: var(--ground); color: var(--ink); }
 h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 18px; }
 h2 { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
-section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
-label { display: block; margin: 10px 0; font-size: 13px; }
-input[type="text"], input[type="password"], select, textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 7px 10px; margin-top: 5px; background: var(--ground); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
-input[type="file"] { display: block; width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; margin-top: 5px; color: var(--ink); }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+label { display: block; margin: 14px 0; font-size: 12px; font-weight: 650; color: var(--muted); }
+label:first-of-type { margin-top: 4px; }
+input[type="text"], input[type="password"], select, textarea {
+  display: block; width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5;
+  padding: 8px 11px; margin-top: 6px;
+  background: var(--ground); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+textarea { resize: vertical; }
+::placeholder { color: var(--muted); opacity: 0.75; }
+
+/* Keys, model names, and URLs are strings to be checked character by character. */
+#byokKey, #byokModel, #byokBaseUrl {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* Two or three short options do not need the full width of the page. */
+select {
+  width: auto; min-width: 260px; max-width: 100%; padding-right: 32px;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 15px center, right 10px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+input[type="file"] {
+  display: block; font: inherit; font-size: 12px; font-weight: 400;
+  margin-top: 6px; color: var(--muted);
+}
+input[type="file"]::file-selector-button {
+  font: inherit; font-size: 12px; font-weight: 600;
+  margin-right: 10px; padding: 6px 13px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink); cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
+
+:is(input, select, textarea, button, a):focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
+}
 #voiceFileStatus { margin-top: 8px; }
-.profile { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); }
+.profile { margin-top: 10px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--ground); }
 .profile-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px solid var(--line); }
 .profile-row:last-child { border-bottom: 0; }
 .profile-label { color: var(--muted); }
 .profile-value { font-weight: 600; }
 #profileHint { margin-top: 8px; }
-button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 17px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 button:hover { border-color: var(--muted); }
 button:disabled { opacity: 0.5; cursor: default; }
 #save { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -33,5 +79,5 @@ button:disabled { opacity: 0.5; cursor: default; }
 ul { padding-left: 0; list-style: none; margin: 0; }
 li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 li:last-child { border-bottom: 0; }
-li button { font-size: 12px; padding: 3px 10px; margin-left: 8px; }
+li button { font-size: 12px; padding: 4px 12px; margin-left: 8px; }
 footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
