@@ -1,0 +1,46 @@
+name: Bug report
+description: Something behaves wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything security related, please use
+        [private reporting](https://github.com/Joel-Wwalker/second-draft/security/advisories/new)
+        instead of a public issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+  - type: input
+    id: site
+    attributes:
+      label: Where
+      description: The site or editor, if it is site specific. Gmail, LinkedIn, a plain textarea.
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Which engine was running
+      description: The card and popup name it under the result.
+      options:
+        - On-device AI (Gemini Nano)
+        - Your API key (Anthropic)
+        - Your API key (OpenAI-compatible)
+        - Quick clean (no AI engine available)
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Shown on chrome://extensions
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: Anything prefixed [second-draft], from the page console or the service worker console.
+      render: text
