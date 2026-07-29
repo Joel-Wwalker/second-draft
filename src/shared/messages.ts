@@ -1,4 +1,4 @@
-import type { HumanizeResult, HumanizerErrorKind, Intensity, ScanSummary } from './types';
+import type { HumanizeResult, HumanizerErrorKind, Intensity } from './types';
 
 export interface HumanizeRequest {
   type: 'humanize';
@@ -45,27 +45,55 @@ export function isCancelRequest(msg: unknown): msg is CancelRequest {
 }
 
 /**
- * Popup <-> content-script messages (sent via chrome.tabs.sendMessage directly to the active
- * tab, unlike BackgroundRequest above which the content script's port sends to the background
- * service worker). Handled by HumanizeSession's own runtime.onMessage listener.
+ * Popup to content-script messages, sent with chrome.tabs.sendMessage straight to
+ * the active tab. The content script is a thin service now: it hands over the
+ * selection, writes a rewrite back into it, and can undo that write.
  */
-export interface ScanRequest {
-  type: 'scan';
+export interface CaptureRequest {
+  type: 'capture';
 }
 
-export interface ScanClearRequest {
-  type: 'scan-clear';
+export interface ApplyRequest {
+  type: 'apply';
+  text: string;
 }
 
-export type ScanResponse = { ok: true; summary: ScanSummary };
-export type ScanClearResponse = { ok: true };
+export interface UndoRequest {
+  type: 'undo';
+}
 
-export function isScanRequest(msg: unknown): msg is ScanRequest {
+export type PageRequest = CaptureRequest | ApplyRequest | UndoRequest;
+
+export type CaptureResponse =
+  | { ok: true; text: string; canApply: boolean }
+  | { ok: false; reason: 'none' | 'sensitive' };
+
+export type ApplyResponse = { ok: boolean };
+
+export function isCaptureRequest(msg: unknown): msg is CaptureRequest {
+  return isTagged(msg, 'capture');
+}
+
+export function isUndoRequest(msg: unknown): msg is UndoRequest {
+  return isTagged(msg, 'undo');
+}
+
+export function isApplyRequest(msg: unknown): msg is ApplyRequest {
+  if (!isTagged(msg, 'apply')) return false;
+  return typeof (msg as Record<string, unknown>)['text'] === 'string';
+}
+
+function isTagged(msg: unknown, type: string): boolean {
   if (typeof msg !== 'object' || msg === null) return false;
-  return (msg as Record<string, unknown>)['type'] === 'scan';
+  return (msg as Record<string, unknown>)['type'] === type;
 }
 
-export function isScanClearRequest(msg: unknown): msg is ScanClearRequest {
-  if (typeof msg !== 'object' || msg === null) return false;
-  return (msg as Record<string, unknown>)['type'] === 'scan-clear';
+/** Storage key holding text handed from a page selection to the popup. */
+export const PENDING_KEY = 'pendingSelection';
+
+export interface PendingSelection {
+  text: string;
+  /** False when the text came from somewhere the popup cannot write back to. */
+  canApply: boolean;
+  tabId: number;
 }

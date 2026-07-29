@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-216%20unit%20%2B%203%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-170%20unit%20%2B%202%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -19,20 +19,20 @@ anywhere unless you add your own API key.
 **[Privacy policy](https://joel-wwalker.github.io/second-draft/privacy-policy)** ·
 **[Changelog](CHANGELOG.md)**
 
-Version 1.2.0. Not yet on the Chrome Web Store.
+Version 1.3.0. Not yet on the Chrome Web Store.
 
 ## Features
 
-- Select text and a button appears, showing how many AI tells are in it
+- Select text, right click, choose Humanize; the popup opens and starts on its own
 - Every edit is listed as old text to new text, with the reason it changed
-- A count of tells found and tells remaining after the rewrite
+- A count of tells found and tells remaining, and a check that no numbers,
+  names, dates, or quotations went missing (a lossy rewrite is retried once)
 - AI-flavored words are clickable; pick a plain replacement before applying
-- Undo within ten seconds of applying, or regenerate a different rewrite
+- Apply the rewrite back into the page, undo it, or try again for a different one
 - Keyboard shortcut (Ctrl+Shift+H) and a right-click menu entry
 - Add your own phrases to flag
 - Upload a writing sample (.txt, .md, .docx) to see your sentence statistics and
   get warned when a rewrite drifts from them
-- Scan a whole page to count and underline tells without changing the text
 - Disable per site; paste box in the popup for sites that block editing
 
 ## Install
@@ -85,7 +85,7 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-216 unit tests and 3 Playwright tests that drive the built extension in a real
+170 unit tests and 2 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,
@@ -94,7 +94,7 @@ returned. This caught a regex that deleted trademark symbols, a chunker that
 could overflow the model's context, and a `.docx` upload that expanded 199 KB
 into 200 MB.
 
-[docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 46 rows covering
+[docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 44 rows covering
 what automated tests cannot: real sites, real models, and browser APIs that do
 not exist in a test runner.
 
@@ -104,7 +104,7 @@ not exist in a test runner.
 src/
 ├── engine/        rules, prompts, providers, pipeline
 ├── shared/        types, diff, storage, profile, docx, sse, redaction
-├── content/       selection, replacement, chip, card, page scan, session
+├── content/       selection capture, in-place replacement, undo
 ├── entrypoints/   background service worker, popup, options
 └── types/         ambient types for Chrome's Prompt API
 docs/              privacy policy, store listing, test matrix, architecture

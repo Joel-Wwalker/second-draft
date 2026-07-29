@@ -8,8 +8,8 @@ import type { Settings } from '../shared/storage';
 import { redactError } from '../shared/redact';
 import { HumanizerError } from '../shared/types';
 import type { Intensity, Provider } from '../shared/types';
-import { HUMANIZE_PORT, isCancelRequest, isHumanizeRequest } from '../shared/messages';
-import type { HumanizeResponse, PortServerMessage } from '../shared/messages';
+import { HUMANIZE_PORT, PENDING_KEY, isCancelRequest, isHumanizeRequest } from '../shared/messages';
+import type { CaptureRequest, CaptureResponse, HumanizeResponse, PortServerMessage } from '../shared/messages';
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -24,17 +24,14 @@ export default defineBackground(() => {
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== 'humanize-selection' || tab?.id === undefined) return;
-    sendContextHumanize(tab.id, info.selectionText ?? '');
+    void handOff(tab.id, info.selectionText ?? '');
   });
 
-  // Keyboard shortcut (default Ctrl+Shift+H / MacCtrl+Shift+H, see wxt.config.ts). Chrome
-  // hands back the tab that was focused when the accelerator fired directly, same as the
-  // context-menu callback above. No selection text is available here, so the message is sent
-  // empty and the content script falls back to reading the live selection itself -- the same
-  // path the context menu already relies on, guard included.
+  // Keyboard shortcut (default Ctrl+Shift+H, see wxt.config.ts). Chrome gives no
+  // selection text here, so the content script reads the live selection itself.
   chrome.commands.onCommand.addListener((command, tab) => {
     if (command !== 'humanize-selection' || tab?.id === undefined) return;
-    sendContextHumanize(tab.id, '');
+    void handOff(tab.id, '');
   });
 
   // One-shot path (popup).
@@ -79,10 +76,37 @@ export default defineBackground(() => {
 
 /** Shared by the context menu and the keyboard shortcut: both just tell the active tab's
  *  content script to humanize a selection, which reads the live selection itself. */
-function sendContextHumanize(tabId: number, selectionText: string): void {
-  void chrome.tabs.sendMessage(tabId, { type: 'context-humanize', selectionText }).catch(() => {
-    // No content script in this tab (chrome:// page etc.); nothing to do.
-  });
+/**
+ * Ask the page for the selected text, park it for the popup, and open the popup.
+ * openPopup needs a user gesture and is not available in every Chrome build, so
+ * a failure is not fatal: the text stays parked and a badge tells the user to
+ * click the toolbar icon.
+ */
+async function handOff(tabId: number, fallbackText: string): Promise<void> {
+  let text = '';
+  let canApply = false;
+  try {
+    const res = await chrome.tabs.sendMessage<CaptureRequest, CaptureResponse>(tabId, { type: 'capture' });
+    if (res.ok) {
+      text = res.text;
+      canApply = res.canApply;
+    } else if (res.reason === 'sensitive') {
+      return; // never hand over a password or card field
+    }
+  } catch {
+    // No content script in this tab; fall back to whatever Chrome gave us.
+  }
+  if (!text) text = fallbackText;
+  if (!text.trim()) return;
+  await chrome.storage.local.set({ [PENDING_KEY]: { text, canApply, tabId } });
+  try {
+    await chrome.action.openPopup();
+    void chrome.action.setBadgeText({ text: '' });
+  } catch {
+    // Could not open it for the user; point them at the toolbar instead.
+    void chrome.action.setBadgeBackgroundColor({ color: '#4f46e5' });
+    void chrome.action.setBadgeText({ text: '1' });
+  }
 }
 
 function post(port: chrome.runtime.Port, msg: PortServerMessage): void {

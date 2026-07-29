@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 (2026-07-29)
+
+The popup is now the whole interface.
+
+- Right click a selection (or press Ctrl+Shift+H) and the popup opens with the
+  text already in it and the rewrite already running
+- Apply to page writes the rewrite back where the text came from, with Undo
+- A rewrite that drops a number, name, date, or quotation is retried once,
+  quietly, and told what it lost. Anything still missing is named on screen
+- Removed the floating button that appeared over a selection
+- Removed page scanning and its underlines
+
 ## 1.2.0 (2026-07-28)
 
 - Relicensed from MIT to the GNU Affero General Public License v3 or later.

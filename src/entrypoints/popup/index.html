@@ -6,8 +6,32 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <h1>Second Draft</h1>
-    <textarea id="input" rows="8" placeholder="Paste text to humanize"></textarea>
+    <div class="head">
+      <div class="ring" id="ring">
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="17" fill="none" stroke="#e2e8f0" stroke-width="4"></circle>
+          <circle
+            id="ringFg"
+            cx="20"
+            cy="20"
+            r="17"
+            fill="none"
+            stroke="#4f46e5"
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-dasharray="106.8"
+            stroke-dashoffset="106.8"
+          ></circle>
+        </svg>
+        <span id="ringNum" class="num"></span>
+      </div>
+      <div class="headline">
+        <div id="headline" class="h">Second Draft</div>
+        <p id="status" class="muted"></p>
+      </div>
+    </div>
+
+    <textarea id="input" rows="6" placeholder="Paste text, or right click a selection on any page"></textarea>
     <div class="row">
       <select id="intensity" title="How much to change">
         <option value="light">Light touch</option>
@@ -15,26 +39,30 @@
       </select>
       <button id="go">Humanize</button>
     </div>
-    <p id="status" class="muted"></p>
-    <textarea id="output" rows="8" readonly></textarea>
+
+    <div id="out" class="out rewritten" hidden></div>
+    <p id="profileNote" class="note" hidden></p>
+    <div id="fidelity" class="fidelity" hidden></div>
     <details id="changesBox" hidden>
       <summary class="muted">What changed</summary>
       <div id="changesList"></div>
     </details>
-    <div class="row">
+
+    <div class="row" id="resultRow" hidden>
       <span id="engine" class="muted"></span>
-      <button id="openOptions">Settings</button>
-      <button id="copy" disabled>Copy</button>
+      <button id="regen">Try again</button>
+      <button id="copy">Copy</button>
+      <button id="undo" hidden>Undo</button>
+      <button id="apply" hidden>Apply to page</button>
     </div>
-    <div class="row" id="siteRow" hidden>
-      <label class="muted"><input type="checkbox" id="siteToggle" /> Disable on <span id="siteHost"></span></label>
-    </div>
+
     <hr />
     <div class="row">
-      <button id="scan">Scan this page</button>
-      <button id="scanClear">Clear</button>
+      <label class="muted" id="siteRow" hidden>
+        <input type="checkbox" id="siteToggle" /> Disable on <span id="siteHost"></span>
+      </label>
+      <button id="openOptions">Settings</button>
     </div>
-    <p id="scanStatus" class="muted"></p>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

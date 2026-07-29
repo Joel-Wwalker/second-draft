@@ -28,11 +28,9 @@ local extension storage on your device. Nothing is synced or uploaded. Removing 
 
 ## Permissions
 
-- Access to pages you visit is used to show the Humanize button near text you
-  select, to replace that text when you click Apply, and, when you click Scan
-  this page, to read the page's visible text on your device so the extension can
-  count AI tells and underline them. Scanning sends nothing anywhere and never
-  changes the page's text.
+- Access to pages you visit is used to read the text you select when you choose
+  Humanize from the right-click menu, and to replace that text when you click
+  Apply. The extension reads nothing else on the page.
 - The optional API-domain permission is requested only when you add an API key,
   and only for the domain you configure.
 

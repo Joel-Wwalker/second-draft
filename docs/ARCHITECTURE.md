@@ -6,11 +6,13 @@ load-bearing.
 ## The shape
 
 ```
- selection ──▶ content script ──port──▶ background ──▶ engine ──▶ provider
-                    │                                     │
-                    ◀──────── streamed chunks ────────────┘
-                    ▼
-              card (shadow DOM) ──▶ replacement (never clobber)
+ right click ──▶ background ──capture──▶ content script (reads selection)
+                     │
+                     ├── parks the text, opens the popup
+                     ▼
+                   popup ──▶ background ──▶ engine ──▶ provider
+                     │
+                     └──apply──▶ content script ──▶ replacement (never clobber)
 ```
 
 - **`src/engine/`** is pure text processing. No DOM, no `chrome.*`. It takes a
@@ -18,9 +20,9 @@ load-bearing.
 - **`src/shared/`** holds types and pure helpers (diff, profile, docx, sse,
   redaction, labels). `storage.ts` is the deliberate exception that touches
   `chrome.storage`.
-- **`src/content/`** owns everything that touches a web page: capturing a
-  selection, drawing the chip and card in shadow DOM, writing text back, and
-  scanning a page.
+- **`src/content/`** owns everything that touches a web page, and draws nothing:
+  it hands over the selected text, writes a rewrite back where it came from, and
+  can undo that write.
 - **`src/entrypoints/`** is the extension surface: background service worker,
   popup, options page.
 
@@ -49,8 +51,8 @@ result is labeled `rules` so the UI never implies an AI engine ran.
 1. **Detect.** Scan the input for tells. This both seeds the prompt ("this text
    contains em dashes, `delve`, a negative parallelism") and supplies the reasons
    shown in the change log.
-2. **Rewrite.** Hand the text and a system prompt to the provider, streaming
-   chunks back to the card as they arrive.
+2. **Rewrite.** Hand the text and a system prompt to the provider. Providers
+   stream, and the engine can run a second pass when the first loses content.
 3. **Enforce.** Run the fixable rules again over the model's output.
 4. **Diff.** Word-level diff between input and final output, with each change
    attributed to the tell it resolved.
@@ -66,32 +68,34 @@ re-validated. If the field changed underneath, it relocates by unique match; if
 it cannot, it refuses and offers Copy instead. Writing to the wrong place is
 worse than not writing.
 
-**Never modify a scanned page.** Page scan uses the CSS Custom Highlight API and
-`Range` objects, which register with the browser rather than touching the DOM.
-The only write is a stylesheet appended to `<head>`, removed on clear. Tests
-assert `document.body.textContent` is identical before the scan, after it, and
-after clearing.
-
 **Never capture credentials.** Password, card number, and one-time-code fields
-are excluded at the selection layer, and every entry point (chip, context menu,
-keyboard shortcut) routes through that same guard rather than reimplementing it.
+are excluded at the selection layer, and both entry points (right click and the
+keyboard shortcut) route through that same guard rather than reimplementing it.
 
-**Never silently downgrade.** The card always names the engine that produced a
+**Never lose content.** Every rewrite is compared against the original for
+dropped numbers, names, dates, quotations, paragraphs, and a large drop in
+length. A lossy rewrite is retried once with the losses named in the prompt;
+whatever still goes missing is reported on screen rather than hidden.
+
+**Never silently downgrade.** The popup always names the engine that produced a
 result. A rules-only pass says so.
 
 ## Messaging
 
-The popup uses one-shot `chrome.runtime.sendMessage`. The content script uses a
-long-lived port, because rewrites stream:
+Two directions, both validated by type guards with the sender id checked:
 
-- every request carries a correlation `id`, so a superseded response cannot
-  render over a newer one
-- `{ type: 'cancel', id }` maps to an `AbortSignal` that reaches `fetch` and the
-  Prompt API session
-- the background aborts everything in flight when a port disconnects
-- the content script also runs a client-side idle timeout, because "the service
-  worker never answered" is a real state in MV3
-- every message is validated by a type guard, and the sender id is checked
+- **Popup to background**, one-shot `chrome.runtime.sendMessage`, carrying a
+  correlation `id`. A long-lived port with cancel support also exists for
+  streaming consumers, and `{ type: 'cancel', id }` maps to an `AbortSignal`
+  that reaches `fetch` and the Prompt API session.
+- **Popup and background to the content script**, `chrome.tabs.sendMessage`:
+  `capture` hands over the selected text, `apply` writes a rewrite back into it,
+  `undo` restores the original. The content script answers and nothing else.
+
+Right click parks the selected text in `chrome.storage.local` and asks Chrome to
+open the popup. `chrome.action.openPopup()` needs a user gesture and is not
+available in every build, so a failure is not fatal: the text stays parked and a
+badge on the toolbar icon tells the user to click it.
 
 ## Storage
 
