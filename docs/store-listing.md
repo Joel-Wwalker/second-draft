@@ -17,32 +17,47 @@ Select text, right click, choose Humanize, and the popup rewrites it, keeping yo
 
 ## Description
 
-AI wrote your first draft. Second Draft makes it yours: it removes the
-telltale signs of AI-generated writing, including em dashes, curly quotes,
-"delve" and its friends, chatbot filler, rule-of-three cadence, and
-promotional fluff.
+Second Draft rewrites AI-sounding text so it reads like a person wrote it.
 
-Select text on almost any page, right click, and choose Humanize, or press
-Ctrl+Shift+H. A popup opens and starts rewriting right away: no extra clicks.
-It shows a score for the AI tells found and cleared, the rewrite with each
-change marked, and a What-changed log that lists every edit with its reason.
-Apply to page puts the rewrite back where the text came from, and Undo
-restores the original. On pages that will not take text back, such as an
-article or a Google Docs canvas, Copy is available instead.
+It removes em dashes, curly quotes, stock AI vocabulary such as "delve",
+"tapestry", and "leverage", chatbot filler such as "it's important to note
+that", three-item lists used for rhythm, and promotional padding. The patterns
+come from Wikipedia's "Signs of AI writing" documentation.
 
-If a rewrite drops a number, a name, a date, or a quotation, Second Draft
-quietly tries again on its own, using what went missing to guide the second
-attempt. Anything still missing after that is called out on screen instead of
-hidden.
+To use it, select text on a page, right click, and choose Humanize, or press
+Ctrl+Shift+H. The popup opens with your text already in it and starts rewriting.
+There is also a box in the popup you can paste into.
 
-AI-flavored words in the rewrite are clickable, so you can swap in a plain
-alternative before you apply. Give it a sample of your own writing, and it
-will note when a rewrite drifts from your usual sentence length or rhythm.
+You get a count of AI patterns found and how many are left, the rewrite with
+every change highlighted, and a list of each edit as old text to new text with
+the reason for it. AI-flavored words are clickable if you want to pick a plainer
+replacement before you apply anything.
 
-Private by design: rewrites run on your device using Chrome's built-in AI. No
-account, no servers, no tracking, unlimited use. Optionally add your own
-Anthropic or OpenAI-compatible API key for higher quality rewrites; your key
-stays in your browser.
+Apply to page writes the rewrite back into the field the text came from, and Undo
+puts the original back. On pages that cannot be edited, such as a published
+article or a Google Docs canvas, you get Copy instead.
+
+After every rewrite, Second Draft checks that no numbers, names, dates,
+quotations, or paragraphs went missing. If something did, it rewrites once more
+and says what was lost. Anything still missing is shown on screen rather than
+left for you to find.
+
+You can upload or paste a sample of your own writing, and Second Draft will tell
+you when a rewrite drifts from your usual sentence length or punctuation habits.
+
+Rewrites run on your device using Chrome's built-in AI. There is no account, no
+sign-in, no server, no tracking, and no limit on how much you rewrite. You can
+add your own Anthropic or OpenAI-compatible API key if you want a stronger model;
+the key stays in your browser, and text goes only to the provider you chose.
+
+You can turn Second Draft off for any site. Password, payment, and one-time-code
+fields are never read.
+
+Requires Chrome 138 or later. The on-device model downloads from the extension's
+settings page. Without it, Second Draft still applies its fixed cleanup rules and
+tells you that is what it did.
+
+Source code: https://github.com/Joel-Wwalker/second-draft
 
 ## Positioning note
 
