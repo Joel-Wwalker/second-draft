@@ -15,6 +15,9 @@ The popup is now the whole interface.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Quotation marks the model invents are removed. On-device Gemini Nano likes to
+  wrap a sentence in quotes, which turns a plain statement into something that
+  reads as a quotation of someone. Marks the original had are left alone
 
 Security, all in the new right-click path:
 

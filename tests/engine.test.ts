@@ -254,3 +254,30 @@ test('the silent retry still reaches a caller that is timing out on silence', as
   // nothing, rather than jumping back to a half-finished second attempt.
   expect(seen.at(-1)).toBe('The factory opened under Martinez.');
 });
+
+test('quotation marks the model invented are removed', async () => {
+  // What Gemini Nano actually did on the first real run: quoted the opening
+  // sentence of a paragraph that quoted nobody, so the rewrite read as a citation.
+  const original = 'Helen of Troy is one of the most famous women in Greek mythology, celebrated for her beauty.';
+  const quoting = new FakeProvider(
+    () => '"Helen of Troy is one of the most famous women in Greek myth," celebrated for her beauty.',
+  );
+  const res = await humanize(original, { intensity: 'full' }, { providers: [quoting] });
+  expect(res.rewritten).not.toContain('"');
+  expect(res.rewritten).toBe('Helen of Troy is one of the most famous women in Greek myth, celebrated for her beauty.');
+});
+
+test('quotation marks the original had are left alone', async () => {
+  // Stripping here would destroy meaning, and the fidelity check watches quotes.
+  const original = 'She called it "the face that launched a thousand ships" more than once.';
+  const keeper = new FakeProvider(t => t.replace('more than once', 'repeatedly'));
+  const res = await humanize(original, { intensity: 'full' }, { providers: [keeper] });
+  expect(res.rewritten).toBe('She called it "the face that launched a thousand ships" repeatedly.');
+});
+
+test('curly quotes the model invented go too', async () => {
+  const original = 'The factory opened in 1994 under Martinez.';
+  const curly = new FakeProvider(() => '“The factory opened in 1994” under Martinez.');
+  const res = await humanize(original, { intensity: 'full' }, { providers: [curly] });
+  expect(res.rewritten).toBe('The factory opened in 1994 under Martinez.');
+});

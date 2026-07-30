@@ -54,7 +54,7 @@ export async function humanize(
       throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
     }
     throwIfAborted(opts.signal);
-    const rewritten = applyFixes(stripWrapping(raw, text));
+    const rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, text), text));
     if (text.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
@@ -106,6 +106,25 @@ A previous attempt lost content. ${lost} Keep every number, name, date, place, a
 interface Attempt {
   rewritten: string;
   fidelity: FidelityIssue[];
+}
+
+const DOUBLE_QUOTE = /["“”]/;
+
+/**
+ * Models like to put quotation marks around a sentence or two, which turns a
+ * plain statement into something that reads as a quotation of someone. Gemini
+ * Nano did exactly that on the first real run: a paragraph about Helen of Troy
+ * came back with its opening sentence quoted.
+ *
+ * `stripWrapping` cannot catch it, because the quotes wrap part of the output
+ * rather than all of it. The reliable signal is the original: if it contains no
+ * double quotation marks at all, then none in the rewrite can be preserving
+ * anything, so all of them are invention. When the original does quote
+ * something, leave every mark alone rather than guess which are which.
+ */
+export function stripAddedQuotes(out: string, original: string): string {
+  if (DOUBLE_QUOTE.test(original)) return out;
+  return out.replace(/["“”]/g, '');
 }
 
 /** Models wrap output despite instructions; peel fences, preambles, and quotes the original did not have. */
