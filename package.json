@@ -2,6 +2,29 @@
   "name": "second-draft",
   "version": "1.3.0",
   "private": true,
+  "description": "Chrome extension that rewrites AI-sounding text so it reads like a person wrote it. Runs on device by default.",
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "gemini-nano",
+    "prompt-api",
+    "on-device-ai",
+    "ai-detection",
+    "writing-tools",
+    "wxt"
+  ],
+  "homepage": "https://joel-wwalker.github.io/second-draft/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joel-Wwalker/second-draft.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Joel-Wwalker/second-draft/issues"
+  },
+  "author": "Joel Walker",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
@@ -10,7 +33,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "screenshots": "node scripts/make-screenshots.mjs"
   },
   "license": "AGPL-3.0-or-later",
   "type": "module",

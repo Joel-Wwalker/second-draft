@@ -74,9 +74,13 @@ Productivity / Writing
 
 ## Assets still needed from the owner
 
-- Screenshots (1280x800): the popup mid-rewrite with the score ring and
-  highlighted changes, the popup's What-changed log expanded, and the options
-  page.
-- Final icon approval (current icon is a generated placeholder).
+- Screenshots (1280x800). `npm run screenshots` renders them to
+  `docs/screenshots/`. **Retake them before uploading:** the committed copies were
+  rendered with the deterministic test engine, so the engine caption reads "Test
+  engine" rather than "On-device AI (Gemini Nano)". With the on-device model
+  installed, run `SD_REAL_ENGINE=1 npm run screenshots` and upload
+  `hero.png`, `hero-changes.png`, and a 1280x800 crop of `options.png`.
+- Icon approval. `npm run icons` draws it; `docs/screenshots/icon-512.png` is the
+  store size.
 - Developer account ($5 one-time).
 - Privacy policy URL (live): https://joel-wwalker.github.io/second-draft/privacy-policy

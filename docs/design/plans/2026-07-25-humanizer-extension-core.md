@@ -4,7 +4,7 @@
 
 **Goal:** A loadable Chrome extension whose popup paste box humanizes text through a fully tested engine pipeline (detect → provider → enforce → diff), using the deterministic rules layer plus a fake provider; real providers and in-page UX come in Plan 2.
 
-**Architecture:** WXT + TypeScript MV3 extension. A pure, DOM-free engine module (`src/engine/`) does all text work and is unit-tested with Vitest. The background service worker hosts the engine behind a typed message protocol; the popup is plain DOM. Spec: `docs/superpowers/specs/2026-07-25-humanizer-chrome-extension-design.md`.
+**Architecture:** WXT + TypeScript MV3 extension. A pure, DOM-free engine module (`src/engine/`) does all text work and is unit-tested with Vitest. The background service worker hosts the engine behind a typed message protocol; the popup is plain DOM. Spec: `docs/design/specs/2026-07-25-humanizer-chrome-extension-design.md`.
 
 **Tech Stack:** WXT, TypeScript (strict), Vitest, @types/chrome, GitHub Actions. Zero production dependencies.
 
@@ -1524,7 +1524,7 @@ Status: in development. Plan 1 (engine + popup paste box) of 2.
 - `npm run build` outputs `.output/chrome-mv3` (load unpacked from there)
 - `npm run zip` builds the store upload
 
-Design spec: `docs/superpowers/specs/2026-07-25-humanizer-chrome-extension-design.md`
+Design spec: `docs/design/specs/2026-07-25-humanizer-chrome-extension-design.md`
 
 ## Attribution
 
