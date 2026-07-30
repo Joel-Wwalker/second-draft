@@ -129,11 +129,16 @@ costs nothing.
 - **Screenshots**, 1280x800, at least one and up to five.
   `docs/screenshots/hero.png` and `hero-changes.png` are that size already.
 
-  **Retake them before uploading.** The committed copies were rendered with the
-  deterministic test engine, so the engine caption reads "Test engine (fake-echo)",
-  which is not what a user sees. With the on-device model installed, run
-  `SD_REAL_ENGINE=1 npm run screenshots` and the caption reads "On-device AI
-  (Gemini Nano)" instead.
+  The committed copies were rendered with the deterministic test engine, so the
+  small engine caption reads "Test engine (fake-echo)" rather than "On-device AI
+  (Gemini Nano)". Nothing about that breaks a store rule, but it is not what a
+  user sees.
+
+  To fix it, capture the popup in a browser that has the on-device model, since
+  Playwright's bundled Chromium does not: load the extension, rewrite a
+  paragraph, screenshot the popup, save it as
+  `docs/screenshots/popup-real.png`, and run `npm run screenshots`. It frames
+  your capture into 1280x800 instead of its own render.
 - Promo tiles are optional. Skip them.
 
 ## Privacy policy URL
@@ -147,13 +152,11 @@ Live and rendering as HTML.
 1. Register at the developer dashboard and pay the one-time 5 USD fee. Expect a
    prompt to turn on 2-step verification and to verify a contact email; the
    account cannot publish without both.
-2. Install the on-device model: load `.output/chrome-mv3` unpacked, open the
-   options page, download the model. Then rewrite one paragraph. This is the
-   smallest possible check that the thing works before strangers see it, and it is
-   also what makes the screenshots say the right engine.
-3. `SD_REAL_ENGINE=1 npm run screenshots`.
-4. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
-5. Fill the listing from the sections above, set visibility to Public and
+2. Optional, for a better screenshot: load `.output/chrome-mv3` unpacked at
+   `chrome://extensions`, rewrite a paragraph, screenshot the popup, save it to
+   `docs/screenshots/popup-real.png`, and run `npm run screenshots`.
+3. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
+4. Fill the listing from the sections above, set visibility to Public and
    distribution to all regions, and submit.
 
 Review usually takes a few days. A content script matching `<all_urls>` draws more

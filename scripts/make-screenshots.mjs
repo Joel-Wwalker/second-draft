@@ -8,15 +8,20 @@
 // Writes to docs/screenshots/. The composed shots are 1280x800, the size the
 // Chrome Web Store wants.
 //
-// By default the deterministic test engine runs, so the images are reproducible
-// and the engine caption says so. Before uploading anything to the store, rerun
-// on a machine with the on-device model installed:
+// The deterministic test engine runs, so the images are reproducible and the
+// engine caption says so.
 //
-//   SD_REAL_ENGINE=1 npm run screenshots
+// That caption is wrong for a store listing, and it cannot be fixed here:
+// Playwright ships its own Chromium with an empty profile, which has no
+// on-device model, so asking for the real engine only downgrades the caption to
+// "no AI engine available". A genuine shot has to come from a browser where the
+// model is installed.
 //
-// which uses whatever engine the user would actually get.
+// So: capture the popup yourself in that browser, save it as
+// docs/screenshots/popup-real.png, and this script will frame that instead of
+// its own render. Any size works; only the aspect ratio shows.
 import { chromium } from '@playwright/test';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const OUT = 'docs/screenshots';
@@ -41,24 +46,20 @@ let [sw] = ctx.serviceWorkers();
 if (!sw) sw = await ctx.waitForEvent('serviceworker');
 const id = new URL(sw.url()).host;
 
-const realEngine = process.env['SD_REAL_ENGINE'] === '1';
 const seed = await ctx.newPage();
 await seed.goto(`chrome-extension://${id}/options.html`);
-await seed.evaluate(
-  useFake =>
-    chrome.storage.local.set({
-      settings: {
-        defaultIntensity: 'full',
-        useFakeProvider: useFake,
-        disabledSites: [],
-        voiceSample: '',
-        customTells: [],
-      },
-    }),
-  !realEngine,
+await seed.evaluate(() =>
+  chrome.storage.local.set({
+    settings: {
+      defaultIntensity: 'full',
+      useFakeProvider: true,
+      disabledSites: [],
+      voiceSample: '',
+      customTells: [],
+    },
+  }),
 );
 await seed.close();
-console.log(realEngine ? 'using the real engine chain' : 'using the test engine (set SD_REAL_ENGINE=1 for real)');
 
 /** Screenshot the popup, cropped to its content rather than the viewport. */
 async function popupShot(file, { expandChanges = false } = {}) {
@@ -124,8 +125,18 @@ async function storeFrame(source, out, headline, sub) {
   await page.close();
 }
 
+// A hand-captured shot from a browser with the on-device model wins, because its
+// engine caption is the one a real user sees.
+const REAL = 'popup-real.png';
+const heroSource = existsSync(path.join(OUT, REAL)) ? REAL : 'popup.png';
+console.log(
+  heroSource === REAL
+    ? `framing your own ${REAL}`
+    : `framing the test-engine render; drop ${REAL} in ${OUT}/ to use a real one`,
+);
+
 await storeFrame(
-  'popup.png',
+  heroSource,
   'hero.png',
   'Text that reads like you wrote it',
   'Select anything, right click, and the rewrite starts on its own. Runs on your device.',
