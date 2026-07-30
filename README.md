@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-235%20unit%20%2B%202%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-227%20unit%20%2B%202%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -62,12 +62,12 @@ labels results accordingly.
 1. **Rules.** Twelve patterns detect AI tells. Four are fixed directly in code
    (em dashes, curly quotes, emoji, chatbot filler). The rest are reported to
    the model in the prompt.
-2. **Rhythm and shape.** Sentence lengths and openings are measured, not
-   requested. Prose where every sentence is the same size, or where every one
-   starts with its subject, reads like a machine wrote it whatever the wording. The
-   prompt gets the actual counts and a rewrite that comes back monotonous is
-   redone once. `npm run compare a.txt b.txt` prints the same numbers for any
-   text, which is how these thresholds were set.
+2. **Rhythm.** Sentence length spread is measured, not requested. Across 1000
+   human-written paragraphs it runs a median of 0.41; across 60 machine-written
+   ones, 0.16. Prose under 0.22 reads as one length repeated whatever the wording,
+   so the prompt gets the actual numbers and a rewrite that comes back flat is
+   redone once. `npm run compare a.txt b.txt` prints it for any text. Sentence
+   opening variety was tried and dropped: it flagged 57.6% of the human prose.
 3. **Engine.** Gemini Nano on device, or an Anthropic or OpenAI-compatible
    endpoint if you add a key. Both stream.
 4. **Enforcement.** The rules run again on the model's output. A prompt cannot
@@ -98,7 +98,7 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-235 unit tests and 2 Playwright tests that drive the built extension in a real
+227 unit tests and 2 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,

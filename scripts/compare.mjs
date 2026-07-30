@@ -17,22 +17,10 @@ const RULES = [
   ['not just X but Y', /\bnot (just|only|merely)\b[^.!?]{0,60}\bbut\b/gi],
 ];
 
-const FRONTED = new Set([
-  'after', 'although', 'as', 'because', 'before', 'besides', 'beyond', 'but', 'by', 'despite',
-  'during', 'even', 'except', 'for', 'from', 'given', 'if', 'in', 'inside', 'instead', 'like',
-  'meanwhile', 'once', 'on', 'onto', 'other', 'outside', 'over', 'rather', 'since', 'so',
-  'though', 'through', 'to', 'toward', 'under', 'unless', 'until', 'upon', 'when', 'whenever',
-  'where', 'whereas', 'wherever', 'whether', 'while', 'with', 'within', 'without', 'yet',
-  'afterward', 'again', 'already', 'eventually', 'finally', 'first', 'later', 'now', 'often',
-  'soon', 'still', 'sometimes', 'then', 'today', 'usually', 'across', 'amid', 'among',
-  'beneath', 'behind', 'throughout', 'unlike', 'according', 'alongside', 'against', 'about',
-  'above', 'below',
-]);
-
-const COMMA_GATED = new Set([
-  'more', 'less', 'most', 'better', 'worse', 'far', 'long', 'much',
-]);
-const GATE_WORDS = 10;
+// Sentence-opening variety was measured here once and removed. Over 1000
+// human-written paragraphs it flagged 57.6% of them, and the repeated-opener
+// version was backwards: 39.6% of human paragraphs against 3.3% of machine ones.
+// Sentence length spread was the only style signal that separated the two.
 
 function measure(text) {
   const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
@@ -41,19 +29,6 @@ function measure(text) {
   const mean = words / (lengths.length || 1);
   const stdev = Math.sqrt(lengths.reduce((s, n) => s + (n - mean) ** 2, 0) / (lengths.length || 1));
 
-  const openers = sentences.map(s => (s.match(/[A-Za-z'’-]+/) ?? [''])[0].toLowerCase());
-  const counts = new Map();
-  for (const w of openers) counts.set(w, (counts.get(w) ?? 0) + 1);
-  const repeated = Math.max(0, ...counts.values());
-  // Same rule as src/shared/structure.ts: reliable openers always count, and the
-  // ambiguous ones only when a comma closes the phrase near the start.
-  const fronted = sentences.filter((s, i) => {
-    const w = openers[i];
-    if (FRONTED.has(w)) return true;
-    if (!COMMA_GATED.has(w)) return false;
-    const comma = s.indexOf(',');
-    return comma >= 0 && s.slice(0, comma).split(/\s+/).filter(Boolean).length <= GATE_WORDS;
-  }).length;
 
   const tells = RULES.map(([name, re]) => [name, (text.match(re) ?? []).length]).filter(([, n]) => n > 0);
 
@@ -64,9 +39,6 @@ function measure(text) {
     spread: stdev / (mean || 1),
     shortest: Math.min(...lengths),
     longest: Math.max(...lengths),
-    fronted,
-    frontedTarget: Math.ceil(sentences.length / 4),
-    repeated,
     tells,
   };
 }
@@ -81,8 +53,8 @@ const width = Math.max(12, ...rows.map(([name]) => name.length));
 const cell = v => String(v).padStart(9);
 
 console.log('');
-console.log('label'.padEnd(width), cell('words'), cell('sents'), cell('mean'), cell('spread'), cell('short'), cell('long'), cell('fronted'), cell('repeat'));
-console.log('-'.repeat(width + 9 * 8 + 8));
+console.log('label'.padEnd(width), cell('words'), cell('sents'), cell('mean'), cell('spread'), cell('short'), cell('long'));
+console.log('-'.repeat(width + 9 * 6 + 6));
 for (const [name, m] of rows) {
   console.log(
     name.padEnd(width),
@@ -92,8 +64,6 @@ for (const [name, m] of rows) {
     cell(m.spread.toFixed(2)),
     cell(m.shortest),
     cell(m.longest),
-    cell(`${m.fronted}/${m.frontedTarget}`),
-    cell(m.repeated),
   );
 }
 
@@ -101,12 +71,10 @@ console.log('');
 for (const [name, m] of rows) {
   const problems = [];
   // Same thresholds as src/shared/cadence.ts and src/shared/structure.ts.
-  if (m.sentences >= 3 && m.words >= 55 && m.spread < 0.3) problems.push(`flat pacing (spread ${m.spread.toFixed(2)}, wants 0.30+)`);
-  if (m.sentences >= 5 && m.fronted < m.frontedTarget) problems.push(`every sentence opens with its subject (${m.fronted} fronted, wants ${m.frontedTarget})`);
-  if (m.repeated >= 3) problems.push(`${m.repeated} sentences share an opening word`);
+  if (m.sentences >= 3 && m.words >= 55 && m.spread < 0.22) problems.push(`flat pacing (spread ${m.spread.toFixed(2)}, wants 0.22+)`);
   for (const [tell, n] of m.tells) problems.push(`${tell} x${n}`);
   console.log(`${name}: ${problems.length ? problems.join('; ') : 'clean on every signal measured'}`);
 }
 console.log('');
-console.log('spread is stdev/mean of sentence length. Higher varies more; under 0.30 reads as one length repeated.');
-console.log('fronted counts sentences opening with a clause or phrase before the subject, against a target of one per four.');
+console.log('spread is stdev/mean of sentence length. Under 0.22 reads as one length repeated.');
+console.log('For scale: 1000 human-written paragraphs run a median spread of 0.41; 60 machine-written ones, 0.16.');

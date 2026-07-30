@@ -4,7 +4,6 @@ import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
-import { isMonotonous, measureStructure, structureInstruction } from '../shared/structure';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -86,7 +85,7 @@ export async function humanize(
     }
     const styleNow = styleNotes(best.rewritten);
     if (best.flat && styleNow) {
-      notes.push(`A previous attempt came back with sentences that were all built the same way. ${styleNow}`);
+      notes.push(`A previous attempt came back with sentences that all ran the same length. ${styleNow}`);
     }
     const corrections = notes.join('\n\n');
     try {
@@ -126,34 +125,22 @@ export async function humanize(
 }
 
 /**
- * What is wrong with this text's sentences, as instructions a model can act on.
+ * What is wrong with this text's sentences, as an instruction a model can act on.
  * Empty when nothing is, or when the text is too short to judge.
  *
- * Two separate failures, because fixing the first exposed the second: sentences
- * that all run the same length, and sentences that all open the same way. A model
- * given only the length target produced varied lengths and identical shapes.
+ * Only sentence length is measured here. An earlier version also required that
+ * sentences vary how they open, and a run over 1000 human-written paragraphs
+ * against 60 model-written ones showed why that was wrong: the opening-variety
+ * rule flagged 57.6% of the human prose, and the repeated-opener rule was
+ * backwards, firing on 39.6% of human paragraphs and 3.3% of machine ones,
+ * because people repeat a sentence opening far more often than a model does.
+ *
+ * Sentence length spread separates the two cleanly. Nothing else tested did.
  */
 function styleNotes(text: string): string {
   const cadence = measureCadence(text);
-  const structure = measureStructure(text);
-  const notes: string[] = [];
-  if (cadence && isFlat(cadence)) notes.push(cadenceInstruction(cadence));
-  if (structure && isMonotonous(structure)) notes.push(structureInstruction(structure));
-  if (notes.length === 0) return '';
-
-  // Naming one target and not the other is how the model trades them. Told only
-  // to vary sentence openings, Nano did that and evened out sentence lengths that
-  // had been fine, taking the spread from 0.30 down to 0.16. So whenever either
-  // note fires, say what is already good and must survive.
-  if (cadence && !isFlat(cadence)) {
-    notes.push(
-      `The sentence lengths here already vary: ${cadence.lengths.join(', ')} words. Keep a spread like that. Do not even the lengths out while changing anything else.`,
-    );
-  }
-  if (structure && !isMonotonous(structure)) {
-    notes.push('Sentence openings here already vary. Keep that while changing anything else.');
-  }
-  return notes.join(' ');
+  if (!cadence || !isFlat(cadence)) return '';
+  return cadenceInstruction(cadence);
 }
 
 /**

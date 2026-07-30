@@ -363,7 +363,7 @@ test('an evenly paced rewrite is retried, and the second pass is told the number
   // rhythm. Only the rewrite that came back flat is.
   expect(prompts[0]).not.toContain('steady length is the strongest sign');
   // The retry got measurements, not the adjective the first pass already ignored.
-  expect(prompts[1]).toContain('all built the same way');
+  expect(prompts[1]).toContain('came back with sentences');
   expect(prompts[1]).toMatch(/run \d+, \d+/);
   // And the varied pass is the one kept.
   expect(res.rewritten).toContain('Homer knew that');
@@ -449,31 +449,3 @@ test('a source that already varies gets no rhythm lecture', async () => {
   expect(prompts[0]).not.toContain('steady length is the strongest sign');
 });
 
-test('sentences that vary in length but not in shape still reach the prompt', async () => {
-  // Our own output after the length fix landed: lengths spread from 9 to 25 words,
-  // so the cadence check passes, and every sentence still opens with its subject.
-  // Only the structure check can fire here, which is the point of the test.
-  const variedLengthSameShape =
-    'Helen of Troy is one of the most famous figures in Greek mythology. She is known for her ' +
-    'extraordinary beauty and for her role in starting the Trojan War. She married Menelaus, the king ' +
-    'of Sparta, but then she left with, or was taken by, the Trojan prince Paris, and they went to ' +
-    'Troy. Menelaus and other Greek leaders responded by launching a large expedition to bring her ' +
-    'back. This began a war that lasted for ten years. While Helen is often blamed for the conflict, ' +
-    'many versions of the myth show her as a complicated person. The gods, fate, and the powerful men ' +
-    'around her all influenced her decisions.';
-  const prompts: string[] = [];
-  const provider = {
-    info: { kind: 'fake' as const, model: 'shapes' },
-    available: async (): Promise<boolean> => true,
-    rewrite: async (req: RewriteRequest): Promise<string> => {
-      prompts.push(req.systemPrompt);
-      return VARIED;
-    },
-  };
-  await humanize(variedLengthSameShape, { intensity: 'full' }, { providers: [provider] });
-
-  expect(prompts[0]).toContain('start with anything before the subject');
-  expect(prompts[0]).toContain('at least 2');
-  // Not a lecture about length: that part is already fine here.
-  expect(prompts[0]).not.toContain('steady length is the strongest sign');
-});

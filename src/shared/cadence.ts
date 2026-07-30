@@ -40,11 +40,25 @@ export const SHORT_SENTENCE = 11;
 /** A sentence this long counts as the other end of the range. */
 export const LONG_SENTENCE = 25;
 /**
- * Spread below this reads as one length repeated. Chosen from the two samples
- * that prompted this: our own output measured 0.19 and a competitor's 0.18, and
- * both read flat. Prose that varies on purpose sits well above it.
+ * Spread below this reads as one length repeated.
+ *
+ * Measured, not guessed. Across 1000 Wikipedia article introductions, written and
+ * edited by people, spread runs p10 0.24, median 0.41, p90 0.66. Across 60
+ * paragraphs written by the on-device model it runs p10 0.09, median 0.16, p90
+ * 0.26. The two barely overlap, which is what makes this the one style signal
+ * worth acting on.
+ *
+ * One caveat on those model numbers: the paragraphs were generated with an
+ * instruction asking for about 90 words in five or six sentences, which
+ * mechanically narrows the spread. So treat the human side as sound and the
+ * model side as an upper bound on how well this catches machine text.
+ *
+ * 0.22 flags 7.7% of that human prose. Going to 0.30, which an earlier version
+ * used, flagged 22.6% of it: a fifth of people would have been told their own
+ * writing was evenly paced, and a fifth of rewrites would have burned a second
+ * pass for nothing.
  */
-export const MIN_SPREAD = 0.3;
+export const MIN_SPREAD = 0.22;
 
 function wordsIn(part: string): number {
   return part.trim().split(/\s+/).filter(Boolean).length;
