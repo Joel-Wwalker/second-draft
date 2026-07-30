@@ -49,3 +49,8 @@ rows where noted (Clear extension storage via service-worker console).
 | 42 | Same, then click Apply to page | The page text is replaced in place. Undo appears and puts the original back |
 | 43 | Right click Humanize where the popup cannot open itself (some Chrome builds block it) | A badge appears on the toolbar icon; clicking the icon opens the popup with the text waiting and running |
 | 44 | Rewrite text containing numbers and a name on the on-device model, several times | If a pass drops a fact the engine silently retries once and usually recovers it. If both passes lose something, the amber panel names what is missing |
+| 45 | Right click a selection in a textarea on a normal site, then Apply to page, then Undo | Text is replaced in place and restored. This path needs a real right click to grant activeTab, so no automated test can reach it |
+| 46 | Same, but a partial selection inside a contenteditable, then press Ctrl+Z on the page after Apply | The page's own undo works, which is what confirms insertText was used rather than range surgery |
+| 47 | Right click a selection twice on the same page without reloading | Works both times, and the second injection does not produce duplicate replies or double-apply |
+| 48 | Right click a selection on a site turned off in the popup | Popup says "Turned off for this site", and the service worker network tab shows no request. Nothing is injected |
+| 49 | Right click a selection on a chrome:// page or the Web Store | Popup says "Cannot reach that page". Nothing is injected |

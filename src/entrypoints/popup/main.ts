@@ -148,9 +148,13 @@ const REFUSALS: Record<PendingRefusal, { headline: string; status: string }> = {
     headline: 'That selection went stale',
     status: 'It sat unread for more than a minute. Select the text again, or paste it here.',
   },
+  disabled: {
+    headline: 'Turned off for this site',
+    status: 'Untick the box below to turn it back on, or paste text here instead.',
+  },
   unavailable: {
-    headline: 'Not running on that page',
-    status: 'It may be turned off for this site, or the page may not allow extensions. You can paste text here instead.',
+    headline: 'Cannot reach that page',
+    status: 'Chrome does not let extensions read this kind of page. You can paste text here instead.',
   },
 };
 

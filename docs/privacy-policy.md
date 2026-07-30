@@ -1,6 +1,6 @@
 # Second Draft privacy policy
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 Second Draft rewrites text you select to remove signs of AI-generated writing.
 
@@ -41,9 +41,11 @@ Nothing is synced or uploaded. Removing the extension deletes all of it.
 
 ## Permissions
 
-- Access to pages you visit is used to read the text you select when you choose
-  Humanize from the right-click menu, and to replace that text when you click
-  Apply. The extension reads nothing else on the page.
+- The extension has no standing access to the pages you visit. When you choose
+  Humanize from the right-click menu or press the shortcut, it injects its page
+  script into that one tab, reads the text you selected, and writes the rewrite
+  back if you click Apply. It reads nothing else on the page, and nothing at all
+  on a site you have turned it off for.
 - The optional API-domain permission is requested only when you add an API key,
   and only for the domain you configure.
 

@@ -1,8 +1,14 @@
 # Changelog
 
-## 1.3.0 (2026-07-29)
+## 1.3.0 (2026-07-30)
 
-The popup is now the whole interface.
+The popup is now the whole interface, and the extension no longer asks for access
+to every page you visit.
+
+- No host permissions. The page script is injected into one tab at the moment you
+  ask for a rewrite, which is what activeTab grants, so the extension has no
+  standing access to anything. A site you turned it off for is now checked before
+  anything is injected, rather than after the script had already loaded
 
 - Right click a selection (or press Ctrl+Shift+H) and the popup opens with the
   text already in it and the rewrite already running

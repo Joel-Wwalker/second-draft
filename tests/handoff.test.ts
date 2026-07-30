@@ -10,17 +10,42 @@ let store: Record<string, unknown>;
 /** What the page answers when asked for its selection, or what it throws. */
 let answer: () => unknown;
 let openPopup: () => void;
+let tabUrl: string | undefined;
+let inject: () => void;
 let badges: string[];
+/** Everything the background did to the tab, in order. */
+let order: string[];
 
 beforeEach(() => {
   store = {};
   badges = [];
+  order = [];
+  tabUrl = 'https://example.com/article';
   answer = () => ({ ok: true, text: SELECTED, canApply: true });
   openPopup = () => {};
+  inject = () => {};
   (globalThis as Record<string, unknown>)['chrome'] = {
-    tabs: { sendMessage: async (): Promise<unknown> => answer() },
+    tabs: {
+      get: async (): Promise<{ url: string | undefined }> => {
+        if (tabUrl === undefined) throw new Error('No tab with that id.');
+        return { url: tabUrl };
+      },
+      sendMessage: async (): Promise<unknown> => {
+        order.push('ask the page');
+        return answer();
+      },
+    },
+    scripting: {
+      executeScript: async (): Promise<void> => {
+        order.push('inject');
+        inject();
+      },
+    },
     action: {
-      openPopup: async (): Promise<void> => openPopup(),
+      openPopup: async (): Promise<void> => {
+        order.push('openPopup');
+        openPopup();
+      },
       setBadgeText: async (details: { text: string }): Promise<void> => void badges.push(details.text),
       setBadgeBackgroundColor: async (): Promise<void> => {},
     },
@@ -39,6 +64,10 @@ function parked(): PendingSelection | undefined {
   return store[PENDING_KEY] as PendingSelection | undefined;
 }
 
+function turnOff(...hosts: string[]): void {
+  store['settings'] = { disabledSites: hosts };
+}
+
 test('the selected text is parked for the popup, with the tab it came from', async () => {
   await handOff(TAB, 'whatever Chrome supplied');
   expect(parked()).toMatchObject({ kind: 'text', text: SELECTED, canApply: true, tabId: TAB });
@@ -46,27 +75,53 @@ test('the selected text is parked for the popup, with the tab it came from', asy
   expect(typeof parked()?.at).toBe('number');
 });
 
-test('the popup is opened before the page is asked, so the click still counts as a gesture', async () => {
-  const order: string[] = [];
-  openPopup = (): void => void order.push('openPopup');
-  answer = (): unknown => {
-    order.push('ask the page');
-    return { ok: true, text: SELECTED, canApply: true };
-  };
+test('the page script is injected on the gesture, before the page is asked anything', async () => {
   await handOff(TAB, '');
-  expect(order).toEqual(['openPopup', 'ask the page']);
+  // openPopup first so the click's gesture is still unspent, then the script has
+  // to be in place before a message can reach it.
+  expect(order).toEqual(['openPopup', 'inject', 'ask the page']);
+});
+
+test('a site the user turned off is never injected into and never read', async () => {
+  turnOff('example.com');
+  await handOff(TAB, 'Text from a site the extension is switched off for.');
+  expect(parked()).toMatchObject({ kind: 'refused', reason: 'disabled' });
+  expect(order).toEqual(['openPopup']); // no inject, no ask
+  expect(JSON.stringify(parked())).not.toContain('switched off');
+});
+
+test('turning one site off leaves other sites working', async () => {
+  turnOff('mail.google.com');
+  await handOff(TAB, '');
+  expect(parked()).toMatchObject({ kind: 'text', text: SELECTED });
+});
+
+test('a page Chrome will not let extensions touch is refused without injecting', async () => {
+  tabUrl = 'chrome://settings/';
+  await handOff(TAB, 'text Chrome offered anyway');
+  expect(parked()).toMatchObject({ kind: 'refused', reason: 'unavailable' });
+  expect(order).toEqual(['openPopup']);
+  expect(JSON.stringify(parked())).not.toContain('offered anyway');
+});
+
+test('an injection that fails reads nothing, whatever Chrome supplied', async () => {
+  inject = (): never => {
+    throw new Error('Cannot access contents of the page.');
+  };
+  await handOff(TAB, 'Text from a page that refused the script.');
+  expect(parked()).toMatchObject({ kind: 'refused', reason: 'unavailable' });
+  expect(JSON.stringify(parked())).not.toContain('refused the script');
 });
 
 test('nothing is read when the page never answers, even though Chrome supplied the text', async () => {
-  // A site the user switched the extension off for has no content script, so
-  // neither the per-site switch nor the credential guard ever ran. Chrome's own
-  // copy of the selection is not a substitute for them.
+  // The script went in but nothing came back. The credential guard lives in that
+  // script, so silence means "cannot confirm this is safe to read".
   answer = (): never => {
     throw new Error('Could not establish connection. Receiving end does not exist.');
   };
-  await handOff(TAB, 'Text from a site the extension is switched off for.');
+  await handOff(TAB, 'Text from a page that went quiet.');
   expect(parked()).toMatchObject({ kind: 'refused', reason: 'unavailable' });
-  expect(JSON.stringify(parked())).not.toContain('switched off');
+  expect(JSON.stringify(parked())).not.toContain('went quiet');
 });
 
 test('a credential field parks a refusal and never the digits', async () => {

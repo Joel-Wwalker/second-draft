@@ -118,12 +118,16 @@ Keeps settings on the user's own device: rewrite strength, sites the user turned
 
 
 ================================================================================
+PRIVACY PRACTICES: scripting JUSTIFICATION
+================================================================================
+
+The extension requests no host permissions. Instead of running a content script on every page, it injects its page script into one tab at the moment the user asks for a rewrite, which is what activeTab grants and what scripting performs. The script reads the current selection, writes a rewrite back when the user clicks Apply, and restores the original on Undo. Nothing is injected into a site the user has turned the extension off for, because that switch is checked before injecting. Password, payment, and one-time-code fields are never read.
+
+================================================================================
 PRIVACY PRACTICES: HOST PERMISSION JUSTIFICATION
 ================================================================================
 
-The content script needs access to pages because the user decides where to rewrite text, so the site cannot be known in advance. It reads only the current selection, only when the user asks for it through the right-click menu or the keyboard shortcut, and writes back only when the user clicks Apply. Password, payment, and one-time-code fields are never read, and the user can turn the extension off for any site.
-
-The optional host permissions are separate and are requested only when a user adds their own API key, for the domain they entered. They are declared broadly because any OpenAI-compatible endpoint is allowed, including one running on the user's own machine. No host access is requested at install.
+No host permissions are requested at install. The optional host permissions are requested only when a user adds their own API key, for the domain they entered, and are declared broadly because any OpenAI-compatible endpoint is allowed, including one running on the user's own machine.
 
 
 ================================================================================

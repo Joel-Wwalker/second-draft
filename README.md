@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-205%20unit%20%2B%208%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-211%20unit%20%2B%202%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -90,7 +90,7 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-205 unit tests and 8 Playwright tests that drive the built extension in a real
+211 unit tests and 2 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,
@@ -100,11 +100,12 @@ could overflow the model's context, a `.docx` upload that expanded 199 KB into
 200 MB, and a right-click path that read selections on sites the extension was
 switched off for.
 
-Some of it can only be tested in a real browser. `document.execCommand` does not
-exist in a test runner, so the replacement path that keeps a site's own undo
-stack working is covered by Playwright rather than unit tests.
+Some of it cannot be tested automatically at all. The page script is injected only
+when a real right click grants `activeTab`, and no test runner can produce a native
+context menu, so replacing text on a live page is covered by the manual matrix
+rather than by Playwright.
 
-[docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 44 rows covering
+[docs/manual-test-matrix.md](docs/manual-test-matrix.md) has 49 rows covering
 what automated tests cannot: real sites, real models, and browser APIs that do
 not exist in a test runner.
 

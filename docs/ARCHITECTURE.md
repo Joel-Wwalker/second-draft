@@ -22,7 +22,10 @@ load-bearing.
   `chrome.storage`.
 - **`src/content/`** owns everything that touches a web page, and draws nothing:
   it hands over the selected text, writes a rewrite back where it came from, and
-  can undo that write.
+  can undo that write. It is injected into one tab on the gesture that asks for
+  it, not declared for every page.
+- **`src/background/`** hands a page selection to the popup: check the per-site
+  switch, inject the page script, ask for the selection, park the answer.
 - **`src/entrypoints/`** is the extension surface: background service worker,
   popup, options page.
 
@@ -71,6 +74,13 @@ worse than not writing.
 **Never capture credentials.** Password, card number, and one-time-code fields
 are excluded at the selection layer, and both entry points (right click and the
 keyboard shortcut) route through that same guard rather than reimplementing it.
+
+**Ask for no more than the moment needs.** The manifest requests no host
+permissions. The page script is injected into a single tab when the user invokes a
+rewrite, which is what `activeTab` grants, and the per-site switch is checked
+before that injection rather than after. Broad host access would also flag the
+store listing for in-depth review, but the reason to avoid it is that the
+extension genuinely does not need it: nothing it does happens without a gesture.
 
 **Never lose content.** Every rewrite is compared against the original for
 dropped numbers, names, dates, quotations, paragraphs, and a large drop in

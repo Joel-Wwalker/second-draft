@@ -1,5 +1,9 @@
 import { PENDING_KEY, isCaptureResponse } from '../shared/messages';
-import type { CaptureRequest, PendingSelection } from '../shared/messages';
+import type { CaptureRequest, PendingRefusal, PendingSelection } from '../shared/messages';
+import { isSiteDisabled } from '../shared/storage';
+
+/** Built by WXT from src/entrypoints/page.ts, and deliberately not in the manifest. */
+const PAGE_SCRIPT = 'page.js';
 
 /**
  * Handing a page selection to the popup. This lives outside the background
@@ -27,7 +31,8 @@ export async function handOff(tabId: number, fallbackText: string): Promise<void
     opened = false;
   }
 
-  const pending = await capture(tabId, fallbackText);
+  const blocked = await attach(tabId);
+  const pending = blocked ? refuse(blocked) : await capture(tabId, fallbackText);
   if (pending.kind === 'refused') {
     // Park the reason only if someone is watching. Never badge a refusal: a
     // toolbar badge over a password field would be the opposite of reassuring.
@@ -42,6 +47,42 @@ export async function handOff(tabId: number, fallbackText: string): Promise<void
     void chrome.action.setBadgeBackgroundColor({ color: '#4f46e5' });
     void chrome.action.setBadgeText({ text: '1' });
   }
+}
+
+function refuse(reason: PendingRefusal): PendingSelection {
+  return { kind: 'refused', reason, at: Date.now() };
+}
+
+/**
+ * Put the page script in place, and refuse before doing so if this site is one
+ * the user turned off.
+ *
+ * The script is injected here rather than declared in the manifest, so the
+ * extension asks for activeTab instead of access to every page. The gesture that
+ * got us here is what grants that access, and it lasts until the tab navigates,
+ * which covers the later Apply and Undo from the popup.
+ *
+ * Checking the switch before injecting is stronger than the old arrangement,
+ * where the script loaded everywhere and then declined to listen.
+ */
+async function attach(tabId: number): Promise<PendingRefusal | null> {
+  let url: string | undefined;
+  try {
+    url = (await chrome.tabs.get(tabId)).url;
+  } catch {
+    return 'unavailable';
+  }
+  // Restricted pages, and anything without an ordinary web address, cannot take
+  // the script and have no selection worth reading.
+  if (!url || !/^https?:/i.test(url)) return 'unavailable';
+  if (await isSiteDisabled(new URL(url).host)) return 'disabled';
+
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: [PAGE_SCRIPT] });
+  } catch {
+    return 'unavailable';
+  }
+  return null;
 }
 
 /**
