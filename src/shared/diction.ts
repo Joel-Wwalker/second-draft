@@ -136,7 +136,7 @@ export function dictionInstruction(diction: Diction): string {
     parts.push(`Among them: ${diction.heavy.slice(0, MAX_EXAMPLES).join(', ')}.`);
   }
   parts.push(
-    'Replace the ones that have a plain everyday equivalent. Keep names, places and technical terms exactly as they are, and do not swap a long word for a longer one.',
+    'Replace each with the shorter word a person would actually use, and only where it is at least as precise: "analyzed" for "conducted an analysis of", not "looked at". Keep names, places and technical terms exactly as they are, and never trade precision for plainness; a vaguer short word is worse than the long one.',
   );
   return parts.join(' ');
 }

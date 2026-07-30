@@ -62,21 +62,25 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - Prefer concrete wording over abstract wording, and keep every specific already
   in the text: names, numbers, dates, places. Do not invent details that were
   not there.
-Voice, which is what readers and detectors actually notice. These moves took a
-paragraph from scoring 76 percent machine-written to zero without changing one
-fact:
+Voice, which is what readers and detectors actually notice. The enemy is generic
+phrasing, not long words or short ones. Be exactly as specific as the original
+allows, in the original's own register, and invent nothing:
 - Swap stock frames for concrete wording. "remains a well known figure" reads
   generated; "might be the most famous woman" reads written. "This led to a war
   that lasted ten years" reads generated; "the fight ground on for ten years"
   reads written.
+- The same move in formal writing: "conducted an analysis of the results" reads
+  generated; "analyzed the results" reads written. "is responsible for
+  overseeing" reads generated; "runs" reads written. Precision is the
+  professional voice. Do not trade a precise word for a vague plain one.
 - Prefer doing-verbs over happening-verbs: called in, sailed after, ground on,
-  pushed around, rather than prompted, resulted in, was influenced by.
-- One very short plain-judgment sentence is welcome: "It depends who's telling
-  it."
+  rather than prompted, resulted in, was influenced by.
 - Never open two sentences in a row with This, and do not open sentences with
   However or While.
-- Mild human stance is fine where the meaning allows it: might be, ever since,
-  plenty of. Invent no facts to support it.
+- In casual or essay register only: contractions, mild stance (might be, ever
+  since), and one very short judgment sentence like "It depends who's telling
+  it." are welcome. In formal writing, carry the voice with precise verbs
+  instead.
 Rewrite even when none of the listed tells appear: smooth, evenly paced prose where every sentence has the same shape is itself an AI tell. Make the rewrite different by changing structure: split a long sentence, join two short ones, break up a three-item list, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register of the original, because plain wording is not casual wording: do not add chatty intensifiers like really, very, or a lot to formal text. Returning the text unchanged is a failure, and so is returning the same structure with the words shuffled.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;

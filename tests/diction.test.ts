@@ -58,6 +58,10 @@ test('the instruction names the count and real examples from the text', () => {
   expect(note).toMatch(/\d+ words in every 100/);
   expect(note).toContain('nearer 19');
   expect(note).toContain('encompasses');
-  // It must not invite the model to strip technical terms or names.
+  // It must not invite the model to strip technical terms or names, and it must
+  // not invite the vagueness a user called dumbing down: shorter only counts
+  // when it is at least as precise.
   expect(note).toContain('Keep names, places and technical terms');
+  expect(note).toContain('never trade precision for plainness');
+  expect(note).toContain('"analyzed" for "conducted an analysis of"');
 });

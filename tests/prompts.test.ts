@@ -82,10 +82,16 @@ test('the full prompt teaches voice with worked examples, not adjectives', () =>
   // content using exactly these moves scored zero with no fact changed and no
   // grammar damaged. The prompt carries the moves with the examples that worked.
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
-  expect(full).toContain('reads generated');
+  expect(full).toContain('not long words or short ones');
   expect(full).toContain('the fight ground on for ten years');
+  // The professional register gets its own worked example, because the casual
+  // moves (judgment sentences, stance words) are wrong there and precision is
+  // the voice instead. Both examples preserve facts exactly.
+  expect(full).toContain('analyzed the results');
+  expect(full).toContain('Do not trade a precise word for a vague plain one');
   expect(full).toContain('Never open two sentences in a row with This');
-  expect(full).toContain('Invent no facts to support it');
+  expect(full).toContain('invent nothing');
+  expect(full).toContain('In casual or essay register only');
   const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
   expect(light).not.toContain('reads generated');
 });
