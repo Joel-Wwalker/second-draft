@@ -21,6 +21,13 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- The full rewrite teaches voice with worked examples. Tested against a public
+  AI detector in one sitting: our output scored 76 percent machine-written with
+  neutral tone and generic language given as the reasons, a human-written
+  Wikipedia paragraph scored zero, and a rewrite of the same content using these
+  moves, stock frames swapped for concrete wording, doing-verbs, contractions,
+  one short judgment sentence, no This/However/While openers, scored zero with
+  no fact changed and no grammar damaged
 - Word churn is treated as the failure it is. The prompt used to demand a
   rewrite that reads noticeably different, and the model met that the cheapest
   way there is, swapping built for constructed while leaving the actual tells

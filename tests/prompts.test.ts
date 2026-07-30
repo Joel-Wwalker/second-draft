@@ -74,3 +74,18 @@ test('the full prompt asks for rhythm, contractions, and concreteness without in
   expect(light).not.toContain('Mix sentence lengths');
   expect(light).not.toContain('Use contractions');
 });
+
+test('the full prompt teaches voice with worked examples, not adjectives', () => {
+  // Measured on QuillBot's detector in one sitting: our output scored 76 percent
+  // machine-written with "Neutral tone" and "Generic language" as the stated
+  // reasons, a human Wikipedia paragraph scored zero, and a rewrite of our same
+  // content using exactly these moves scored zero with no fact changed and no
+  // grammar damaged. The prompt carries the moves with the examples that worked.
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).toContain('reads generated');
+  expect(full).toContain('the fight ground on for ten years');
+  expect(full).toContain('Never open two sentences in a row with This');
+  expect(full).toContain('Invent no facts to support it');
+  const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
+  expect(light).not.toContain('reads generated');
+});
