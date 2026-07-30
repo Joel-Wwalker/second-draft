@@ -1,4 +1,4 @@
-import { HumanizeSession } from '../content/session';
+import { attachOnce } from '../content/attach';
 
 /**
  * The page side of the extension, injected on demand rather than declared for
@@ -18,13 +18,6 @@ import { HumanizeSession } from '../content/session';
  * The per-site switch is checked by the background before it injects, so a site
  * the user turned off never runs this at all.
  */
-const ATTACHED = '__secondDraftAttached';
-
 export default defineUnlistedScript(() => {
-  // Injection repeats when the user invokes twice on one page, and a second copy
-  // would leave two listeners answering every message.
-  const scope = globalThis as unknown as Record<string, unknown>;
-  if (scope[ATTACHED]) return;
-  scope[ATTACHED] = true;
-  new HumanizeSession(document).start();
+  attachOnce(document, globalThis as unknown as Record<string, unknown>);
 });

@@ -51,6 +51,6 @@ rows where noted (Clear extension storage via service-worker console).
 | 44 | Rewrite text containing numbers and a name on the on-device model, several times | If a pass drops a fact the engine silently retries once and usually recovers it. If both passes lose something, the amber panel names what is missing |
 | 45 | Right click a selection in a textarea on a normal site, then Apply to page, then Undo | Text is replaced in place and restored. This path needs a real right click to grant activeTab, so no automated test can reach it |
 | 46 | Same, but a partial selection inside a contenteditable, then press Ctrl+Z on the page after Apply | The page's own undo works, which is what confirms insertText was used rather than range surgery |
-| 47 | Right click a selection twice on the same page without reloading | Works both times, and the second injection does not produce duplicate replies or double-apply |
+| 47 | Right click a selection twice on the same page without reloading | Works both times. Also covered by tests/attach.test.ts, which proves a second injection adds no second listener, so this row is a sanity check rather than the only guard |
 | 48 | Right click a selection on a site turned off in the popup | Popup says "Turned off for this site", and the service worker network tab shows no request. Nothing is injected |
 | 49 | Right click a selection on a chrome:// page or the Web Store | Popup says "Cannot reach that page". Nothing is injected |
