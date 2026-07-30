@@ -60,8 +60,8 @@ Alongside that:
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the module boundaries, the
 provider interface, the message protocol, and the invariants worth preserving
-(never clobber user text, never modify a scanned page, enforce in code rather
-than trusting a prompt).
+(never clobber user text, never capture a credential field, never lose content,
+enforce in code rather than trusting a prompt).
 
 ## Reporting bugs
 

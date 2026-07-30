@@ -1,6 +1,6 @@
 # Second Draft privacy policy
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 Second Draft rewrites text you select to remove signs of AI-generated writing.
 
@@ -19,20 +19,31 @@ The developer never receives your text, your settings, or any usage data.
   Anthropic or an OpenAI-compatible endpoint), and to no one else, along with
   your writing voice sample if you have set one. Their privacy terms apply to
   that request.
+- If a rewrite drops a number, name, date, or quotation, Second Draft asks for
+  one more rewrite so it can put them back. On the API-key path that means your
+  text is sent to your provider twice for that one request, which also means it
+  costs twice as much.
 
 ## What is stored
 
 Settings (default intensity, disabled sites, your writing voice sample, any
 custom tells you add, and your API key if you add one) are stored in Chrome's
-local extension storage on your device. Nothing is synced or uploaded. Removing the extension deletes it.
+local extension storage on your device.
+
+When you pick Humanize from the right-click menu, the selected text is written to
+that same local storage for a moment so the popup can pick it up. The popup
+deletes it as soon as it reads it. If the popup never opens, it expires after 60
+seconds and is deleted when the tab closes or Chrome restarts, whichever comes
+first. Nothing else about your text is kept: the rewrite itself lives only in the
+popup window and is gone when you close it.
+
+Nothing is synced or uploaded. Removing the extension deletes all of it.
 
 ## Permissions
 
-- Access to pages you visit is used to show the Humanize button near text you
-  select, to replace that text when you click Apply, and, when you click Scan
-  this page, to read the page's visible text on your device so the extension can
-  count AI tells and underline them. Scanning sends nothing anywhere and never
-  changes the page's text.
+- Access to pages you visit is used to read the text you select when you choose
+  Humanize from the right-click menu, and to replace that text when you click
+  Apply. The extension reads nothing else on the page.
 - The optional API-domain permission is requested only when you add an API key,
   and only for the domain you configure.
 

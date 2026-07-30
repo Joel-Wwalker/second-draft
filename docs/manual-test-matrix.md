@@ -5,50 +5,47 @@ rows where noted (Clear extension storage via service-worker console).
 
 | # | Scenario | Expected |
 | - | -------- | -------- |
-| 1 | Gmail compose: select a paragraph, chip, Apply | Text replaced in place; undo (Ctrl+Z) works |
+| 1 | Gmail compose: select a paragraph, right-click Humanize, Apply | Text replaced in place; undo (Ctrl+Z) works |
 | 2 | LinkedIn post editor: same | Same |
 | 3 | X (Twitter) reply box: same | Same |
-| 4 | Reddit new composer | Chip may not appear (shadow DOM, known); right-click Humanize works via Copy |
-| 5 | Google Docs | Chip does not appear (canvas). "Scan this page" reports that there is no readable text and points at the paste box, rather than reporting zero tells. Popup paste box round-trip works |
-| 6 | WordPress classic editor (iframe) | Chip does not appear (top-frame only, known); context menu on selection opens card with Copy |
-| 7 | Plain http:// page with a textarea | Chip works; no crash (randomUUID fallback) |
-| 8 | Reload the extension while a tab is open, then select + Humanize | Card shows "extension reloaded" error; after page reload everything works |
+| 4 | Reddit new composer (shadow DOM editor) | Right-click Humanize captures the text into the popup; if the editor's shadow root keeps the extension from writing back, Apply to page is unavailable and Copy is the fallback |
+| 5 | Google Docs | Right click Humanize gets the selected text into the popup, but Apply to page is unavailable (canvas editor). Copy the rewrite back manually |
+| 6 | WordPress classic editor (iframe) | Right-click Humanize still works (top-frame only, known): it captures the text into the popup using Chrome's own selection, but Apply to page is unavailable inside the iframe, Copy only. The keyboard shortcut cannot reach a selection inside the iframe at all |
+| 7 | Plain http:// page with a textarea | Right-click Humanize works the same as on https; no crash |
+| 8 | Reload the extension while a tab is open, then select text and right-click Humanize | The popup opens with the headline "Not running on that page" (the old content script in that tab can no longer be reached); after reloading the page, everything works again |
 | 9 | Options: Nano status reflects machine; download flow when `downloadable` | Progress percentage, then Ready |
 | 10 | No key + Nano ready: rewrite a selection | Engine label "On-device AI (Gemini Nano)"; no em dashes in output |
 | 11 | No key + Nano unavailable | Quick clean result labeled as such |
-| 12 | Anthropic key: save (permission prompt appears), rewrite | Engine label "Your API key (model)"; streaming visible on long text |
+| 12 | Anthropic key: save (permission prompt appears), rewrite | Engine label "Your API key (model)"; streaming visible in the popup on long text |
 | 13 | OpenAI-compatible with local Ollama base URL | Works without a permission prompt (localhost) |
-| 14 | Wrong API key | Card error "API key rejected (401)" |
-| 15 | Per-site disable via popup, revisit site | No chip; context menu also inert on that site; re-enable restores |
-| 16 | Voice sample set: rewrite | Output tone follows the sample (subjective check) |
-| 17 | Password / email / card-number fields | No chip ever |
-| 18 | Selection near the bottom of the window | Card stays fully on-screen |
-| 19 | Nano: selection over 8000 chars across 3+ paragraphs | Later chunks stay rewrites (no commentary or repetition of earlier chunks) |
-| 20 | BYOK: selection that streams for longer than 60 seconds | No false timeout while chunks keep arriving |
-| 21 | BYOK: selection over 30k chars | Clear too-long error, never a silently truncated result |
-| 22 | Right-click Humanize inside a card-number or OTP field | Nothing happens |
-| 23 | Nano downloadable, no API key | Quick clean result; options page offers the model download |
-| 24 | Non-Ollama local OpenAI-compatible server (LM Studio, llama.cpp) | Works after permission grant, or a clear endpoint error, never a hang |
-| 25 | Select text on a normal page, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Same as right-click Humanize: chip hides, card opens over the selection, rewrite streams in. The accelerator itself is manual-only: neither vitest nor Playwright can trigger a real `chrome.commands` shortcut, so this row is the only coverage past the receiving message handler |
-| 26 | Focus a password field, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Nothing happens: no chip, no card. Same sensitive-field guard as the context-menu path |
-| 27 | Popup: open a long-form article page, click "Scan this page" | Status reads like "N tells across M paragraphs."; matched text gets an amber underline (same color family as the alternatives chip, `#9a3412`); "Clear" appears. This is the one row automated tests cannot reach: jsdom has no CSS Custom Highlight API, so vitest covers counting, block selection, skip rules, and non-mutation only, never rendering. Independently verified in real Chrome (v150) via direct script injection on two live Wikipedia articles (181 and 21 qualifying paragraphs): `CSS.highlights` and `Highlight` are both present, real detected spans (em dashes) render as the intended amber underline, and `document.body.textContent` was confirmed byte-identical before/after both apply and clear in every run. Not yet verified: the packed extension's own content script and popup driving this end to end in a loaded-unpacked Chrome profile |
-| 28 | Popup: click "Clear" after a scan | Underlines disappear immediately; status line clears; page text unchanged (compare word-for-word against before the scan) |
-| 29 | Scan a page with nested structure: a rich-text editor (contenteditable) whose paragraphs are `<p>` tags inside the editable root, and an article with `<blockquote><p>...</p></blockquote>` quotes | No block is marked twice (the blockquote's own frame text and the quoted paragraph inside it should read as two separate blocks in the count, not one doubled or one dropped) |
-| 30 | Scan a page open in a tab with no content script (e.g. `chrome://extensions`, a PDF viewer, the Chrome Web Store) | Popup shows a clear "Could not scan this page" message, no hang, no console error dialog |
-| 31 | Scan a single-page-app style site (client-side routed, e.g. a modern JS framework app), then navigate within it without a full page reload, then scan again | Known gap: `PageScan.clear()` runs on `pagehide` (covers back/forward-cache restores) and on every fresh `run()` (which clears before re-scanning), but a route change via `pushState` alone fires neither, so a highlight from before the in-app navigation could stay visible until the next scan or an explicit Clear. Confirm this is a minor visual staleness only, never a text change |
-| 32 | Scan a very large page (a long Wikipedia article or similar, hundreds of paragraphs) | Completes without a noticeable freeze; popup does not appear to hang |
-| 33 | Apply a rewrite, then click Undo within ten seconds | Original text returns exactly; the card closes. Wait past ten seconds instead and the card dismisses itself |
-| 34 | Apply a rewrite, edit the field so the applied text no longer matches, then click Undo | Refuses with a clear message rather than writing over the edit |
-| 35 | Click "Try again" on a result | A fresh rewrite streams in for the same selection and intensity; the old result is replaced, not appended |
-| 36 | Settings: add a custom tell (try one with punctuation, such as "e.g.") and rewrite text containing it | The phrase is flagged and fed to the prompt; a phrase inside a longer word is not matched |
-| 37 | Settings: upload a real .docx exported from Word or Google Docs, then a .txt, then try a .pdf | Word count reported for the first two, PDF politely refused. This is the row automated tests cannot reach: the docx fixtures in the suite are hand-built archives, not real documents with their tables, tracked changes, and split runs |
-| 38 | Settings: paste or upload at least forty words, read the profile panel, then rewrite something long | Panel shows words, average sentence, variety, contractions, and commas per sentence. When a rewrite drifts far from those numbers the card shows a note under the status. Whether the rewrite actually sounds more like you is a judgment call, not a measurement |
-| 39 | Select a paragraph and read the chip before clicking | The chip shows a count badge of tells in that selection. Add a custom tell in settings, reselect, and confirm the badge and the card's own "AI tells: N to M" agree on the same text |
-| 40 | Rewrite something and read the card header | A ring fills as tells are cleared, the number in the middle is the tells remaining, and the headline reads All clear at zero, N tells left when some survive, or Looks human already when there were none to fix |
-| 41 | Expand "What changed" on a result | Every edit is listed as struck original to replacement with a reason label. Counts match the status line. Pure insertions read as (added) and deletions as (removed) |
-| 42 | Click a highlighted word in the result, pick an alternative, then Apply | The swapped word appears in the card immediately and is what lands in the field. Then click Undo and confirm the pristine original returns, not the swapped text |
-| 43 | Open the popup and the options page in OS light mode, then dark mode | Both follow the system theme. The in-page card stays light on any site by design. Text stays legible in both, indigo accent intact |
-| 44 | Click Settings in the popup | Options page opens. Confirm this is reachable without going through chrome://extensions |
-| 45 | Scan a page, close the popup, reopen it, click Clear | Clear is available on reopen and removes the underlines. Highlights are never stranded with no way to remove them |
-| 46 | Rewrite something long enough to take a few seconds, on the card and in the popup | While waiting: the score ring spins, the status animates as Rewriting with cycling dots, and once text starts arriving a caret blinks at its end. The popup button reads Working. All of it stops the moment a result or an error lands. With the OS set to reduce motion, nothing animates and the status simply reads Rewriting... |
-| 47 | Rewrite a paragraph containing numbers, a name, and a quotation, on each engine | If any of them are missing from the rewrite, an amber panel names them and Apply requires a second click reading Apply anyway. A faithful rewrite shows no panel and applies on one click |
+| 14 | Wrong API key | Popup shows "API key rejected (401)" |
+| 15 | Disable the current site with the popup's toggle, then right-click a selection and choose Humanize | Nothing is captured: the popup opens with the headline "Not running on that page" and the text box stays empty. Re-enable the toggle and right-click again: the selection is captured and the rewrite runs normally |
+| 16 | With a site disabled, select real text there, right-click Humanize, and check the service worker's network activity | No text is captured and no fetch request to any provider fires. This is the path a recent bug was found on, so confirm it with the network tab, not just by the popup looking empty |
+| 17 | Voice sample set: rewrite | Output tone follows the sample (subjective check) |
+| 18 | Rewrite a selection long enough that the result and the "What changed" log both run long | Both scroll inside their own box in the popup instead of growing the window off-screen |
+| 19 | Nano: a selection over 4,000 characters across 3+ paragraphs | Later chunks stay rewrites (no commentary or repetition of earlier chunks) |
+| 20 | BYOK: a rewrite that streams for longer than 60 seconds without a gap | No false timeout in the popup while chunks keep arriving, since each chunk resets the idle timer; only genuine 60 seconds of silence ends it with "Nothing came back for a minute. Try again, or try a shorter piece of text." Closing the popup mid-rewrite instead cancels it outright. A lossy rewrite's second pass must not trip the timer either, even though that pass is not shown as it arrives |
+| 21 | BYOK: a selection over 50,000 characters | Clear too-long error, never a silently truncated result |
+| 22 | Right-click Humanize inside a password, card-number, or one-time-code field | The popup opens with the headline "Nothing captured", explaining that Second Draft does not read password, payment, or one-time-code fields. The field's contents are never read, checked before any text is pulled, regardless of whether anything was selected |
+| 23 | Focus a real credit-card number field, select the digits, right-click Humanize, and check the service worker's network activity | No text is captured and no fetch request to any provider ever fires. Same guard as the disabled-site case, confirmed with the network tab rather than just the popup's appearance |
+| 24 | Nano downloadable, no API key | Quick clean result; options page offers the model download |
+| 25 | Non-Ollama local OpenAI-compatible server (LM Studio, llama.cpp) | Works after permission grant, or a clear endpoint error, never a hang |
+| 26 | Select text on a normal page, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Same as right-click Humanize: the popup opens with the text already in the box and the rewrite already running. The shortcut itself is manual-only: neither vitest nor Playwright can trigger a real `chrome.commands` shortcut, so this row is the only coverage past the receiving message handler |
+| 27 | Focus a password field, press Ctrl+Shift+H (MacCtrl+Shift+H on mac) | Nothing is captured: the popup opens with the same "Nothing captured" headline as the right-click path, and the toolbar icon shows no badge (a refusal is never badged). Focus alone blocks capture, regardless of any text selected elsewhere on the page |
+| 28 | Apply a rewrite, then click Undo | Original text returns exactly on the page. Undo has no time limit; closing the popup and reopening it starts fresh instead of still showing Undo for a previous rewrite |
+| 29 | Apply a rewrite, edit the field so the applied text no longer matches, then click Undo | Refuses with a clear message rather than writing over the edit |
+| 30 | Click "Try again" on a result | A fresh rewrite streams into the popup for the same selection and intensity; the old result is cleared first, not appended to |
+| 31 | Settings: add a custom tell (try one with punctuation, such as "e.g.") and rewrite text containing it | The phrase is flagged and fed to the prompt; a phrase inside a longer word is not matched |
+| 32 | Settings: upload a real .docx exported from Word or Google Docs, then a .txt, then try a .pdf | Word count reported for the first two, PDF politely refused. This is the row automated tests cannot reach: the docx fixtures in the suite are hand-built archives, not real documents with their tables, tracked changes, and split runs |
+| 33 | Settings: paste or upload at least forty words, read the profile panel, then rewrite something long | Panel shows words, average sentence, variety, contractions, and commas per sentence. When a rewrite drifts far from those numbers the popup shows a note under the status. Whether the rewrite actually sounds more like you is a judgment call, not a measurement |
+| 34 | Rewrite something and read the popup's header | A ring fills as tells are cleared, the number in the middle is the tells remaining, and the headline reads All clear at zero, N tells left when some survive, or Looks human already when there were none to fix |
+| 35 | Expand "What changed" on a result | Every edit is listed as struck original to replacement with a reason label. Counts match the status line. Pure insertions read as (added) and deletions as (removed) |
+| 36 | Click a highlighted word in the result, pick an alternative, then Apply | The swapped word appears in the popup immediately and is what lands in the field. Then click Undo and confirm the pristine original returns, not the swapped text |
+| 37 | Open the popup and the options page in OS light mode, then dark mode | Both follow the system theme. Text stays legible in both, indigo accent intact |
+| 38 | Click Settings in the popup | Options page opens. Confirm this is reachable without going through chrome://extensions |
+| 39 | Rewrite something long enough to take a few seconds | While waiting: the score ring spins, the status animates as Rewriting with cycling dots, and the popup button reads Working. All of it stops the moment a result or an error lands. With the OS set to reduce motion, nothing animates and the status simply reads Rewriting... |
+| 40 | Rewrite a paragraph containing numbers, a name, and a quotation, on each engine | If anything is still missing after the engine's own silent retry, an amber panel names it, but Apply to page still takes one click either way. There is no second confirm click any more: that was removed when the retry became automatic |
+| 41 | Select text on a page, right click, choose Humanize | The popup opens with the text already in the box and the rewrite already running, no extra clicks |
+| 42 | Same, then click Apply to page | The page text is replaced in place. Undo appears and puts the original back |
+| 43 | Right click Humanize where the popup cannot open itself (some Chrome builds block it) | A badge appears on the toolbar icon; clicking the icon opens the popup with the text waiting and running |
+| 44 | Rewrite text containing numbers and a name on the on-device model, several times | If a pass drops a fact the engine silently retries once and usually recovers it. If both passes lose something, the amber panel names what is missing |

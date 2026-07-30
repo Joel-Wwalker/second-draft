@@ -2,6 +2,7 @@ import type { HumanizeOptions, HumanizeResult, Provider } from '../shared/types'
 import { HumanizerError } from '../shared/types';
 import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
+import type { FidelityIssue } from '../shared/fidelity';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -34,6 +35,7 @@ export async function humanize(
       engine: { kind: 'rules' },
       tells: { before: tells.length, after: detect(rewritten, extraRules).length },
       fidelity: checkFidelity(text, rewritten),
+      retried: false,
     };
   }
 
@@ -44,30 +46,66 @@ export async function humanize(
     target: provider.info.kind === 'nano' ? 'nano' : 'byok',
   });
 
-  let raw: string;
-  try {
-    raw = await provider.rewrite({
-      text,
-      systemPrompt,
-      signal: opts.signal,
-      onChunk: opts.onChunk,
-    });
-  } catch (err) {
-    throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
+  const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
+    let raw: string;
+    try {
+      raw = await provider.rewrite({ text, systemPrompt: prompt, signal: opts.signal, onChunk });
+    } catch (err) {
+      throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
+    }
+    throwIfAborted(opts.signal);
+    const rewritten = applyFixes(stripWrapping(raw, text));
+    if (text.trim() && !rewritten.trim()) {
+      throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
+    }
+    return { rewritten, fidelity: checkFidelity(text, rewritten) };
+  };
+
+  let best = await attempt(systemPrompt, opts.onChunk);
+  let retried = false;
+
+  // A rewrite that dropped facts gets one silent second pass, told exactly what
+  // it lost. One retry only: the on-device model is slow enough that a third
+  // attempt costs more waiting than it tends to buy.
+  if (best.fidelity.length > 0) {
+    throwIfAborted(opts.signal);
+    const lost = best.fidelity.map(issue => issue.message).join(' ');
+    try {
+      // The second pass is not shown as it arrives, because a display that jumped
+      // back to a half-finished rewrite would read as starting over. It still has
+      // to be audible: a caller timing out on silence would otherwise cancel a
+      // rewrite that has already succeeded. Each chunk re-sends the text we would
+      // keep if this pass came to nothing, so the view holds still and stays live.
+      const keepAlive = opts.onChunk;
+      const second = await attempt(
+        `${systemPrompt}
+
+A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
+        keepAlive && (() => keepAlive(best.rewritten)),
+      );
+      retried = true;
+      if (second.fidelity.length < best.fidelity.length) best = second;
+    } catch (err) {
+      // A retry that fails must not be worse than no retry. The first rewrite
+      // is finished and usable; keep it, and let the caller show what is
+      // missing from it. An abort is the exception, since the caller asked.
+      if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
+    }
   }
 
-  throwIfAborted(opts.signal);
-  const rewritten = applyFixes(stripWrapping(raw, text));
-  if (text.trim() && !rewritten.trim()) {
-    throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
-  }
   return {
-    rewritten,
-    changes: diffChanges(text, rewritten, tells),
+    rewritten: best.rewritten,
+    changes: diffChanges(text, best.rewritten, tells),
     engine: provider.info,
-    tells: { before: tells.length, after: detect(rewritten, extraRules).length },
-    fidelity: checkFidelity(text, rewritten),
+    tells: { before: tells.length, after: detect(best.rewritten, extraRules).length },
+    fidelity: best.fidelity,
+    retried,
   };
+}
+
+interface Attempt {
+  rewritten: string;
+  fidelity: FidelityIssue[];
 }
 
 /** Models wrap output despite instructions; peel fences, preambles, and quotes the original did not have. */

@@ -12,7 +12,7 @@ export interface Settings {
   defaultIntensity: Intensity;
   /** Dev/e2e switch: route rewrites through FakeProvider. */
   useFakeProvider: boolean;
-  /** Hosts where the selection chip must not appear (e.g. "mail.google.com"). */
+  /** Hosts where nothing is captured at all (e.g. "mail.google.com"). */
   disabledSites: string[];
   /** Writing sample used for voice matching; empty means none. */
   voiceSample: string;

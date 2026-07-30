@@ -9,7 +9,7 @@
 
 export interface FidelityIssue {
   kind: 'missing-facts' | 'shorter' | 'fewer-paragraphs' | 'quote-changed';
-  /** One short sentence for the card, already user facing. */
+  /** One short sentence, already user facing. */
   message: string;
 }
 

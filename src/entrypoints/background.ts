@@ -10,6 +10,7 @@ import { HumanizerError } from '../shared/types';
 import type { Intensity, Provider } from '../shared/types';
 import { HUMANIZE_PORT, isCancelRequest, isHumanizeRequest } from '../shared/messages';
 import type { HumanizeResponse, PortServerMessage } from '../shared/messages';
+import { discardPending, discardPendingForTab, handOff } from '../background/handoff';
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -24,30 +25,26 @@ export default defineBackground(() => {
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== 'humanize-selection' || tab?.id === undefined) return;
-    sendContextHumanize(tab.id, info.selectionText ?? '');
+    void handOff(tab.id, info.selectionText ?? '');
   });
 
-  // Keyboard shortcut (default Ctrl+Shift+H / MacCtrl+Shift+H, see wxt.config.ts). Chrome
-  // hands back the tab that was focused when the accelerator fired directly, same as the
-  // context-menu callback above. No selection text is available here, so the message is sent
-  // empty and the content script falls back to reading the live selection itself -- the same
-  // path the context menu already relies on, guard included.
+  // Keyboard shortcut (default Ctrl+Shift+H, see wxt.config.ts). Chrome gives no
+  // selection text here, so the content script reads the live selection itself.
   chrome.commands.onCommand.addListener((command, tab) => {
     if (command !== 'humanize-selection' || tab?.id === undefined) return;
-    sendContextHumanize(tab.id, '');
+    void handOff(tab.id, '');
   });
 
-  // One-shot path (popup).
-  chrome.runtime.onMessage.addListener(
-    (msg: unknown, sender, sendResponse: (res: HumanizeResponse) => void) => {
-      if (sender.id !== chrome.runtime.id) return;
-      if (!isHumanizeRequest(msg)) return;
-      void runHumanize(msg.text, msg.intensity).then(sendResponse).catch(() => {});
-      return true; // async response
-    },
-  );
+  // Parked text belongs to one moment and one tab. Drop it when either is gone,
+  // so it cannot turn up in a popup the user opened for something else.
+  chrome.tabs.onRemoved.addListener(tabId => {
+    void discardPendingForTab(tabId);
+  });
+  chrome.runtime.onStartup.addListener(() => {
+    void discardPending();
+  });
 
-  // Streaming path (content-script card).
+  // Streaming path (popup).
   chrome.runtime.onConnect.addListener(port => {
     if (port.sender?.id !== chrome.runtime.id || port.name !== HUMANIZE_PORT) return;
     const running = new Map<string, AbortController>();
@@ -76,14 +73,6 @@ export default defineBackground(() => {
     });
   });
 });
-
-/** Shared by the context menu and the keyboard shortcut: both just tell the active tab's
- *  content script to humanize a selection, which reads the live selection itself. */
-function sendContextHumanize(tabId: number, selectionText: string): void {
-  void chrome.tabs.sendMessage(tabId, { type: 'context-humanize', selectionText }).catch(() => {
-    // No content script in this tab (chrome:// page etc.); nothing to do.
-  });
-}
 
 function post(port: chrome.runtime.Port, msg: PortServerMessage): void {
   try {
