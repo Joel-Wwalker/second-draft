@@ -4,6 +4,7 @@ import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
+import { dictionInstruction, isOverwrought, measureDiction } from '../shared/diction';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -85,7 +86,7 @@ export async function humanize(
     }
     const styleNow = styleNotes(best.rewritten);
     if (best.flat && styleNow) {
-      notes.push(`A previous attempt came back with sentences that all ran the same length. ${styleNow}`);
+      notes.push(`A previous attempt still read machine-made. ${styleNow}`);
     }
     const corrections = notes.join('\n\n');
     try {
@@ -139,8 +140,27 @@ export async function humanize(
  */
 function styleNotes(text: string): string {
   const cadence = measureCadence(text);
-  if (!cadence || !isFlat(cadence)) return '';
-  return cadenceInstruction(cadence);
+  const diction = measureDiction(text);
+  const flat = cadence !== null && isFlat(cadence);
+  const heavy = diction !== null && isOverwrought(diction);
+  if (!flat && !heavy) return '';
+
+  const notes: string[] = [];
+  if (flat) notes.push(cadenceInstruction(cadence));
+  if (heavy) notes.push(dictionInstruction(diction));
+
+  // Name what is already good, or the model trades it away. Told only to vary
+  // sentence openings once, Nano did that and flattened lengths that had been
+  // fine, taking the spread from 0.30 to 0.16.
+  if (!flat && cadence) {
+    notes.push(
+      `The sentence lengths here already vary: ${cadence.lengths.join(', ')} words. Keep a spread like that while changing anything else.`,
+    );
+  }
+  if (!heavy && diction) {
+    notes.push('The word choice here is already plain. Keep it plain while changing anything else.');
+  }
+  return notes.join(' ');
 }
 
 /**

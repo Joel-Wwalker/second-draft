@@ -281,7 +281,7 @@ function setIntensity(next: Intensity, remember: boolean): void {
 function retryNote(result: HumanizeResult): string {
   if (!result.retried) return '';
   return result.fidelity.length === 0
-    ? ' Rewrote it twice to keep your facts.'
+    ? ' Rewrote it twice to get it right.'
     : ' Rewrote it twice; what is still missing is below.';
 }
 

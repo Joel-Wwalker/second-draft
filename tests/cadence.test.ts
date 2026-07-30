@@ -66,3 +66,15 @@ test('a text with no long sentence is told to join two, not only to split one', 
   const cadence = measureCadence(allShort);
   if (cadence) expect(cadenceInstruction(cadence)).toMatch(/join two/i);
 });
+
+test('a heading does not count into the sentence after it', () => {
+  // Found on a real four-section essay: "Ancient Egypt" merged into the opener
+  // and measured as one longer sentence, because a heading has no full stop.
+  const body =
+    'The empire controlled the whole coast for two hundred years. Trade made it rich. ' +
+    'Its fleets carried grain, wine, and silver between three continents every season of the year. ' +
+    'Nothing about that lasted. The capital fell within a generation of the first defeat. ' +
+    'Historians still argue about why, and every explanation says more about the historian than the fall.';
+  const withHeading = 'The Rise And Fall\n\n' + body;
+  expect(measureCadence(withHeading)!.lengths).toEqual(measureCadence(body)!.lengths);
+});

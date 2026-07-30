@@ -1,3 +1,5 @@
+import { proseOnly } from './prose';
+
 /**
  * Sentence rhythm, which is the tell the rules layer never looked at.
  *
@@ -66,7 +68,7 @@ function wordsIn(part: string): number {
 
 /** Null when the text is too short to say anything honest about its rhythm. */
 export function measureCadence(text: string): Cadence | null {
-  const lengths = text
+  const lengths = proseOnly(text)
     .split(/[.!?]+(?=\s|$)/)
     .map(wordsIn)
     .filter(count => count > 0);

@@ -21,7 +21,8 @@ export interface WritingProfile {
 export const MIN_PROFILE_WORDS = 40;
 /** Below this a rewrite is too short to compare fairly. */
 export const MIN_COMPARE_WORDS = 15;
-const LONG_WORD_LETTERS = 8;
+/** A word this long or longer counts as heavy. Shared with diction.ts. */
+export const LONG_WORD_LETTERS = 8;
 const SENTENCE_DRIFT_WORDS = 4;
 const CONTRACTION_DRIFT = 0.15;
 

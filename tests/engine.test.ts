@@ -363,7 +363,7 @@ test('an evenly paced rewrite is retried, and the second pass is told the number
   // rhythm. Only the rewrite that came back flat is.
   expect(prompts[0]).not.toContain('steady length is the strongest sign');
   // The retry got measurements, not the adjective the first pass already ignored.
-  expect(prompts[1]).toContain('came back with sentences');
+  expect(prompts[1]).toContain('still read machine-made');
   expect(prompts[1]).toMatch(/run \d+, \d+/);
   // And the varied pass is the one kept.
   expect(res.rewritten).toContain('Homer knew that');
@@ -449,3 +449,32 @@ test('a source that already varies gets no rhythm lecture', async () => {
   expect(prompts[0]).not.toContain('steady length is the strongest sign');
 });
 
+
+test('heavy vocabulary reaches the prompt even when the pacing is fine', async () => {
+  // Nearly every word here runs long, while the sentence lengths swing from four
+  // words to twenty-four, so only the vocabulary signal can fire. The prompt gets
+  // the measured share and examples, not an adjective.
+  const heavyVaried =
+    'Administrators prioritized comprehensive documentation everywhere. Nevertheless, operational ' +
+    'personnel repeatedly circumvented established bureaucratic procedures, generating considerable ' +
+    'organizational friction throughout successive reorganizations and undermining institutional ' +
+    'accountability across departmental hierarchies during subsequent evaluations. Leadership ' +
+    'commissioned independent assessments. Their conclusions emphasized measurable transparency, ' +
+    'sustainable implementation frameworks, and considerable administrative simplification, ' +
+    'notwithstanding persistent budgetary constraints and complicated regulatory obligations. ' +
+    'Meanwhile, subordinate coordinators documented significant procedural irregularities repeatedly.';
+  const prompts: string[] = [];
+  const provider = {
+    info: { kind: 'fake' as const, model: 'latinate' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return VARIED;
+    },
+  };
+  await humanize(heavyVaried, { intensity: 'full' }, { providers: [provider] });
+  expect(prompts[0]).toContain('words in every 100');
+  expect(prompts[0]).toContain('nearer 19');
+  // Not a pacing lecture: the pacing here is fine.
+  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+});

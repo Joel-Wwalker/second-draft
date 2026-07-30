@@ -21,6 +21,11 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Vocabulary weight is measured. The share of words running to eight letters or
+  more has a human median of 0.19 and a machine median of 0.34 across the same
+  corpora; above 0.30 the prompt names the heavy words and asks for plain ones,
+  and names, places, and technical terms are excluded from the examples
+- Headings no longer count into the sentence after them when rhythm is measured
 - Sentence shape is measured too. Fixing length alone produced varied lengths
   where every sentence still opened with its subject, seven in a row, because a
   model gives you exactly what you measure. The engine now counts how many

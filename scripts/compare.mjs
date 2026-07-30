@@ -22,7 +22,21 @@ const RULES = [
 // version was backwards: 39.6% of human paragraphs against 3.3% of machine ones.
 // Sentence length spread was the only style signal that separated the two.
 
-function measure(text) {
+// Same heading rule as src/shared/prose.ts, copied because this script cannot
+// import TypeScript.
+function proseOnly(text) {
+  return text
+    .split(/\n+/)
+    .filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      return /[.!?]/.test(trimmed) || trimmed.split(/\s+/).length > 8;
+    })
+    .join('\n');
+}
+
+function measure(raw) {
+  const text = proseOnly(raw);
   const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
   const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length).filter(n => n > 0);
   const words = lengths.reduce((a, b) => a + b, 0);
@@ -31,6 +45,8 @@ function measure(text) {
 
 
   const tells = RULES.map(([name, re]) => [name, (text.match(re) ?? []).length]).filter(([, n]) => n > 0);
+  const toks = text.split(/\s+/).map(t => t.replace(/[^A-Za-z’']/g, '')).filter(Boolean);
+  const longRate = toks.filter(w => w.length >= 8).length / (toks.length || 1);
 
   return {
     words,
@@ -39,6 +55,7 @@ function measure(text) {
     spread: stdev / (mean || 1),
     shortest: Math.min(...lengths),
     longest: Math.max(...lengths),
+    longRate,
     tells,
   };
 }
@@ -53,8 +70,8 @@ const width = Math.max(12, ...rows.map(([name]) => name.length));
 const cell = v => String(v).padStart(9);
 
 console.log('');
-console.log('label'.padEnd(width), cell('words'), cell('sents'), cell('mean'), cell('spread'), cell('short'), cell('long'));
-console.log('-'.repeat(width + 9 * 6 + 6));
+console.log('label'.padEnd(width), cell('words'), cell('sents'), cell('mean'), cell('spread'), cell('short'), cell('long'), cell('long%'));
+console.log('-'.repeat(width + 9 * 7 + 7));
 for (const [name, m] of rows) {
   console.log(
     name.padEnd(width),
@@ -64,17 +81,20 @@ for (const [name, m] of rows) {
     cell(m.spread.toFixed(2)),
     cell(m.shortest),
     cell(m.longest),
+    cell((m.longRate * 100).toFixed(1)),
   );
 }
 
 console.log('');
 for (const [name, m] of rows) {
   const problems = [];
-  // Same thresholds as src/shared/cadence.ts and src/shared/structure.ts.
+  // Same thresholds as src/shared/cadence.ts and src/shared/diction.ts.
   if (m.sentences >= 3 && m.words >= 55 && m.spread < 0.22) problems.push(`flat pacing (spread ${m.spread.toFixed(2)}, wants 0.22+)`);
+  if (m.words >= 55 && m.longRate > 0.30) problems.push(`heavy vocabulary (${(m.longRate * 100).toFixed(1)}% long words, human median is 19%)`);
   for (const [tell, n] of m.tells) problems.push(`${tell} x${n}`);
   console.log(`${name}: ${problems.length ? problems.join('; ') : 'clean on every signal measured'}`);
 }
 console.log('');
 console.log('spread is stdev/mean of sentence length. Under 0.22 reads as one length repeated.');
-console.log('For scale: 1000 human-written paragraphs run a median spread of 0.41; 60 machine-written ones, 0.16.');
+console.log('For scale, across 1000 human-written paragraphs against 60 machine-written ones:');
+console.log('  spread median 0.41 human, 0.16 machine; long-word rate median 0.19 human, 0.34 machine.');
