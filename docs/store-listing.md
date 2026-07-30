@@ -1,4 +1,10 @@
-# Chrome Web Store listing draft (owner approval required before submission)
+# Chrome Web Store submission worksheet
+
+Everything the store form asks for, ready to paste. Free listing, public.
+
+Upload `.output/second-draft-1.3.0-chrome.zip`, which `npm run zip` writes.
+Check the filename: old builds accumulate in `.output/` and uploading the wrong
+one is easy.
 
 ## Name
 
@@ -45,7 +51,51 @@ defeat AI detectors.
 
 ## Category
 
-Productivity / Writing
+Writing tools, under whichever top-level category the dashboard offers for it.
+Google reorganized the categories, so pick from the live list rather than trusting
+a name here.
+
+## Single purpose
+
+The form asks for one purpose and rejects listings whose features wander from it.
+
+> Second Draft rewrites text the user selects so it reads less like AI-generated
+> writing. Every feature serves that one purpose: the right-click entry and the
+> keyboard shortcut capture the selection, the popup shows the rewrite along with
+> what changed and why, and Apply writes the result back into the field the text
+> came from.
+
+## Remote code
+
+**No.** The extension executes no remotely hosted code. Everything runs from the
+package. When the user configures their own API key, the extension sends text to
+that endpoint and receives text back; that is data, not code.
+
+## Data usage
+
+Check **Website content**, and nothing else. The selected text is website content,
+and on the optional API-key path it does leave the device.
+
+Leave unchecked: personally identifiable information, health, financial and
+payment information, authentication information, personal communications,
+location, web history, and user activity. The API key is authentication
+information but never leaves local storage except as a header to the endpoint the
+user typed in, so it is not collected.
+
+Justification to paste:
+
+> Rewrites run on the user's device by default, using Chrome's built-in model, and
+> nothing is transmitted. If the user chooses to add their own API key, the text
+> they asked to rewrite is sent from their browser directly to the provider they
+> configured, and to nobody else. The developer operates no servers and receives
+> no data of any kind. There is no analytics, telemetry, or account system.
+
+Then certify all three statements: no selling or transferring data to third
+parties beyond approved use cases, no use unrelated to the single purpose, and no
+use for creditworthiness or lending.
+
+Under-disclosing here is what gets extensions removed later. Over-disclosing
+costs nothing.
 
 ## Permission justifications (for the review form)
 
@@ -72,15 +122,52 @@ Productivity / Writing
   OpenAI-compatible endpoint; a specific origin is requested only when the
   user saves a key, never at install.
 
-## Assets still needed from the owner
+## Graphic assets
 
-- Screenshots (1280x800). `npm run screenshots` renders them to
-  `docs/screenshots/`. **Retake them before uploading:** the committed copies were
-  rendered with the deterministic test engine, so the engine caption reads "Test
-  engine" rather than "On-device AI (Gemini Nano)". With the on-device model
-  installed, run `SD_REAL_ENGINE=1 npm run screenshots` and upload
-  `hero.png`, `hero-changes.png`, and a 1280x800 crop of `options.png`.
-- Icon approval. `npm run icons` draws it; `docs/screenshots/icon-512.png` is the
-  store size.
-- Developer account ($5 one-time).
-- Privacy policy URL (live): https://joel-wwalker.github.io/second-draft/privacy-policy
+- **Store icon**, 128x128: `public/icons/128.png`. A 512 is at
+  `docs/screenshots/icon-512.png` if the dashboard asks for a larger one.
+- **Screenshots**, 1280x800, at least one and up to five.
+  `docs/screenshots/hero.png` and `hero-changes.png` are that size already.
+
+  **Retake them before uploading.** The committed copies were rendered with the
+  deterministic test engine, so the engine caption reads "Test engine (fake-echo)",
+  which is not what a user sees. With the on-device model installed, run
+  `SD_REAL_ENGINE=1 npm run screenshots` and the caption reads "On-device AI
+  (Gemini Nano)" instead.
+- Promo tiles are optional. Skip them.
+
+## Privacy policy URL
+
+https://joel-wwalker.github.io/second-draft/privacy-policy
+
+Live and rendering as HTML.
+
+## Order of operations
+
+1. Register at the developer dashboard and pay the one-time 5 USD fee. Expect a
+   prompt to turn on 2-step verification and to verify a contact email; the
+   account cannot publish without both.
+2. Install the on-device model: load `.output/chrome-mv3` unpacked, open the
+   options page, download the model. Then rewrite one paragraph. This is the
+   smallest possible check that the thing works before strangers see it, and it is
+   also what makes the screenshots say the right engine.
+3. `SD_REAL_ENGINE=1 npm run screenshots`.
+4. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
+5. Fill the listing from the sections above, set visibility to Public and
+   distribution to all regions, and submit.
+
+Review usually takes a few days. A content script matching `<all_urls>` draws more
+scrutiny than a narrow one, so expect the permission justification above to be
+read closely.
+
+## If the listing is rejected
+
+The two likely reasons, and the answers:
+
+- **Broad host access.** The content script needs `<all_urls>` because the user
+  chooses where to rewrite text; the extension cannot know the site in advance. It
+  reads only the current selection, only when asked, and never password, payment,
+  or one-time-code fields. Point at `src/content/session.ts` and
+  `src/content/selection.ts`.
+- **Single purpose.** Everything in the popup exists to show or adjust one
+  rewrite. Nothing collects, syncs, or reports.
