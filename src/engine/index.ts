@@ -138,7 +138,7 @@ export async function humanize(
  *
  * Sentence length spread separates the two cleanly. Nothing else tested did.
  */
-function styleNotes(text: string): string {
+export function styleNotes(text: string): string {
   const cadence = measureCadence(text);
   const diction = measureDiction(text);
   const flat = cadence !== null && isFlat(cadence);
