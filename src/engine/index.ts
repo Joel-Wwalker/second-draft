@@ -1,12 +1,12 @@
-import type { HumanizeOptions, HumanizeResult, Provider } from '../shared/types';
+import type { DetectedTell, HumanizeOptions, HumanizeResult, Provider } from '../shared/types';
 import { HumanizerError } from '../shared/types';
 import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
-import { dictionInstruction, isOverwrought, measureDiction } from '../shared/diction';
+import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } from '../shared/diction';
 import { applyFixes, customRules, detect } from './rules';
-import { buildSystemPrompt } from './prompts';
+import { buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
 
@@ -51,8 +51,6 @@ export async function humanize(
     cadence: styleNotes(text) || undefined,
   });
 
-  const stillFlat = (rewritten: string): boolean => styleNotes(rewritten).length > 0;
-
   const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
     let raw: string;
     try {
@@ -65,17 +63,28 @@ export async function humanize(
     if (text.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
-    return { rewritten, fidelity: checkFidelity(text, rewritten), flat: stillFlat(rewritten) };
+    return {
+      rewritten,
+      fidelity: checkFidelity(text, rewritten),
+      style: styleNotes(rewritten),
+      drift: vocabularyDrift(text, rewritten),
+      remaining: detect(rewritten, extraRules),
+    };
   };
 
   let best = await attempt(systemPrompt, opts.onChunk);
   let retried = false;
 
-  // One silent second pass, told exactly what went wrong, for either of the two
-  // things the first pass was asked to get right and did not: content it dropped,
-  // or a rhythm it flattened. One retry only, because the on-device model is slow
-  // enough that a third attempt costs more waiting than it tends to buy.
-  if (best.fidelity.length > 0 || best.flat) {
+  // One silent second pass, told exactly what went wrong. Four triggers, each a
+  // thing the first pass was asked to get right and did not: content it dropped,
+  // a rhythm it flattened, vocabulary it made heavier, or detected tells it left
+  // standing without fixing a single one. The last trigger is the Roman Empire
+  // case: two rule-of-three lists in, the same two out, and a score of three to
+  // three shown to the user while our one retry went unused on them. One retry
+  // only, because the on-device model is slow enough that a third attempt costs
+  // more waiting than it tends to buy.
+  const noTellProgress = best.remaining.length >= tells.length && best.remaining.length > 0;
+  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress) {
     throwIfAborted(opts.signal);
     const notes: string[] = [];
     if (best.fidelity.length > 0) {
@@ -84,9 +93,14 @@ export async function humanize(
         `A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
       );
     }
-    const styleNow = styleNotes(best.rewritten);
-    if (best.flat && styleNow) {
-      notes.push(`A previous attempt still read machine-made. ${styleNow}`);
+    if (best.style) {
+      notes.push(`A previous attempt still read machine-made. ${best.style}`);
+    }
+    if (best.drift) {
+      notes.push(best.drift);
+    }
+    if (best.remaining.length > 0) {
+      notes.push(`Your rewrite still contains: ${describeTells(best.remaining)}. Fix these this time.`);
     }
     const corrections = notes.join('\n\n');
     try {
@@ -115,10 +129,11 @@ export async function humanize(
     changes: diffChanges(text, best.rewritten, tells),
     engine: provider.info,
     tells: {
-      // Flat rhythm counts as a tell. Leaving it out is why an evenly paced
-      // rewrite used to score well and still read like a machine wrote it.
+      // Flat rhythm and heavier-than-input vocabulary count as tells. Leaving
+      // style out is why an evenly paced rewrite used to score well and still
+      // read like a machine wrote it.
       before: tells.length + (styleNotes(text) ? 1 : 0),
-      after: detect(best.rewritten, extraRules).length + (best.flat ? 1 : 0),
+      after: best.remaining.length + (best.style ? 1 : 0) + (best.drift ? 1 : 0),
     },
     fidelity: best.fidelity,
     retried,
@@ -164,22 +179,28 @@ export function styleNotes(text: string): string {
 }
 
 /**
- * Losing content is worse than keeping a flat rhythm, so fidelity decides first
- * and rhythm only breaks a tie. A second pass that fixes the pacing but drops a
- * date is not an improvement.
+ * Losing content is worse than any style problem, so fidelity decides first.
+ * Then fewer style problems, then fewer surviving tells. A second pass that
+ * fixes the pacing but drops a date is not an improvement.
  */
 function isBetter(candidate: Attempt, incumbent: Attempt): boolean {
   if (candidate.fidelity.length !== incumbent.fidelity.length) {
     return candidate.fidelity.length < incumbent.fidelity.length;
   }
-  return !candidate.flat && incumbent.flat;
+  const problems = (a: Attempt): number => (a.style ? 1 : 0) + (a.drift ? 1 : 0);
+  if (problems(candidate) !== problems(incumbent)) return problems(candidate) < problems(incumbent);
+  return candidate.remaining.length < incumbent.remaining.length;
 }
 
 interface Attempt {
   rewritten: string;
   fidelity: FidelityIssue[];
-  /** The rewrite came back with one sentence length repeated. */
-  flat: boolean;
+  /** styleNotes for this rewrite; empty means pacing and weight are fine. */
+  style: string;
+  /** vocabularyDrift against the input; empty means no heavier than it arrived. */
+  drift: string;
+  /** Detected tells still present in the rewrite. */
+  remaining: DetectedTell[];
 }
 
 const DOUBLE_QUOTE = /["“”]/;

@@ -81,6 +81,51 @@ export function isOverwrought(diction: Diction): boolean {
   return diction.rate > MAX_LONG_WORD_RATE;
 }
 
+/**
+ * A rewrite may not raise its long-word share past this much above its own
+ * input. Relative to the input rather than to a corpus, because whatever
+ * register the user wrote in, a rewrite has no business raising it. At typical
+ * paragraph lengths this is roughly two extra heavy words per seventy.
+ *
+ * The limit of this check, recorded from the Roman Empire sample: a rewrite
+ * that upgraded five words (built to constructed, parts to portions) while
+ * shedding heavy words elsewhere moved the rate from 0.194 to 0.177 and slid
+ * under it. Sideways churn is the prompt's job and the surviving-tells retry's
+ * job; this catches only the net-heavier case.
+ */
+export const MAX_ADDED_LONG_RATE = 0.03;
+
+/** Long words the rewrite introduced that its source did not have. */
+export function addedHeavyWords(original: string, rewritten: string): string[] {
+  const had = new Set(
+    tokens(proseOnly(original))
+      .map(letters)
+      .filter(word => word.length >= LONG_WORD_LETTERS)
+      .map(word => word.toLowerCase()),
+  );
+  const added: string[] = [];
+  for (const token of tokens(proseOnly(rewritten))) {
+    const word = letters(token);
+    if (word.length < LONG_WORD_LETTERS) continue;
+    if (/^[A-Z]/.test(word)) continue; // a name is a fact, not a word choice
+    const plain = word.toLowerCase();
+    if (had.has(plain) || added.includes(plain)) continue;
+    added.push(plain);
+  }
+  return added;
+}
+
+/** Empty when the rewrite kept its input's weight, or either side is too short to judge. */
+export function vocabularyDrift(original: string, rewritten: string): string {
+  const before = measureDiction(original);
+  const after = measureDiction(rewritten);
+  if (!before || !after) return '';
+  if (after.rate - before.rate <= MAX_ADDED_LONG_RATE) return '';
+  const added = addedHeavyWords(original, rewritten).slice(0, 6);
+  const named = added.length > 0 ? ` It added ${added.join(', ')}.` : '';
+  return `Your rewrite made the vocabulary heavier than the original.${named} Put the original's plainer words back, and make the rewrite different by restructuring sentences instead.`;
+}
+
 /** Numbers and examples, the shape of instruction that the model acts on. */
 export function dictionInstruction(diction: Diction): string {
   const perHundred = Math.round(diction.rate * 100);

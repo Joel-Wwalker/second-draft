@@ -21,6 +21,13 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Word churn is treated as the failure it is. The prompt used to demand a
+  rewrite that reads noticeably different, and the model met that the cheapest
+  way there is, swapping built for constructed while leaving the actual tells
+  untouched. Difference is now defined as structural, a rewrite that raises the
+  vocabulary above its own input is retried for it by name, and a rewrite that
+  fixes none of the detected tells spends the retry on them, told which ones
+  survived in their own words
 - Vocabulary weight is measured. The share of words running to eight letters or
   more has a human median of 0.19 and a machine median of 0.34 across the same
   corpora; above 0.30 the prompt names the heavy words and asks for plain ones,

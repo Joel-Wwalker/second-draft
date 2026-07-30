@@ -23,9 +23,24 @@ test('full prompt includes pattern guidance that light omits', () => {
 test('full prompt mandates a rewrite even for clean text; light stays minimal', () => {
   const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
-  expect(full).toContain('Returning the text unchanged or nearly unchanged is a failure');
+  expect(full).toContain('Returning the text unchanged is a failure');
   expect(full).toContain('Rewrite even when none of the listed tells appear');
   expect(light).not.toContain('unchanged is a failure');
+});
+
+test('the mandate demands new structure, never synonym churn', () => {
+  // The old wording said the rewrite "must read noticeably different", and the
+  // model satisfied it the cheapest way there is: built became constructed,
+  // parts became portions, and both rule-of-three lists survived. The mandate
+  // now defines different as structural, and names the churn as a failure too.
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).not.toContain('noticeably different');
+  expect(full).toContain('Do not make it different by swapping words for synonyms');
+  expect(full).toContain('so is returning the same structure with the words shuffled');
+  expect(full).toContain('built to constructed');
+  // Plain wording must not decay into chattiness, which was the other direction
+  // of the same churn.
+  expect(full).toContain('plain wording is not casual wording');
 });
 
 test('nano prompts stay under the size budget even with a huge voice sample', () => {

@@ -45,7 +45,7 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - Prefer plain is/are/has over serves as, boasts, features.
 - Unwind negative parallelisms (not just X but Y) into direct claims.
 - Break up forced rule of three lists; two items or four are fine.
-- Do not cycle synonyms; repeating the natural word is fine.
+- Do not cycle synonyms. Repeating the natural word is fine, and swapping a plain word for a fancier one (built to constructed, parts to portions) is always wrong.
 - Remove false ranges (from X to Y) that are not real scales.
 - No runs of short dramatic fragments; vary sentence length naturally.
 - No aphorism formulas (X is the Y of Z).
@@ -62,7 +62,7 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - Prefer concrete wording over abstract wording, and keep every specific already
   in the text: names, numbers, dates, places. Do not invent details that were
   not there.
-Rewrite even when none of the listed tells appear: smooth, generic, evenly paced prose where every sentence has the same shape is itself an AI tell. Vary sentence length, break parallel structures, and swap vague phrasing for concrete wording. Returning the text unchanged or nearly unchanged is a failure. The rewrite must read noticeably different while keeping the same meaning, register, and rough length.`;
+Rewrite even when none of the listed tells appear: smooth, evenly paced prose where every sentence has the same shape is itself an AI tell. Make the rewrite different by changing structure: split a long sentence, join two short ones, break up a three-item list, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register of the original, because plain wording is not casual wording: do not add chatty intensifiers like really, very, or a lot to formal text. Returning the text unchanged is a failure, and so is returning the same structure with the words shuffled.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
 
@@ -91,6 +91,20 @@ export function buildSystemPrompt(opts: PromptOptions): string {
     parts.push(`Match the voice of this writing sample from the author:\n${words.join(' ')}`);
   }
   return parts.join('\n\n');
+}
+
+/**
+ * Tells named with their own text, for a retry prompt. "rule of three list" on
+ * its own was ignorable; naming the actual list gives the model a target. The
+ * Roman Empire sample went through a retry that talked only about pacing while
+ * two rule-of-three lists it knew about survived untouched.
+ */
+export function describeTells(tells: DetectedTell[], max = 4): string {
+  const items = tells
+    .slice(0, max)
+    .map(tell => `${TELL_NAMES[tell.ruleId] ?? tell.ruleId} ("${tell.excerpt.slice(0, 60)}")`);
+  const rest = tells.length > max ? ` and ${tells.length - max} more` : '';
+  return items.join(', ') + rest;
 }
 
 function tellSummary(tells: DetectedTell[]): string {

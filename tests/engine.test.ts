@@ -478,3 +478,112 @@ test('heavy vocabulary reaches the prompt even when the pacing is fine', async (
   // Not a pacing lecture: the pacing here is fine.
   expect(prompts[0]).not.toContain('steady length is the strongest sign');
 });
+
+/** The user's real report: input and output from a live Gemini Nano run. */
+const ROMAN_INPUT =
+  'The Roman Empire was one of the largest and most influential empires in history. At its height, ' +
+  'it controlled much of Europe, North Africa, and parts of Asia. The Romans built roads, bridges, ' +
+  'aqueducts, and large cities. They also developed laws and systems of government that influenced ' +
+  'many modern countries. Although the empire eventually fell, its language, architecture, and ideas ' +
+  'remain important.';
+
+const ROMAN_CHURNED =
+  'The Roman Empire was a massive and influential force in history. At its peak, Roman control ' +
+  'spanned much of Europe, North Africa, and portions of Asia. The Romans constructed roads, ' +
+  'bridges, aqueducts, and sizable cities. They also created laws and governmental systems that ' +
+  'continue to shape modern governments. The empire did eventually decline, but its language, ' +
+  'architecture, and ideas continue to matter.';
+
+test('the retry is told which tells survived, with their own text', async () => {
+  // The live run this reproduces scored 3 tells in, 3 tells out: the model
+  // swapped words sideways while both rule-of-three lists and the flat pacing
+  // survived. The retry fired but its note only discussed pacing, so the second
+  // pass had no target. Now the surviving tells are named with their excerpts.
+  const prompts: string[] = [];
+  let call = 0;
+  const churner = {
+    info: { kind: 'fake' as const, model: 'churner' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      return call === 1
+        ? ROMAN_CHURNED
+        : // The retry fixes what it was told about: one list broken up, pacing varied.
+          'The Roman Empire was one of the largest empires in history, and among the most ' +
+          'influential. It controlled much of Europe and North Africa at its height, plus parts ' +
+          'of Asia. Roads, bridges, aqueducts, whole cities: the Romans built at a scale nobody ' +
+          'matched. Their laws and systems of government still shape many modern countries. The ' +
+          'empire fell. Its language, architecture, and ideas did not.';
+    },
+  };
+  const res = await humanize(ROMAN_INPUT, { intensity: 'full' }, { providers: [churner] });
+
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('Your rewrite still contains');
+  expect(prompts[1]).toContain('rule of three');
+  // The excerpt itself, so the model knows which list. Note it is not the
+  // geographic one: "North Africa" is two words, which the pattern requires
+  // single-word items to avoid flagging ordinary place lists.
+  expect(prompts[1]).toContain('bridges, aqueducts');
+  // The better-paced second pass with fewer surviving tells is the one kept.
+  expect(res.rewritten).toContain('The empire fell.');
+});
+
+test('a rewrite that upgrades plain words is retried for it by name', async () => {
+  // Varied pacing and no tells on either side, so nothing else can trigger:
+  // only the vocabulary getting heavier than the input.
+  const plain =
+    'Helen married the king of Sparta. Then Paris took her east, and the war that followed ran ' +
+    'for ten years and left her with more blame than the men who launched it. Homer knew that. ' +
+    'The blame stuck anyway. People still argue about her reasons, and every account says more ' +
+    'about its author than about her.';
+  const upgraded =
+    'Helen married the king of Sparta. Then Paris transported her eastward, and the subsequent ' +
+    'conflict persisted for ten years and left her shouldering more culpability than the men who ' +
+    'instigated it. Homer understood that. The culpability endured regardless. People still argue ' +
+    'about her reasons, and every account says more about its author than about her.';
+  const prompts: string[] = [];
+  let call = 0;
+  const upgrader = {
+    info: { kind: 'fake' as const, model: 'upgrader' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      return call === 1 ? upgraded : plain;
+    },
+  };
+  const res = await humanize(plain, { intensity: 'full' }, { providers: [upgrader] });
+
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('vocabulary heavier');
+  expect(prompts[1]).toContain('transported');
+  // The pass that kept the input's weight wins.
+  expect(res.rewritten).toBe(plain);
+});
+
+test('a rewrite that fixes none of the detected tells is retried even when its style is fine', async () => {
+  // Short enough that pacing and weight are not judged, so only the surviving
+  // tell can trigger. Echoing the input back means zero progress on it.
+  const listy =
+    'The plan covers France, Spain, and Portugal. It was drafted last spring by the regional ' +
+    'team. Nobody objected then.';
+  const prompts: string[] = [];
+  let call = 0;
+  const echo = {
+    info: { kind: 'fake' as const, model: 'echo' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      return listy;
+    },
+  };
+  const res = await humanize(listy, { intensity: 'full' }, { providers: [echo] });
+
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('Your rewrite still contains');
+  expect(prompts[1]).toContain('rule of three');
+  expect(res.retried).toBe(true);
+});
