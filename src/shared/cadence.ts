@@ -26,8 +26,14 @@ export interface Cadence {
   longest: number;
 }
 
-/** Below this there is not enough text for rhythm to mean anything. */
-export const MIN_SENTENCES = 4;
+/**
+ * Below this there is not enough text for rhythm to mean anything. Three rather
+ * than four because a competitor's output escaped this check entirely by writing
+ * three sentences of 32, 53 and 49 words: a wall of text is a rhythm problem, and
+ * skipping it because there were too few sentences was the wrong call. The word
+ * floor below is what actually keeps short snippets from being judged.
+ */
+export const MIN_SENTENCES = 3;
 export const MIN_WORDS = 55;
 /** A sentence this short or shorter counts as a change of pace. */
 export const SHORT_SENTENCE = 11;

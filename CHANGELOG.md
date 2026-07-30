@@ -21,6 +21,12 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Sentence shape is measured too. Fixing length alone produced varied lengths
+  where every sentence still opened with its subject, seven in a row, because a
+  model gives you exactly what you measure. The engine now counts how many
+  sentences put a clause or phrase before the subject, and asks for a minimum
+- npm run compare prints these numbers for any text, so a change can be checked
+  rather than guessed at, and a rival's output can be put next to ours
 - Sentence rhythm is measured instead of asked for. Prose where every sentence
   runs the same length reads like a machine wrote it whatever the vocabulary, and
   the prompt had been asking for variety in three separate places while the

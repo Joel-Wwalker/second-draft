@@ -34,7 +34,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
-    "screenshots": "node scripts/make-screenshots.mjs"
+    "screenshots": "node scripts/make-screenshots.mjs",
+    "compare": "node scripts/compare.mjs"
   },
   "license": "AGPL-3.0-or-later",
   "type": "module",

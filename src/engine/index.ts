@@ -4,6 +4,7 @@ import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
+import { isMonotonous, measureStructure, structureInstruction } from '../shared/structure';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -40,21 +41,17 @@ export async function humanize(
     };
   }
 
-  // Rhythm is measured, not requested. The prompt has asked for varied sentence
-  // length since the first version and models flatten it anyway.
-  const before = measureCadence(text);
+  // Rhythm and shape are measured, not requested. The prompt has asked for varied
+  // sentences since the first version and models flatten them anyway.
   const systemPrompt = buildSystemPrompt({
     intensity: opts.intensity,
     tells,
     voiceSample: opts.voiceSample,
     target: provider.info.kind === 'nano' ? 'nano' : 'byok',
-    cadence: before && isFlat(before) ? cadenceInstruction(before) : undefined,
+    cadence: styleNotes(text) || undefined,
   });
 
-  const stillFlat = (rewritten: string): boolean => {
-    const after = measureCadence(rewritten);
-    return after !== null && isFlat(after);
-  };
+  const stillFlat = (rewritten: string): boolean => styleNotes(rewritten).length > 0;
 
   const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
     let raw: string;
@@ -87,9 +84,9 @@ export async function humanize(
         `A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
       );
     }
-    const flatNow = measureCadence(best.rewritten);
-    if (best.flat && flatNow) {
-      notes.push(`A previous attempt came back evenly paced. ${cadenceInstruction(flatNow)}`);
+    const styleNow = styleNotes(best.rewritten);
+    if (best.flat && styleNow) {
+      notes.push(`A previous attempt came back with sentences that were all built the same way. ${styleNow}`);
     }
     const corrections = notes.join('\n\n');
     try {
@@ -120,12 +117,29 @@ export async function humanize(
     tells: {
       // Flat rhythm counts as a tell. Leaving it out is why an evenly paced
       // rewrite used to score well and still read like a machine wrote it.
-      before: tells.length + (before && isFlat(before) ? 1 : 0),
+      before: tells.length + (styleNotes(text) ? 1 : 0),
       after: detect(best.rewritten, extraRules).length + (best.flat ? 1 : 0),
     },
     fidelity: best.fidelity,
     retried,
   };
+}
+
+/**
+ * What is wrong with this text's sentences, as instructions a model can act on.
+ * Empty when nothing is, or when the text is too short to judge.
+ *
+ * Two separate failures, because fixing the first exposed the second: sentences
+ * that all run the same length, and sentences that all open the same way. A model
+ * given only the length target produced varied lengths and identical shapes.
+ */
+function styleNotes(text: string): string {
+  const notes: string[] = [];
+  const cadence = measureCadence(text);
+  if (cadence && isFlat(cadence)) notes.push(cadenceInstruction(cadence));
+  const structure = measureStructure(text);
+  if (structure && isMonotonous(structure)) notes.push(structureInstruction(structure));
+  return notes.join(' ');
 }
 
 /**
