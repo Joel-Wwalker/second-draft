@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-199%20unit%20%2B%208%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-200%20unit%20%2B%208%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -87,7 +87,7 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-199 unit tests and 8 Playwright tests that drive the built extension in a real
+200 unit tests and 8 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,
@@ -112,6 +112,7 @@ src/
 ├── engine/        rules, prompts, providers, pipeline
 ├── shared/        types, diff, storage, profile, docx, sse, redaction
 ├── content/       selection capture, in-place replacement, undo
+├── background/    handing a page selection to the popup
 ├── entrypoints/   background service worker, popup, options
 └── types/         ambient types for Chrome's Prompt API
 docs/              privacy policy, store listing, test matrix, architecture

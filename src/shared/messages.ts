@@ -133,7 +133,9 @@ export type PendingRefusal =
   /** A password, payment, or one-time-code field. Never captured. */
   | 'sensitive'
   /** The page never answered: turned off for this site, restricted, or still loading. */
-  | 'unavailable';
+  | 'unavailable'
+  /** Parked too long to still be what the user meant. Only the popup raises this. */
+  | 'expired';
 
 export function isPendingSelection(value: unknown): value is PendingSelection {
   if (typeof value !== 'object' || value === null) return false;
@@ -143,6 +145,8 @@ export function isPendingSelection(value: unknown): value is PendingSelection {
     return typeof v['text'] === 'string' && typeof v['canApply'] === 'boolean' && typeof v['tabId'] === 'number';
   }
   if (v['kind'] === 'refused') {
+    // 'expired' is missing on purpose: the popup raises it about parked text, so
+    // it is never itself parked, and finding one in storage would be wrong.
     return v['reason'] === 'none' || v['reason'] === 'sensitive' || v['reason'] === 'unavailable';
   }
   return false;

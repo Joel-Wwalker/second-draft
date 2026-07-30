@@ -130,7 +130,8 @@ async function consumePending(): Promise<PendingSelection | null> {
   // same text from running again the next time this popup opens.
   await chrome.storage.local.remove(PENDING_KEY);
   void chrome.action.setBadgeText({ text: '' });
-  if (!isPendingSelection(parked) || !isPendingFresh(parked, Date.now())) return null;
+  if (!isPendingSelection(parked)) return null;
+  if (!isPendingFresh(parked, Date.now())) return { kind: 'refused', reason: 'expired', at: Date.now() };
   return parked;
 }
 
@@ -142,6 +143,10 @@ const REFUSALS: Record<PendingRefusal, { headline: string; status: string }> = {
   sensitive: {
     headline: 'Nothing captured',
     status: 'Second Draft does not read password, payment, or one-time-code fields.',
+  },
+  expired: {
+    headline: 'That selection went stale',
+    status: 'It sat unread for more than a minute. Select the text again, or paste it here.',
   },
   unavailable: {
     headline: 'Not running on that page',
@@ -157,6 +162,9 @@ function showRefusal(reason: PendingRefusal): void {
 function run(): void {
   const text = input.value.trim();
   if (!text) return;
+  // Once the box holds something other than what the page handed over, there is
+  // nowhere on that page this rewrite belongs, so Apply must stop offering.
+  if (pending && text !== pending.text.trim()) pending = null;
   if (inFlight) cancelInFlight();
   setWorking(true);
   resetResult();

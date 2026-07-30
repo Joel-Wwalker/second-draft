@@ -71,10 +71,17 @@ export async function humanize(
     throwIfAborted(opts.signal);
     const lost = best.fidelity.map(issue => issue.message).join(' ');
     try {
+      // The second pass is not shown as it arrives, because a display that jumped
+      // back to a half-finished rewrite would read as starting over. It still has
+      // to be audible: a caller timing out on silence would otherwise cancel a
+      // rewrite that has already succeeded. Each chunk re-sends the text we would
+      // keep if this pass came to nothing, so the view holds still and stays live.
+      const keepAlive = opts.onChunk;
       const second = await attempt(
         `${systemPrompt}
 
 A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
+        keepAlive && (() => keepAlive(best.rewritten)),
       );
       retried = true;
       if (second.fidelity.length < best.fidelity.length) best = second;

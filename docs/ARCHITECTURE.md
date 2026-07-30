@@ -90,8 +90,7 @@ Two directions, both validated by type guards with the sender id checked:
   reaches `fetch` and the Prompt API session, and closing the popup disconnects
   the port, which is what cancels work in flight. The popup also runs its own
   idle timeout, because "the service worker never answered" is a real state in
-  MV3. A one-shot `sendMessage` handler exists alongside it for callers that do
-  not need streaming.
+  MV3.
 - **Popup and background to the content script**, `chrome.tabs.sendMessage`:
   `capture` hands over the selected text, `apply` writes a rewrite back into it,
   `undo` restores the original. The content script answers and nothing else.

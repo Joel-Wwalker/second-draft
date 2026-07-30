@@ -224,3 +224,33 @@ test('a signal aborted after the first pass stops the retry from running', async
   ).rejects.toMatchObject({ kind: 'aborted' });
   expect(call).toBe(1);
 });
+
+test('the silent retry still reaches a caller that is timing out on silence', async () => {
+  // The second pass is not streamed, so a client idle timer armed by the first
+  // pass would fire mid-retry and cancel a rewrite that had already succeeded.
+  const seen: string[] = [];
+  let call = 0;
+  const chunky = {
+    info: { kind: 'fake' as const, model: 'chunky' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      call += 1;
+      req.onChunk?.('...still working');
+      return call === 1
+        ? 'The factory opened under Martinez.'
+        : 'The Lisbon factory opened in 1994 under Martinez.';
+    },
+  };
+  const res = await humanize(
+    'The Lisbon factory opened in 1994 under Martinez.',
+    { intensity: 'full', onChunk: text => void seen.push(text) },
+    { providers: [chunky] },
+  );
+  expect(call).toBe(2);
+  expect(res.retried).toBe(true);
+  // Two passes, so at least two signs of life reached the caller.
+  expect(seen.length).toBeGreaterThan(1);
+  // The retry holds the view on the text that would be kept if it came to
+  // nothing, rather than jumping back to a half-finished second attempt.
+  expect(seen.at(-1)).toBe('The factory opened under Martinez.');
+});

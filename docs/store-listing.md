@@ -54,7 +54,10 @@ Productivity / Writing
   writes the rewrite back in place when they click Apply to page in the
   popup. Also answers Undo, which restores the original text. Core
   functionality; a per-site disable toggle is built in, and password,
-  card-number, and one-time-code fields are never read.
+  card-number, and one-time-code fields are never read. The script runs in the
+  top frame only, so a selection inside a cross-origin iframe is read through
+  Chrome's own copy of the selected text and the field check cannot reach it.
+  This is documented as a known limitation in SECURITY.md.
 - storage: user settings (intensity, disabled sites, voice sample, custom
   tells, optional API key), stored locally. Also holds the text a right-click
   or keyboard-shortcut selection hands to the popup, kept for at most 60

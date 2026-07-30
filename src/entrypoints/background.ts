@@ -35,16 +35,6 @@ export default defineBackground(() => {
     void handOff(tab.id, '');
   });
 
-  // One-shot path (popup).
-  chrome.runtime.onMessage.addListener(
-    (msg: unknown, sender, sendResponse: (res: HumanizeResponse) => void) => {
-      if (sender.id !== chrome.runtime.id) return;
-      if (!isHumanizeRequest(msg)) return;
-      void runHumanize(msg.text, msg.intensity).then(sendResponse).catch(() => {});
-      return true; // async response
-    },
-  );
-
   // Parked text belongs to one moment and one tab. Drop it when either is gone,
   // so it cannot turn up in a popup the user opened for something else.
   chrome.tabs.onRemoved.addListener(tabId => {
