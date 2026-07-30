@@ -1,16 +1,44 @@
 // Draws the extension icon: a white "2" on an indigo rounded square.
 //
-// Shapes are distance functions over a 0..1 square, sampled 4x4 per pixel, so
-// edges come out smooth at every size. Zero dependencies; the PNGs are written
-// by hand. Run with `npm run icons`.
+// The numeral is one continuous stroked path, an arc across the top that runs into
+// a diagonal and then a base bar, so the joins are round and there are no flat
+// terminals or kinks. Edges come from the distance field directly rather than from
+// supersampling: coverage is 0.5 minus the signed distance in pixels, which is
+// exact for these shapes and smoother than any sample count.
+//
+// Zero dependencies; the PNGs are written by hand. Run with `npm run icons`.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const INDIGO = [79, 70, 229];
 const WHITE = [255, 255, 255];
-const SAMPLES = 4; // per axis, so 16 samples per pixel
 const CORNER = 0.225; // background corner radius, as a fraction of the icon
-const ARC = { cx: 0.5, cy: 0.4, r: 0.137 };
+
+// The numeral, in a 0..1 box, with angles measured y-down so 270 is straight up.
+// The stroke starts at the upper left of the bowl, near ten o'clock, sweeps over
+// the top and down the right side, then carries on into the diagonal and the base
+// as one path.
+//
+// Starting lower than this is what made an earlier attempt read as a spiral: the
+// terminal curled inward toward the diagonal and closed the bowl.
+const ARC = { cx: 0.5, cy: 0.382, r: 0.148, fromDeg: 200, sweepDeg: 190 };
+const DIAGONAL_END = [0.35, 0.705];
+const BASE_END = [0.658, 0.705];
+const ARC_STEPS = 40;
+
+/** The path as a polyline, dense enough that the chords are inside the ink. */
+function glyphPath() {
+  const points = [];
+  for (let i = 0; i <= ARC_STEPS; i++) {
+    const deg = ARC.fromDeg + (ARC.sweepDeg * i) / ARC_STEPS;
+    const rad = (deg * Math.PI) / 180;
+    points.push([ARC.cx + ARC.r * Math.cos(rad), ARC.cy + ARC.r * Math.sin(rad)]);
+  }
+  points.push(DIAGONAL_END, BASE_END);
+  return points;
+}
+
+const PATH = glyphPath();
 
 /** Distance from a point to a line segment. */
 function distToSegment(x, y, ax, ay, bx, by) {
@@ -20,56 +48,46 @@ function distToSegment(x, y, ax, ay, bx, by) {
   return Math.hypot(x - (ax + along * dx), y - (ay + along * dy));
 }
 
-/** Rounded square filling the unit box. Negative inside. */
+/**
+ * Signed distance to the stroked path. Taking the smallest segment distance and
+ * subtracting half the stroke width is exactly a path with round caps and round
+ * joins, which is why the terminals and the corner come out clean.
+ */
+function glyph(x, y, thickness) {
+  let nearest = Infinity;
+  for (let i = 1; i < PATH.length; i++) {
+    const [ax, ay] = PATH[i - 1];
+    const [bx, by] = PATH[i];
+    const d = distToSegment(x, y, ax, ay, bx, by);
+    if (d < nearest) nearest = d;
+  }
+  return nearest - thickness / 2;
+}
+
+/** Signed distance to the rounded square filling the unit box. Negative inside. */
 function background(x, y) {
   const qx = Math.abs(x - 0.5) - (0.5 - CORNER);
   const qy = Math.abs(y - 0.5) - (0.5 - CORNER);
   return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - CORNER;
 }
 
-/**
- * The numeral: an arc across the top, a diagonal down to the left, and a bar
- * along the bottom. Angles are measured with y pointing down, and the arc omits
- * the lower-left quadrant, where a 2 opens up.
- */
-function glyph(x, y, thickness) {
-  const half = thickness / 2;
-  const angle = (Math.atan2(y - ARC.cy, x - ARC.cx) * 180) / Math.PI;
-  const onArc = !(angle > 30 && angle < 160);
-  const arc = onArc ? Math.abs(Math.hypot(x - ARC.cx, y - ARC.cy) - ARC.r) - half : Infinity;
-
-  // The diagonal starts where the arc stops, so the join is seamless.
-  const endX = ARC.cx + ARC.r * Math.cos((30 * Math.PI) / 180);
-  const endY = ARC.cy + ARC.r * Math.sin((30 * Math.PI) / 180);
-  const diagonal = distToSegment(x, y, endX, endY, 0.377, 0.688) - half;
-  const base = distToSegment(x, y, 0.357, 0.688, 0.652, 0.688) - half;
-
-  return Math.min(arc, diagonal, base);
-}
-
-/** Fraction of a pixel the shape covers, by supersampling. */
-function coverage(shape, px, py, size) {
-  let hits = 0;
-  for (let sy = 0; sy < SAMPLES; sy++) {
-    for (let sx = 0; sx < SAMPLES; sx++) {
-      const x = (px + (sx + 0.5) / SAMPLES) / size;
-      const y = (py + (sy + 0.5) / SAMPLES) / size;
-      if (shape(x, y) < 0) hits++;
-    }
-  }
-  return hits / (SAMPLES * SAMPLES);
+/** Coverage of one pixel, from the signed distance scaled into pixel units. */
+function coverage(distance, size) {
+  return Math.min(1, Math.max(0, 0.5 - distance * size));
 }
 
 function rows(size) {
   // A hairline stroke disappears in a 16px toolbar, so thicken it as the icon
   // shrinks. The numeral has to stay legible at the size people actually see.
-  const thickness = size <= 16 ? 0.125 : size <= 32 ? 0.108 : 0.094;
+  const thickness = size <= 16 ? 0.128 : size <= 32 ? 0.11 : 0.094;
   const out = [];
   for (let py = 0; py < size; py++) {
     const row = [0]; // PNG filter byte: none
+    const y = (py + 0.5) / size;
     for (let px = 0; px < size; px++) {
-      const bg = coverage(background, px, py, size);
-      const fg = coverage((x, y) => glyph(x, y, thickness), px, py, size);
+      const x = (px + 0.5) / size;
+      const bg = coverage(background(x, y), size);
+      const fg = coverage(glyph(x, y, thickness), size);
       // White over indigo, with the rounded corner cutting the alpha.
       const mix = Math.min(fg, bg);
       const channel = i => Math.round(INDIGO[i] * (1 - mix) + WHITE[i] * mix);
@@ -107,7 +125,7 @@ function png(size) {
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(Buffer.concat(rows(size)))),
+    chunk('IDAT', deflateSync(Buffer.concat(rows(size)), { level: 9 })),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
