@@ -112,7 +112,55 @@ use for creditworthiness or lending.
 Under-disclosing here is what gets extensions removed later. Over-disclosing
 costs nothing.
 
-## Permission justifications (for the review form)
+## Permission justifications, one per form box
+
+The Privacy practices tab has a separate box for each permission in the manifest.
+Paste these into the matching box.
+
+**activeTab**
+
+> The popup reads the address of the tab you are on, so it can name that site on
+> the switch that turns the extension off for it, and so it can pass the selected
+> text and the finished rewrite between the popup and that tab. No page content is
+> read through this permission.
+
+**contextMenus**
+
+> Adds the "Humanize selection" entry to the right-click menu. That menu entry is
+> the main way the extension is used.
+
+**storage**
+
+> Keeps settings on the user's own device: rewrite strength, sites the user turned
+> the extension off for, an optional sample of their writing, phrases they added,
+> and their API key if they added one. It also briefly holds the text a user
+> selected, so the popup can pick it up when it opens, for at most 60 seconds or
+> until the popup reads it, whichever comes first.
+
+**Host permissions**
+
+> The content script needs access to pages because the user decides where to
+> rewrite text; the extension cannot know the site in advance. It reads only the
+> current selection, only when the user asks for it through the right-click menu or
+> the keyboard shortcut, and writes back only when the user clicks Apply. Password,
+> payment, and one-time-code fields are never read, and the user can turn the
+> extension off per site.
+>
+> The optional host permissions are separate and are requested only when a user
+> adds their own API key, for the domain they entered. They are declared broadly
+> because any OpenAI-compatible endpoint is allowed, including one running on the
+> user's own machine. No host access is requested at install.
+
+**Remote code**
+
+Select **No, I am not using remote code**, then paste:
+
+> All executable code ships inside the package. The extension makes network
+> requests only when a user configures their own API key, and those requests
+> exchange text with the endpoint the user chose. Nothing is fetched, evaluated, or
+> loaded as code from any remote source.
+
+## The same justifications in prose (background, not for pasting)
 
 - Content script on all sites: reads the text the user selects when they
   choose Humanize from the right-click menu or the Ctrl+Shift+H shortcut, and
@@ -162,6 +210,33 @@ costs nothing.
 https://joel-wwalker.github.io/second-draft/privacy-policy
 
 Live and rendering as HTML.
+
+## Every field the form blocks on
+
+Grouped by the tab it lives on. The form lists them all at once, which reads like
+something is broken when in fact nothing has been filled in yet.
+
+**Settings page** (account level, blocks publishing on its own)
+
+- Publisher contact email, then click through the verification mail. Nothing can
+  be published until that address is verified.
+
+**Store listing tab**
+
+- Language: English (United States).
+- Category: pick the writing or productivity option the live list offers.
+- Detailed description: the Description section above. The minimum is 25
+  characters and the copy above is about 2,100.
+- Icon: `public/icons/128.png`.
+- Screenshot: `docs/screenshots/store-screenshot.png`.
+
+**Privacy practices tab**
+
+- Single purpose: the block above.
+- One justification per permission: activeTab, contextMenus, storage, and host
+  permissions. All four are written above.
+- Remote code: No, plus the justification above.
+- Data usage: check Website content, then the three certifications.
 
 ## Order of operations
 
