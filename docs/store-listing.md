@@ -127,18 +127,16 @@ costs nothing.
 - **Store icon**, 128x128: `public/icons/128.png`. A 512 is at
   `docs/screenshots/icon-512.png` if the dashboard asks for a larger one.
 - **Screenshots**, 1280x800, at least one and up to five.
-  `docs/screenshots/hero.png` and `hero-changes.png` are that size already.
 
-  The committed copies were rendered with the deterministic test engine, so the
-  small engine caption reads "Test engine (fake-echo)" rather than "On-device AI
-  (Gemini Nano)". Nothing about that breaks a store rule, but it is not what a
-  user sees.
+  Upload **`docs/screenshots/hero.png`**. It is 1280x800 and framed from a real
+  capture, so its engine caption reads "On-device AI (Gemini Nano)" and the rewrite
+  in it is one the shipped model actually produced.
 
-  To fix it, capture the popup in a browser that has the on-device model, since
-  Playwright's bundled Chromium does not: load the extension, rewrite a
-  paragraph, screenshot the popup, save it as
-  `docs/screenshots/popup-real.png`, and run `npm run screenshots`. It frames
-  your capture into 1280x800 instead of its own render.
+  Do not upload `hero-changes.png` or `options.png`. Those are still rendered by
+  the deterministic test engine, whose caption reads "Test engine (fake-echo)",
+  because Playwright's bundled Chromium has no on-device model. To replace them,
+  capture the popup again in a browser that does, overwrite
+  `docs/screenshots/popup-real.png`, and run `npm run screenshots`.
 - Promo tiles are optional. Skip them.
 
 ## Privacy policy URL
@@ -152,12 +150,10 @@ Live and rendering as HTML.
 1. Register at the developer dashboard and pay the one-time 5 USD fee. Expect a
    prompt to turn on 2-step verification and to verify a contact email; the
    account cannot publish without both.
-2. Optional, for a better screenshot: load `.output/chrome-mv3` unpacked at
-   `chrome://extensions`, rewrite a paragraph, screenshot the popup, save it to
-   `docs/screenshots/popup-real.png`, and run `npm run screenshots`.
-3. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
-4. Fill the listing from the sections above, set visibility to Public and
-   distribution to all regions, and submit.
+2. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
+3. Fill the listing from the sections above, attach `docs/screenshots/hero.png`
+   and `public/icons/128.png`, set visibility to Public and distribution to all
+   regions, and submit.
 
 Review usually takes a few days. A content script matching `<all_urls>` draws more
 scrutiny than a narrow one, so expect the permission justification above to be
