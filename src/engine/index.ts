@@ -123,8 +123,21 @@ const DOUBLE_QUOTE = /["“”]/;
  * something, leave every mark alone rather than guess which are which.
  */
 export function stripAddedQuotes(out: string, original: string): string {
-  if (DOUBLE_QUOTE.test(original)) return out;
-  return out.replace(/["“”]/g, '');
+  // Nothing quoted anything, so every mark in the rewrite is invention.
+  if (!DOUBLE_QUOTE.test(original)) return out.replace(/["“”]/g, '');
+
+  // The original does quote something, so most marks are real and guessing which
+  // is which would destroy meaning. One case is still safe to call: a rewrite
+  // that opens with a quotation mark when the original does not is the model
+  // handing back "the text you asked for", quoted. Drop that pair and no others.
+  const opensQuoted = (text: string): boolean => DOUBLE_QUOTE.test(text.trimStart().charAt(0));
+  if (opensQuoted(original) || !opensQuoted(out)) return out;
+
+  const open = out.search(/["“”]/);
+  const rest = out.slice(open + 1).search(/["“”]/);
+  if (rest === -1) return out.slice(0, open) + out.slice(open + 1); // unbalanced; drop the stray
+  const close = open + 1 + rest;
+  return out.slice(0, open) + out.slice(open + 1, close) + out.slice(close + 1);
 }
 
 /** Models wrap output despite instructions; peel fences, preambles, and quotes the original did not have. */

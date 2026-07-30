@@ -281,3 +281,39 @@ test('curly quotes the model invented go too', async () => {
   const res = await humanize(original, { intensity: 'full' }, { providers: [curly] });
   expect(res.rewritten).toBe('The factory opened in 1994 under Martinez.');
 });
+
+test('a model quoting its own answer is undone even when the original quotes something', async () => {
+  // The real Gemini Nano failure, with the text that produced it. The original
+  // quotes a phrase near the end, which is why a blanket rule cannot apply: the
+  // model wrapped its opening sentence in quotes as well, and only that pair is
+  // invention.
+  const original =
+    'Helen of Troy is one of the most famous women in Greek mythology, celebrated for her ' +
+    'extraordinary beauty and her role in the Trojan War. She was the daughter of Zeus and was ' +
+    'married to Menelaus, the king of Sparta. Helen is often described as “the face that ' +
+    'launched a thousand ships,” symbolizing both irresistible beauty and the terrible ' +
+    'consequences of love, desire, and betrayal.';
+  const nanoLike = new FakeProvider(
+    () =>
+      '"Helen of Troy is one of the most famous women in Greek mythology, celebrated for her ' +
+      'extraordinary beauty and her role in the Trojan War." She was the daughter of Zeus and ' +
+      'married to Menelaus, the king of Sparta. Helen is often called "the face that launched a ' +
+      'thousand ships," a symbol of both captivating beauty and the destructive power of love, ' +
+      'desire, and betrayal.',
+  );
+  const res = await humanize(original, { intensity: 'full' }, { providers: [nanoLike] });
+
+  expect(res.rewritten.startsWith('Helen of Troy')).toBe(true);
+  expect(res.rewritten).not.toContain('Trojan War."');
+  // The quotation the original actually made survives, marks and all.
+  expect(res.rewritten).toContain('"the face that launched a thousand ships,"');
+  // Exactly one pair left, which is the one pair the original had.
+  expect((res.rewritten.match(/"/g) ?? []).length).toBe(2);
+});
+
+test('a quotation the original opens with is not mistaken for invention', async () => {
+  const original = '"We grew fast," she said, and the numbers back her up.';
+  const keeper = new FakeProvider(t => t.replace('back her up', 'agree'));
+  const res = await humanize(original, { intensity: 'full' }, { providers: [keeper] });
+  expect(res.rewritten).toBe('"We grew fast," she said, and the numbers agree.');
+});
