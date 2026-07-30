@@ -91,12 +91,9 @@ await options.waitForTimeout(300);
 await options.screenshot({ path: path.join(OUT, 'options.png'), fullPage: true });
 await options.close();
 
-/** Compose a saved shot onto a 1280x800 store canvas with a caption. */
-async function storeFrame(source, out, headline, sub) {
+function frameHtml(source, headline, sub) {
   const data = readFileSync(path.join(OUT, source)).toString('base64');
-  const page = await ctx.newPage();
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.setContent(`<!doctype html><meta charset="utf-8"><style>
+  return `<!doctype html><meta charset="utf-8"><style>
     :root { color-scheme: light }
     * { margin: 0; box-sizing: border-box }
     body { width: 1280px; height: 800px; display: flex; align-items: center;
@@ -119,10 +116,38 @@ async function storeFrame(source, out, headline, sub) {
       <p>${sub}</p>
     </div>
     <img src="data:image/png;base64,${data}" alt="">
-  </body>`);
+  </body>`;
+}
+
+/** The retina copy, for the README and the landing page. */
+async function storeFrame(source, out, headline, sub) {
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setContent(frameHtml(source, headline, sub));
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(OUT, out) });
   await page.close();
+}
+
+/**
+ * The copy the Chrome Web Store will accept, which the retina PNG above is not:
+ * the store wants exactly 1280x800 or 640x400, and a PNG with no alpha channel. A
+ * 2x screenshot is 2560x1600, so this renders at 1x in a plain browser.
+ *
+ * The alpha rule takes care of itself: the frame's background is opaque, so
+ * Chromium writes a 24-bit PNG rather than RGBA. PNG over JPEG because the image
+ * is mostly text, where lossless wins.
+ */
+async function storeUpload(source, out, headline, sub) {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    await page.setContent(frameHtml(source, headline, sub));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(OUT, out) });
+  } finally {
+    await browser.close();
+  }
 }
 
 // A hand-captured shot from a browser with the on-device model wins, because its
@@ -135,12 +160,11 @@ console.log(
     : `framing the test-engine render; drop ${REAL} in ${OUT}/ to use a real one`,
 );
 
-await storeFrame(
-  heroSource,
-  'hero.png',
-  'Text that reads like you wrote it',
-  'Select anything, right click, and the rewrite starts on its own. Runs on your device.',
-);
+const HERO_HEADLINE = 'Text that reads like you wrote it';
+const HERO_SUB = 'Select anything, right click, and the rewrite starts on its own. Runs on your device.';
+
+await storeFrame(heroSource, 'hero.png', HERO_HEADLINE, HERO_SUB);
+await storeUpload(heroSource, 'store-screenshot.png', HERO_HEADLINE, HERO_SUB);
 await storeFrame(
   'popup-changes.png',
   'hero-changes.png',

@@ -128,14 +128,17 @@ costs nothing.
   `docs/screenshots/icon-512.png` if the dashboard asks for a larger one.
 - **Screenshots**, 1280x800, at least one and up to five.
 
-  Upload **`docs/screenshots/hero.png`**. It is 1280x800 and framed from a real
-  capture, so its engine caption reads "On-device AI (Gemini Nano)" and the rewrite
-  in it is one the shipped model actually produced.
+  Upload **`docs/screenshots/store-screenshot.png`**. It is exactly 1280x800 and a
+  24-bit PNG with no alpha channel, which is what the form requires, and it is
+  framed from a real capture, so its engine caption reads "On-device AI (Gemini
+  Nano)" and the rewrite in it is one the shipped model actually produced.
 
-  Do not upload `hero-changes.png` or `options.png`. Those are still rendered by
-  the deterministic test engine, whose caption reads "Test engine (fake-echo)",
-  because Playwright's bundled Chromium has no on-device model. To replace them,
-  capture the popup again in a browser that does, overwrite
+  Do not upload `hero.png`. That one is the same image at 2x for the README and the
+  landing page, so it is 2560x1600 and the form rejects it on size. Do not upload
+  `hero-changes.png` or `options.png` either: those are still rendered by the
+  deterministic test engine, whose caption reads "Test engine (fake-echo)", because
+  Playwright's bundled Chromium has no on-device model. To replace them, capture
+  the popup again in a browser that does, overwrite
   `docs/screenshots/popup-real.png`, and run `npm run screenshots`.
 - Promo tiles are optional. Skip them.
 
@@ -151,9 +154,9 @@ Live and rendering as HTML.
    prompt to turn on 2-step verification and to verify a contact email; the
    account cannot publish without both.
 2. `npm run zip`, then upload `.output/second-draft-1.3.0-chrome.zip`.
-3. Fill the listing from the sections above, attach `docs/screenshots/hero.png`
-   and `public/icons/128.png`, set visibility to Public and distribution to all
-   regions, and submit.
+3. Fill the listing from the sections above, attach
+   `docs/screenshots/store-screenshot.png` and `public/icons/128.png`, set
+   visibility to Public and distribution to all regions, and submit.
 
 Review usually takes a few days. A content script matching `<all_urls>` draws more
 scrutiny than a narrow one, so expect the permission justification above to be
