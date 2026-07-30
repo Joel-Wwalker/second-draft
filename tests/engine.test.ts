@@ -317,3 +317,134 @@ test('a quotation the original opens with is not mistaken for invention', async 
   const res = await humanize(original, { intensity: 'full' }, { providers: [keeper] });
   expect(res.rewritten).toBe('"We grew fast," she said, and the numbers agree.');
 });
+
+/**
+ * Four sentences of 6, 7, 40 and 3 words: pacing that changes on purpose. It keeps
+ * every proper noun in the source, because the fidelity check outranks rhythm and
+ * would otherwise discard this in favour of the flat version.
+ */
+const VARIED =
+  'Helen of Troy was the daughter of Zeus. She married Menelaus, the king of Sparta. ' +
+  'Then the Trojan prince Paris took her east, and a Greek expedition sailed after her, which ' +
+  'hardened into a war that ran for ten years and left Helen carrying more of the blame than any ' +
+  'of the men who launched it. Homer knew that.';
+
+test('an evenly paced rewrite is retried, and the second pass is told the numbers', async () => {
+  // The pattern that already works for lost content, applied to the thing that
+  // actually makes text read like a machine wrote it.
+  const original =
+    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
+    'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
+    'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
+  const prompts: string[] = [];
+  let call = 0;
+  const flatThenVaried = {
+    info: { kind: 'fake' as const, model: 'flat-first' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      return call === 1
+        ? // Five sentences, all the same size. Loses nothing, so only rhythm can trigger the retry.
+          'Helen of Troy is one of the best known women in all of Greek mythology and its stories. ' +
+          'She was the daughter of Zeus and she married Menelaus, who was the king of Sparta. ' +
+          'The Trojan prince Paris then took her away to Troy, which started a Greek expedition. ' +
+          'That expedition turned into a full war that lasted for ten long and bitter years. ' +
+          'Helen is blamed for the whole of it more than any other person in the story.'
+        : VARIED;
+    },
+  };
+  const res = await humanize(original, { intensity: 'full' }, { providers: [flatThenVaried] });
+
+  expect(call).toBe(2);
+  expect(res.retried).toBe(true);
+  // This input already varies its pacing, so the first pass is not lectured about
+  // rhythm. Only the rewrite that came back flat is.
+  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+  // The retry got measurements, not the adjective the first pass already ignored.
+  expect(prompts[1]).toContain('came back evenly paced');
+  expect(prompts[1]).toMatch(/run \d+, \d+/);
+  // And the varied pass is the one kept.
+  expect(res.rewritten).toContain('Homer knew that');
+});
+
+test('a rewrite that varies its pacing is left alone', async () => {
+  const original =
+    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
+    'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
+    'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
+  let call = 0;
+  const varied = {
+    info: { kind: 'fake' as const, model: 'varied' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      return VARIED;
+    },
+  };
+  const res = await humanize(original, { intensity: 'full' }, { providers: [varied] });
+  expect(call).toBe(1);
+  expect(res.retried).toBe(false);
+});
+
+test('flat pacing counts against the score, so the failure is visible', async () => {
+  const original =
+    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
+    'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
+    'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
+  const stubborn = {
+    info: { kind: 'fake' as const, model: 'stubborn' },
+    available: async (): Promise<boolean> => true,
+    // Same length every sentence, both passes. A score of zero here would be a lie.
+    rewrite: async (): Promise<string> =>
+      'Helen of Troy is one of the best known women in all of Greek mythology and its stories. ' +
+      'She was the daughter of Zeus and she married Menelaus, who was the king of Sparta. ' +
+      'The Trojan prince Paris then took her away to Troy, which started a Greek expedition. ' +
+      'That expedition turned into a full war that lasted for ten long and bitter years. ' +
+      'Helen is blamed for the whole of it more than any other person in the story.',
+  };
+  const res = await humanize(original, { intensity: 'full' }, { providers: [stubborn] });
+  expect(res.tells.after).toBeGreaterThan(0);
+});
+
+test('a flat source is measured on the first pass, before anything has failed', async () => {
+  // Our own output from the comparison that started this, fed back in as input.
+  const flat =
+    'Helen of Troy remains a really well-known figure in Greek mythology, celebrated for her beauty ' +
+    'and her involvement in starting the Trojan War. She married Menelaus, who was the king of Sparta, ' +
+    'but she either left or was taken by Trojan prince Paris and brought to Troy. This sparked a huge ' +
+    'Greek expedition led by Menelaus to retrieve her, which then became a decade-long war. Though ' +
+    'Helen often gets blamed for the war, many accounts present her as a complex person. Her decisions ' +
+    'were influenced by the gods, fate, and the powerful men in her life.';
+  const prompts: string[] = [];
+  const noted = {
+    info: { kind: 'fake' as const, model: 'noted' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return VARIED;
+    },
+  };
+  await humanize(flat, { intensity: 'full' }, { providers: [noted] });
+  // The measured lengths, not the adjective that has been in the prompt all along.
+  expect(prompts[0]).toContain('23, 24, 18, 16, 15');
+  expect(prompts[0]).toContain('steady length is the strongest sign');
+});
+
+test('a source that already varies gets no rhythm lecture', async () => {
+  const varied = VARIED;
+  const prompts: string[] = [];
+  const quiet = {
+    info: { kind: 'fake' as const, model: 'quiet' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return VARIED;
+    },
+  };
+  await humanize(varied, { intensity: 'full' }, { providers: [quiet] });
+  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+});

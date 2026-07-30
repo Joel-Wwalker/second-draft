@@ -21,6 +21,12 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Sentence rhythm is measured instead of asked for. Prose where every sentence
+  runs the same length reads like a machine wrote it whatever the vocabulary, and
+  the prompt had been asking for variety in three separate places while the
+  on-device model returned five sentences of 23, 24, 18, 16 and 15 words. The
+  engine now sends the measured lengths, counts flat pacing against the score, and
+  redoes a rewrite that comes back evenly paced
 - Quotation marks the model invents are removed. On-device Gemini Nano likes to
   wrap a sentence in quotes, which turns a plain statement into something that
   reads as a quotation of someone. Marks the original had are left alone

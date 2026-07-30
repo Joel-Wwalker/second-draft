@@ -71,6 +71,8 @@ export interface PromptOptions {
   tells: DetectedTell[];
   voiceSample?: string;
   target: 'nano' | 'byok';
+  /** Measured sentence rhythm, when the text is long enough to have one. */
+  cadence?: string;
 }
 
 export function buildSystemPrompt(opts: PromptOptions): string {
@@ -79,6 +81,10 @@ export function buildSystemPrompt(opts: PromptOptions): string {
   if (summary) {
     parts.push(`Detected in this text: ${summary}. Fix these along with anything else you find.`);
   }
+  // Last of the instructions on purpose, and phrased as a measurement rather than
+  // a preference. A small model reading a twenty-item bullet list acts on the
+  // concrete number near the end, not on "vary sentence length" in the middle.
+  if (opts.cadence) parts.push(opts.cadence);
   const sample = opts.voiceSample?.trim();
   if (sample) {
     const words = sample.split(/\s+/).slice(0, VOICE_WORD_LIMIT[opts.target]);

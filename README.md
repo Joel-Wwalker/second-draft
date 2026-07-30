@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml/badge.svg)](https://github.com/Joel-Wwalker/second-draft/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-215%20unit%20%2B%202%20e2e-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-226%20unit%20%2B%202%20e2e-brightgreen)](tests)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 
 A Chrome extension that rewrites AI-sounding text so it reads like a person
@@ -62,9 +62,13 @@ labels results accordingly.
 1. **Rules.** Twelve patterns detect AI tells. Four are fixed directly in code
    (em dashes, curly quotes, emoji, chatbot filler). The rest are reported to
    the model in the prompt.
-2. **Engine.** Gemini Nano on device, or an Anthropic or OpenAI-compatible
+2. **Rhythm.** Sentence lengths are measured, not requested. Prose where every
+   sentence is the same size reads like a machine wrote it whatever the wording,
+   so the prompt gets the actual numbers and a rewrite that comes back evenly
+   paced is redone once.
+3. **Engine.** Gemini Nano on device, or an Anthropic or OpenAI-compatible
    endpoint if you add a key. Both stream.
-3. **Enforcement.** The rules run again on the model's output. A prompt cannot
+4. **Enforcement.** The rules run again on the model's output. A prompt cannot
    guarantee there are no em dashes; code can.
 
 The text-processing code is a pure module with no DOM or extension API access.
@@ -90,7 +94,7 @@ dependencies. The `.docx` reader is a ZIP parser written against the platform's
 
 ## Testing
 
-215 unit tests and 2 Playwright tests that drive the built extension in a real
+226 unit tests and 2 Playwright tests that drive the built extension in a real
 browser. CI runs both on every push.
 
 Guards are verified by mutation: break the guard, confirm the named test fails,

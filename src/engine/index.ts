@@ -3,6 +3,7 @@ import { HumanizerError } from '../shared/types';
 import { diffChanges } from '../shared/diff';
 import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
+import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
 import { applyFixes, customRules, detect } from './rules';
 import { buildSystemPrompt } from './prompts';
 
@@ -39,12 +40,21 @@ export async function humanize(
     };
   }
 
+  // Rhythm is measured, not requested. The prompt has asked for varied sentence
+  // length since the first version and models flatten it anyway.
+  const before = measureCadence(text);
   const systemPrompt = buildSystemPrompt({
     intensity: opts.intensity,
     tells,
     voiceSample: opts.voiceSample,
     target: provider.info.kind === 'nano' ? 'nano' : 'byok',
+    cadence: before && isFlat(before) ? cadenceInstruction(before) : undefined,
   });
+
+  const stillFlat = (rewritten: string): boolean => {
+    const after = measureCadence(rewritten);
+    return after !== null && isFlat(after);
+  };
 
   const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
     let raw: string;
@@ -58,18 +68,30 @@ export async function humanize(
     if (text.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
-    return { rewritten, fidelity: checkFidelity(text, rewritten) };
+    return { rewritten, fidelity: checkFidelity(text, rewritten), flat: stillFlat(rewritten) };
   };
 
   let best = await attempt(systemPrompt, opts.onChunk);
   let retried = false;
 
-  // A rewrite that dropped facts gets one silent second pass, told exactly what
-  // it lost. One retry only: the on-device model is slow enough that a third
-  // attempt costs more waiting than it tends to buy.
-  if (best.fidelity.length > 0) {
+  // One silent second pass, told exactly what went wrong, for either of the two
+  // things the first pass was asked to get right and did not: content it dropped,
+  // or a rhythm it flattened. One retry only, because the on-device model is slow
+  // enough that a third attempt costs more waiting than it tends to buy.
+  if (best.fidelity.length > 0 || best.flat) {
     throwIfAborted(opts.signal);
-    const lost = best.fidelity.map(issue => issue.message).join(' ');
+    const notes: string[] = [];
+    if (best.fidelity.length > 0) {
+      const lost = best.fidelity.map(issue => issue.message).join(' ');
+      notes.push(
+        `A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
+      );
+    }
+    const flatNow = measureCadence(best.rewritten);
+    if (best.flat && flatNow) {
+      notes.push(`A previous attempt came back evenly paced. ${cadenceInstruction(flatNow)}`);
+    }
+    const corrections = notes.join('\n\n');
     try {
       // The second pass is not shown as it arrives, because a display that jumped
       // back to a half-finished rewrite would read as starting over. It still has
@@ -78,13 +100,11 @@ export async function humanize(
       // keep if this pass came to nothing, so the view holds still and stays live.
       const keepAlive = opts.onChunk;
       const second = await attempt(
-        `${systemPrompt}
-
-A previous attempt lost content. ${lost} Keep every number, name, date, place, and quotation from the original text this time.`,
+        `${systemPrompt}\n\n${corrections}`,
         keepAlive && (() => keepAlive(best.rewritten)),
       );
       retried = true;
-      if (second.fidelity.length < best.fidelity.length) best = second;
+      if (isBetter(second, best)) best = second;
     } catch (err) {
       // A retry that fails must not be worse than no retry. The first rewrite
       // is finished and usable; keep it, and let the caller show what is
@@ -97,15 +117,34 @@ A previous attempt lost content. ${lost} Keep every number, name, date, place, a
     rewritten: best.rewritten,
     changes: diffChanges(text, best.rewritten, tells),
     engine: provider.info,
-    tells: { before: tells.length, after: detect(best.rewritten, extraRules).length },
+    tells: {
+      // Flat rhythm counts as a tell. Leaving it out is why an evenly paced
+      // rewrite used to score well and still read like a machine wrote it.
+      before: tells.length + (before && isFlat(before) ? 1 : 0),
+      after: detect(best.rewritten, extraRules).length + (best.flat ? 1 : 0),
+    },
     fidelity: best.fidelity,
     retried,
   };
 }
 
+/**
+ * Losing content is worse than keeping a flat rhythm, so fidelity decides first
+ * and rhythm only breaks a tie. A second pass that fixes the pacing but drops a
+ * date is not an improvement.
+ */
+function isBetter(candidate: Attempt, incumbent: Attempt): boolean {
+  if (candidate.fidelity.length !== incumbent.fidelity.length) {
+    return candidate.fidelity.length < incumbent.fidelity.length;
+  }
+  return !candidate.flat && incumbent.flat;
+}
+
 interface Attempt {
   rewritten: string;
   fidelity: FidelityIssue[];
+  /** The rewrite came back with one sentence length repeated. */
+  flat: boolean;
 }
 
 const DOUBLE_QUOTE = /["“”]/;
