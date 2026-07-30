@@ -8,6 +8,11 @@ updates:
     groups:
       dev-dependencies:
         patterns: ['*']
+    ignore:
+      # The Node types belong on the same major as the Node that CI runs, so a
+      # bump here has to follow a deliberate runtime upgrade, not lead it.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
