@@ -18,13 +18,21 @@ const RULES = [
 ];
 
 const FRONTED = new Set([
-  'after','although','as','because','before','besides','beyond','but','by','despite','during','even',
-  'except','for','from','given','if','in','inside','instead','like','meanwhile','once','on','onto',
-  'other','outside','over','rather','since','so','though','through','to','toward','under','unless',
-  'until','upon','when','whenever','where','whereas','wherever','whether','while','with','within',
-  'without','yet','afterward','again','already','eventually','finally','first','later','now','often',
-  'soon','still','sometimes','then','today','usually',
+  'after', 'although', 'as', 'because', 'before', 'besides', 'beyond', 'but', 'by', 'despite',
+  'during', 'even', 'except', 'for', 'from', 'given', 'if', 'in', 'inside', 'instead', 'like',
+  'meanwhile', 'once', 'on', 'onto', 'other', 'outside', 'over', 'rather', 'since', 'so',
+  'though', 'through', 'to', 'toward', 'under', 'unless', 'until', 'upon', 'when', 'whenever',
+  'where', 'whereas', 'wherever', 'whether', 'while', 'with', 'within', 'without', 'yet',
+  'afterward', 'again', 'already', 'eventually', 'finally', 'first', 'later', 'now', 'often',
+  'soon', 'still', 'sometimes', 'then', 'today', 'usually', 'across', 'amid', 'among',
+  'beneath', 'behind', 'throughout', 'unlike', 'according', 'alongside', 'against', 'about',
+  'above', 'below',
 ]);
+
+const COMMA_GATED = new Set([
+  'more', 'less', 'most', 'better', 'worse', 'far', 'long', 'much',
+]);
+const GATE_WORDS = 10;
 
 function measure(text) {
   const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
@@ -37,7 +45,15 @@ function measure(text) {
   const counts = new Map();
   for (const w of openers) counts.set(w, (counts.get(w) ?? 0) + 1);
   const repeated = Math.max(0, ...counts.values());
-  const fronted = openers.filter(w => FRONTED.has(w)).length;
+  // Same rule as src/shared/structure.ts: reliable openers always count, and the
+  // ambiguous ones only when a comma closes the phrase near the start.
+  const fronted = sentences.filter((s, i) => {
+    const w = openers[i];
+    if (FRONTED.has(w)) return true;
+    if (!COMMA_GATED.has(w)) return false;
+    const comma = s.indexOf(',');
+    return comma >= 0 && s.slice(0, comma).split(/\s+/).filter(Boolean).length <= GATE_WORDS;
+  }).length;
 
   const tells = RULES.map(([name, re]) => [name, (text.match(re) ?? []).length]).filter(([, n]) => n > 0);
 

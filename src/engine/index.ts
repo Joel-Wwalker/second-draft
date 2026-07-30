@@ -134,11 +134,25 @@ export async function humanize(
  * given only the length target produced varied lengths and identical shapes.
  */
 function styleNotes(text: string): string {
-  const notes: string[] = [];
   const cadence = measureCadence(text);
-  if (cadence && isFlat(cadence)) notes.push(cadenceInstruction(cadence));
   const structure = measureStructure(text);
+  const notes: string[] = [];
+  if (cadence && isFlat(cadence)) notes.push(cadenceInstruction(cadence));
   if (structure && isMonotonous(structure)) notes.push(structureInstruction(structure));
+  if (notes.length === 0) return '';
+
+  // Naming one target and not the other is how the model trades them. Told only
+  // to vary sentence openings, Nano did that and evened out sentence lengths that
+  // had been fine, taking the spread from 0.30 down to 0.16. So whenever either
+  // note fires, say what is already good and must survive.
+  if (cadence && !isFlat(cadence)) {
+    notes.push(
+      `The sentence lengths here already vary: ${cadence.lengths.join(', ')} words. Keep a spread like that. Do not even the lengths out while changing anything else.`,
+    );
+  }
+  if (structure && !isMonotonous(structure)) {
+    notes.push('Sentence openings here already vary. Keep that while changing anything else.');
+  }
   return notes.join(' ');
 }
 

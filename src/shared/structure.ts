@@ -32,7 +32,20 @@ const FRONTED_OPENERS = new Set([
   // Time and sequence adverbs, which front just as often.
   'afterward', 'again', 'already', 'eventually', 'finally', 'first', 'later',
   'now', 'often', 'soon', 'still', 'sometimes', 'then', 'today', 'usually',
+  // More prepositions. Added after real output opened a sentence with a fronted
+  // phrase this list missed, so the measurement said the model had ignored an
+  // instruction it had followed.
+  'across', 'amid', 'among', 'beneath', 'behind', 'throughout', 'unlike',
+  'according', 'alongside', 'against', 'about', 'above', 'below',
 ]);
+
+/**
+ * Words that front a phrase only sometimes, because they can also begin a
+ * subject: "More than anyone, Helen is blamed" fronts, while "More ships
+ * arrived" does not. A comma close to the start settles it.
+ */
+const COMMA_GATED_OPENERS = new Set(['more', 'less', 'most', 'better', 'worse', 'far', 'long', 'much']);
+const GATE_WORDS = 10;
 
 export interface Structure {
   sentences: number;
@@ -64,6 +77,14 @@ function firstWord(sentence: string): string {
   return match ? match[0].toLowerCase() : '';
 }
 
+function frontsSomething(sentence: string, opener: string): boolean {
+  if (FRONTED_OPENERS.has(opener)) return true;
+  if (!COMMA_GATED_OPENERS.has(opener)) return false;
+  const comma = sentence.indexOf(',');
+  if (comma < 0) return false;
+  return sentence.slice(0, comma).split(/\s+/).filter(Boolean).length <= GATE_WORDS;
+}
+
 /** Null when the text is too short to judge. */
 export function measureStructure(text: string): Structure | null {
   const sentences = sentencesOf(text);
@@ -74,7 +95,7 @@ export function measureStructure(text: string): Structure | null {
   for (const sentence of sentences) {
     const word = firstWord(sentence);
     if (!word) continue;
-    if (FRONTED_OPENERS.has(word)) fronted += 1;
+    if (frontsSomething(sentence, word)) fronted += 1;
     openers.set(word, (openers.get(word) ?? 0) + 1);
   }
 

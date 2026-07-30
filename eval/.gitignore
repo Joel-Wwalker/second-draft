@@ -1,0 +1,4 @@
+# Batch data is regenerated, not reviewed. The harness is committed; its output is not.
+sources.json
+prompts.json
+results.json

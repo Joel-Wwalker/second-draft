@@ -35,7 +35,9 @@
     "e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
     "screenshots": "node scripts/make-screenshots.mjs",
-    "compare": "node scripts/compare.mjs"
+    "compare": "node scripts/compare.mjs",
+    "eval": "node scripts/evaluate.mjs",
+    "eval:prompts": "vitest run tests/eval-prompts.test.ts"
   },
   "license": "AGPL-3.0-or-later",
   "type": "module",
