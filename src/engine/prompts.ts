@@ -49,9 +49,11 @@ Rewrite so the text reads like a person wrote it, keeping the meaning and regist
 - Replace vague attributions (experts argue, observers note) with direct statements, and never add one.
 - Prefer plain is/are/has over serves as, boasts, features.
 - Break up forced rule-of-three lists; two items or four are fine.
-- Mix sentence lengths in both directions. Merge two related sentences as often
-  as you split a long one: a run of short sentences is its own AI tell. Never
-  leave three in a row at roughly the same length.
+- Mix sentence lengths in both directions. Merge two related sentences into one
+  longer one as often as you split a long one, because variety needs long
+  sentences as much as it needs short ones. A paragraph chopped into a run of
+  short sentences is its own AI tell: never leave three in a row at roughly the
+  same length.
 - Use contractions where the register allows them. Most people write "it's" and
   "does not" in the same paragraph.
 - Keep every specific already in the text: names, numbers, dates, places, and
@@ -73,8 +75,6 @@ Voice. The enemy is generic phrasing, not long words or short ones:
 - Keep every hedge as strong as it arrived. Purported, alleged, attributed to,
   ostensibly, reportedly and arguably are claims about evidence: drop one and you
   assert as fact what the writer would not.
-- Prefer doing-verbs to happening-verbs: called in, ground on, not prompted,
-  resulted in, was influenced by.
 - Never open two consecutive sentences with This, and never open with However.
 - Keep the writer's own voice. First person, informality and stated opinions are
   the writer, not tells: never sand "honestly, I'm impressed" into a neutral

@@ -224,18 +224,26 @@ function isBetter(candidate: Attempt, incumbent: Attempt): boolean {
   if (candidate.fidelity.length !== incumbent.fidelity.length) {
     return candidate.fidelity.length < incumbent.fidelity.length;
   }
-  const problems = (a: Attempt): number => (a.style ? 1 : 0) + (a.drift ? 1 : 0);
-  if (problems(candidate) !== problems(incumbent)) return problems(candidate) < problems(incumbent);
-  // Below fidelity and style, above tell count. A rewrite that changed nothing
-  // cannot lose content, flatten its rhythm or add a tell, so on the tell count
-  // alone it would beat the genuine rewrite sent to replace it.
+  // Three bands, worst first. Drift is "you handed back something worse than
+  // arrived", a no-op is "you handed back nothing", and style is "this is still
+  // not very good". The first two are failures against the input and outrank the
+  // third, which is a judgment about quality in the abstract.
   //
-  // It sits below style deliberately. Ranked above, it made an attempt that came
-  // back with heavier vocabulary beat one that returned the text intact, and
-  // handing back inflated prose is the worse outcome: trying is not the thing
-  // being scored. The retry above fires on a no-op either way, which is where
-  // most of the value is.
+  // Ordering learned the hard way. Style and drift were scored together and
+  // no-ops ranked below the pair, so an attempt that changed nothing scored zero
+  // and beat any genuine rewrite carrying a single style note. A hundred-pair
+  // run came back with ten unchanged rewrites, nine of which had retried and had
+  // their retry discarded here. Splitting the two puts drift above the no-op,
+  // which keeps a plain text intact rather than accepting an inflated rewrite,
+  // and style below it, so nothing beats a real attempt by declining to make one.
+  const worse = (a: Attempt, b: Attempt, score: (x: Attempt) => number): boolean | null =>
+    score(a) === score(b) ? null : score(a) < score(b);
+
+  const byDrift = worse(candidate, incumbent, a => (a.drift ? 1 : 0));
+  if (byDrift !== null) return byDrift;
   if (candidate.noop !== incumbent.noop) return incumbent.noop;
+  const byStyle = worse(candidate, incumbent, a => (a.style ? 1 : 0));
+  if (byStyle !== null) return byStyle;
   return candidate.remaining.length < incumbent.remaining.length;
 }
 

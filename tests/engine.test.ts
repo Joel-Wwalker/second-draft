@@ -718,3 +718,40 @@ test('a tell the rewrite invented triggers a retry even when the total count fel
   expect(prompts[1]).toContain('added something the original did not have');
   expect(res.rewritten).not.toContain('not just a crossing');
 });
+
+test('a real rewrite beats a no-op even when the no-op scores better on style', async () => {
+  // The ranking bug that cost nine retries in a hundred. A no-op inherits the
+  // input's style score, so on text whose pacing is already fine it scores zero
+  // and beat any genuine rewrite carrying a single style note. The retry fired
+  // correctly and its result was discarded here.
+  // Carries one tell, so the no-rewrite gate lets it reach the model, and paces
+  // itself well, so the no-op it comes back as carries no style note.
+  const source =
+    'The harbour wall was rebuilt in 1904 after the storm took the old one. ' +
+    'Money came from the fishing families, who were repaid over twenty years at ' +
+    'no interest. The council minutes record two crucial objections and neither ' +
+    'is explained. Nobody has found the original drawings, so the repairs in 1968 ' +
+    'were done from survey alone, and the join is still visible at low tide.';
+  // Deliberately flat, so it carries a style note the no-op does not, and
+  // deliberately faithful, so fidelity cannot decide the comparison first.
+  const flatRewrite =
+    'The harbour wall was rebuilt in 1904 after the storm hit it. The money came ' +
+    'from the local fishing families in the town. They were repaid over twenty ' +
+    'years at no interest. The council minutes record two objections to the work. ' +
+    'Neither of those two objections is explained anywhere. Nobody has ever found ' +
+    'the original drawings for it. The repairs in 1968 were done from survey ' +
+    'alone. The join is still visible there at low tide.';
+  let call = 0;
+  const lazy = {
+    info: { kind: 'fake' as const, model: 'lazy' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      call += 1;
+      return call === 1 ? source : flatRewrite;
+    },
+  };
+  const res = await humanize(source, { intensity: 'full' }, { providers: [lazy] });
+  expect(call).toBe(2);
+  // Doing something imperfect beats declining to act.
+  expect(res.rewritten).toBe(flatRewrite);
+});
