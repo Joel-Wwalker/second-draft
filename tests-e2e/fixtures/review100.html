@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Second Draft review batch</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      #log { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+             background: #1e293b; border-radius: 8px; padding: 12px; max-height: 70vh; overflow: auto; }
+      .n { color: #818cf8; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Second Draft review batch <span class="n" id="count">0</span> of <span id="total">100</span></h1>
+    <div id="log">idle</div>
+    <script src="/engine.js"></script>
+    <script type="module">
+      // Runs the shipped engine, bundled from src/, over generated source
+      // paragraphs. Two phases so an interruption never loses finished work:
+      // sources are produced and posted first, then each is humanized and posted
+      // as it completes. Both phases resume from whatever the server already has.
+      import { specFor, promptFor, TOTAL as FULL } from '/corpus-100.mjs';
+
+      // ?cap=150 stops the run early without losing anything: the spread of
+      // topics, registers and shapes is deterministic per index, so the first N
+      // indexes are already a balanced sample rather than a truncated one.
+      const CAP = Math.min(FULL, Number(new URLSearchParams(location.search).get('cap')) || FULL);
+      const TOTAL = CAP;
+
+      const log = document.getElementById('log');
+      const count = document.getElementById('count');
+      const say = m => {
+        log.textContent = `${m}\n${log.textContent}`.split('\n').slice(0, 400).join('\n');
+      };
+
+      const post = (path, body) =>
+        fetch(`http://localhost:8788/${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+      async function load(name) {
+        try {
+          const res = await fetch(`http://localhost:8788/read/${name}`);
+          return res.ok ? await res.json() : [];
+        } catch {
+          return [];
+        }
+      }
+
+      async function makeSource(spec) {
+        const s = await LanguageModel.create({
+          initialPrompts: [
+            {
+              role: 'system',
+              content:
+                'You write single paragraphs to order. Follow the register, situation and structure you are given exactly. Output only the paragraph.',
+            },
+          ],
+        });
+        try {
+          return (await s.prompt(promptFor(spec))).trim();
+        } finally {
+          s.destroy();
+        }
+      }
+
+      /**
+       * One index at a time, generate then rewrite, rather than all sources
+       * first. Two phases meant nothing readable existed until every source was
+       * done, hours in. Resumes from whatever the server already holds.
+       */
+      async function run() {
+        const have = new Map((await load('pairs100')).map(d => [d.index, d]));
+        say(`resuming with ${have.size} pairs`);
+        count.textContent = String(have.size);
+        const providers = [new SecondDraft.NanoProvider()];
+        const started = Date.now();
+
+        for (let i = 0; i < TOTAL; i++) {
+          if (have.has(i)) continue;
+          const spec = specFor(i);
+          try {
+            const before = await makeSource(spec);
+            const result = await SecondDraft.humanize(before, { intensity: 'full' }, { providers });
+            have.set(i, {
+              index: i,
+              topic: spec.topic,
+              band: spec.band,
+              stance: spec.stance,
+              shape: spec.shape,
+              before,
+              after: result.rewritten,
+              tellsBefore: result.tells.before,
+              tellsAfter: result.tells.after,
+              retried: result.retried,
+              fidelity: result.fidelity.map(f => f.message),
+              engine: result.engine.kind,
+            });
+          } catch (e) {
+            say(`${i} failed: ${e.kind ?? e.name}: ${(e.message ?? '').slice(0, 60)}`);
+            continue;
+          }
+          count.textContent = String(have.size);
+          if (have.size % 2 === 0 || i === TOTAL - 1) {
+            await post('pairs100', [...have.values()].sort((a, b) => a.index - b.index));
+            const per = (Date.now() - started) / 1000 / Math.max(1, have.size);
+            const left = Math.round(((TOTAL - have.size) * per) / 60);
+            say(`${have.size}/${TOTAL}  ${spec.band}: ${spec.topic}  (~${left} min left)`);
+          }
+        }
+        await post('pairs100', [...have.values()].sort((a, b) => a.index - b.index));
+        say('FINISHED');
+      }
+
+      (async () => {
+        if (typeof LanguageModel === 'undefined') {
+          say('no Prompt API in this browser');
+          return;
+        }
+        document.getElementById('total').textContent = String(TOTAL);
+        say(`availability: ${await LanguageModel.availability()}`);
+        await run();
+      })();
+    </script>
+  </body>
+</html>
