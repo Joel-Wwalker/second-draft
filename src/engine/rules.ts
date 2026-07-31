@@ -67,11 +67,31 @@ export const RULES: Rule[] = [
     replacement: () => '',
   },
   {
+    // Every word here earns its place by measurement, not by sounding like
+    // something a model would write. `scripts/calibrate-vocab.mjs` scores a
+    // candidate against 1000 human-written paragraphs and the 100 machine-written
+    // ones from the review batch, and keeps only those appearing in at most 3% of
+    // the human prose, at least 2% of the machine prose, and at least three times
+    // as often in the second as the first.
+    //
+    // The list used to hold twenty words chosen by ear, and a review of 100
+    // rewrites found the cost: a paragraph carrying meticulously, ultimately
+    // twice, Consequently, exacerbated and proactively was reported as having
+    // zero tells and returned untouched by the no-rewrite gate below. Not one of
+    // those six words was in the list. Meticulously alone appears in 14% of
+    // machine paragraphs against 0.1% of human ones.
+    //
+    // Deliberately absent: arguably. It scores well (0.1% human, 2% machine) but
+    // it is an epistemic hedge, and a rule telling the model to replace one is
+    // how "the purported trade privileges" became "the trade benefits enjoyed
+    // by" in the same review. Catching 2% is not worth asserting as fact what
+    // the author declined to.
     id: 'ai-vocab',
     reason: 'AI-associated vocabulary',
     pattern:
-      /\b(?:delve(?:s|d)?|tapestry|testament to|underscor(?:es?|ing)|showcas(?:es?|ing)|pivotal|crucial|vibrant|foster(?:s|ing)?|garner(?:s|ed)?|interplay|intricate|intricacies|enduring|moreover|furthermore|additionally|aligns? with|(?:key|vital) (?:role|moment|factor|aspect))\b/gi,
+      /\b(?:delve(?:s|d)?|tapestry|testament to|underscor(?:es?|ing)|showcas(?:es?|ing)|pivotal|crucial|vibrant|foster(?:s|ing)?|garner(?:s|ed)?|interplay|intricate|intricacies|enduring|moreover|furthermore|additionally|aligns? with|(?:key|vital) (?:role|moment|factor|aspect)|meticulous(?:ly)?|ultimately|consequently|exacerbat(?:e|es|ed|ing)|proactive(?:ly)?|nuanc(?:e|es|ed)|compound(?:ed|ing)|navigat(?:e|es|ed|ing)|landscape|facilitat(?:e|es|ed|ing)|leverag(?:e|es|ed|ing)|robust|streamlin(?:e|es|ed|ing)|holistic(?:ally)?|multifaceted|profound(?:ly)?|invaluable|paramount|significantly|essentially|effectively)\b/gi,
     fixable: false,
+    skipQuoted: true,
   },
   {
     id: 'negative-parallelism',

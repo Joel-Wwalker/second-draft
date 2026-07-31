@@ -42,6 +42,18 @@ export const SHORT_SENTENCE = 11;
 /** A sentence this long counts as the other end of the range. */
 export const LONG_SENTENCE = 25;
 /**
+ * Longest minus shortest, at or under this, is worth naming in the instruction.
+ * Not a trigger: see isFlat for why it did not earn that. Purely descriptive, so
+ * the model is told the actual shape of the problem rather than a ratio.
+ */
+export const NARROW_BAND = 8;
+/**
+ * Every sentence at least this long is its own failure mode. Splitting one in half
+ * yields two more mid-length sentences, so the split instruction on its own makes
+ * no difference; the model has to be told to aim for genuinely short.
+ */
+export const UNIFORM_LONG = 18;
+/**
  * Spread below this reads as one length repeated.
  *
  * Measured, not guessed. Across 1000 Wikipedia article introductions, written and
@@ -88,7 +100,19 @@ export function measureCadence(text: string): Cadence | null {
   };
 }
 
-/** One length repeated, whatever that length happens to be. */
+/**
+ * One length repeated, whatever that length happens to be.
+ *
+ * Spread only. A narrow longest-minus-shortest band was tried here as a second
+ * trigger, on the reasoning that spread is scale-free and so an 8-word swing
+ * looks like variety at a mean of 24 and like a lot at a mean of 9. Measurement
+ * killed it: adding `band <= 8` moved the human false-positive rate from 7.7% to
+ * 7.8% and caught no machine paragraph that spread had not already caught, on
+ * either the 98 inputs or the 100 outputs. It is entirely subsumed.
+ *
+ * The band survives in cadenceInstruction, where it describes a paragraph
+ * already known to be flat rather than deciding whether one is.
+ */
 export function isFlat(cadence: Cadence): boolean {
   return cadence.spread < MIN_SPREAD;
 }
@@ -110,6 +134,21 @@ export function cadenceInstruction(cadence: Cadence): string {
   if (cadence.longest < LONG_SENTENCE) {
     parts.push(
       `Nothing reaches ${LONG_SENTENCE} words. Merge two related sentences into one longer one, joined with a comma, a semicolon or a subordinating word.`,
+    );
+  }
+  // The band is what spread cannot see. A paragraph running 20 to 27 words has a
+  // respectable-looking ratio and still reads as one length, and the review that
+  // found it also found the model responding to a bare split instruction by
+  // halving a long sentence into two more mid-length ones.
+  const band = cadence.longest - cadence.shortest;
+  if (band <= NARROW_BAND) {
+    parts.push(
+      `Every sentence sits within ${band} words of every other, from ${cadence.shortest} to ${cadence.longest}. Widen that range at both ends rather than shifting all of them.`,
+    );
+  }
+  if (cadence.shortest >= UNIFORM_LONG) {
+    parts.push(
+      `Every sentence here is long; the shortest is ${cadence.shortest} words. Cutting one in half leaves two medium sentences, which is the same problem in a new shape. Take one down under ${SHORT_SENTENCE + 1} words and leave another above ${LONG_SENTENCE}.`,
     );
   }
   // Splitting alone raises the number while making the prose worse, and the

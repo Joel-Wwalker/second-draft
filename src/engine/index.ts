@@ -89,6 +89,7 @@ export async function humanize(
       style: styleNotes(rewritten),
       drift: vocabularyDrift(text, rewritten),
       remaining: detect(rewritten, extraRules),
+      noop: isNoOp(rewritten, text),
     };
   };
 
@@ -104,9 +105,20 @@ export async function humanize(
   // only, because the on-device model is slow enough that a third attempt costs
   // more waiting than it tends to buy.
   const noTellProgress = best.remaining.length >= tells.length && best.remaining.length > 0;
-  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress) {
+  // A tell the input never had is a regression even when the total count fell.
+  // The review found four rewrites that were handed clean prose and wrote "not
+  // just X, it's Y" into it; each had removed enough other tells that the count
+  // dropped and the retry never ran. Introducing a tell is worse than leaving
+  // one, because the writer did not put it there.
+  const introduced = introducedTells(tells, best.remaining);
+  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || introduced.length > 0) {
     throwIfAborted(opts.signal);
     const notes: string[] = [];
+    if (best.noop) {
+      notes.push(
+        'A previous attempt returned the text exactly as it arrived. That is a failure, not a judgment that the text was already fine. Change the structure this time: split a long sentence, join two short ones, or move a clause to the front.',
+      );
+    }
     if (best.fidelity.length > 0) {
       const lost = best.fidelity.map(issue => issue.message).join(' ');
       notes.push(
@@ -118,6 +130,11 @@ export async function humanize(
     }
     if (best.drift) {
       notes.push(best.drift);
+    }
+    if (introduced.length > 0) {
+      notes.push(
+        `Your rewrite added something the original did not have: ${describeTells(introduced)}. You wrote that, so do not write it again.`,
+      );
     }
     if (best.remaining.length > 0) {
       notes.push(`Your rewrite still contains: ${describeTells(best.remaining)}. Fix these this time.`);
@@ -209,6 +226,16 @@ function isBetter(candidate: Attempt, incumbent: Attempt): boolean {
   }
   const problems = (a: Attempt): number => (a.style ? 1 : 0) + (a.drift ? 1 : 0);
   if (problems(candidate) !== problems(incumbent)) return problems(candidate) < problems(incumbent);
+  // Below fidelity and style, above tell count. A rewrite that changed nothing
+  // cannot lose content, flatten its rhythm or add a tell, so on the tell count
+  // alone it would beat the genuine rewrite sent to replace it.
+  //
+  // It sits below style deliberately. Ranked above, it made an attempt that came
+  // back with heavier vocabulary beat one that returned the text intact, and
+  // handing back inflated prose is the worse outcome: trying is not the thing
+  // being scored. The retry above fires on a no-op either way, which is where
+  // most of the value is.
+  if (candidate.noop !== incumbent.noop) return incumbent.noop;
   return candidate.remaining.length < incumbent.remaining.length;
 }
 
@@ -221,6 +248,41 @@ interface Attempt {
   drift: string;
   /** Detected tells still present in the rewrite. */
   remaining: DetectedTell[];
+  /** The model handed the text back; see isNoOp. */
+  noop: boolean;
+}
+
+/**
+ * Tells present in the rewrite whose kind the input never had.
+ *
+ * By rule id rather than by count, because a text that arrived with one
+ * rule-of-three list and left with one has not been made worse, while a text
+ * that arrived with none and left with one has. Returns the offending matches
+ * themselves so the retry can quote them back.
+ */
+export function introducedTells(before: DetectedTell[], after: DetectedTell[]): DetectedTell[] {
+  const had = new Set(before.map(tell => tell.ruleId));
+  return after.filter(tell => !had.has(tell.ruleId));
+}
+
+/**
+ * Did the model return the text it was given?
+ *
+ * Not a byte comparison, because the mechanical fixes run before this and a
+ * model that changes nothing still gets its curly quotes straightened on the way
+ * out. Two rewrites in a hundred came back this way and were counted as changed
+ * on the strength of an apostrophe. Case and run-length whitespace are folded in
+ * for the same reason: neither is a rewrite.
+ */
+function isNoOp(rewritten: string, original: string): boolean {
+  const normalize = (value: string): string =>
+    value
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  return normalize(rewritten) === normalize(original);
 }
 
 const DOUBLE_QUOTE = /["“”]/;

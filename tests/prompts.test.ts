@@ -24,7 +24,7 @@ test('full prompt mandates a rewrite even for clean text; light stays minimal', 
   const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
   expect(full).toContain('Returning the text unchanged is a failure');
-  expect(full).toContain('Rewrite even when none of the listed tells appear');
+  expect(full).toContain('Rewrite even when no listed tell appears');
   expect(light).not.toContain('unchanged is a failure');
 });
 
@@ -36,7 +36,7 @@ test('the mandate demands new structure, never synonym churn', () => {
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
   expect(full).not.toContain('noticeably different');
   expect(full).toContain('Do not make it different by swapping words for synonyms');
-  expect(full).toContain('so is returning the same structure with the words shuffled');
+  expect(full).toContain('so is the same structure with the words shuffled');
   expect(full).toContain('never swap a plain word for a fancier one');
   // Plain wording must not decay into chattiness, which was the other direction
   // of the same churn.
@@ -68,7 +68,7 @@ test('the full prompt asks for rhythm, contractions, and concreteness without in
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
   expect(full).toContain('Mix sentence lengths in both directions');
   expect(full).toContain('Use contractions where the register allows');
-  expect(full).toContain('Do not invent details that were');
+  expect(full).toContain('invent no details that were not there');
   // The light pass stays minimal: it only removes tells, it does not restyle.
   const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
   expect(light).not.toContain('Mix sentence lengths');
@@ -89,8 +89,8 @@ test('the full prompt teaches voice with worked examples, not adjectives', () =>
   // the voice instead. Both examples preserve facts exactly.
   expect(full).toContain('"analyzed');
   expect(full).toContain('never');  // precision over plainness, wording checked below
-  expect(full).toContain('Never open two sentences in a row with This');
-  expect(full).toContain('invent nothing');
+  expect(full).toContain('Never open two consecutive sentences with This');
+  expect(full).toContain('assert as fact what the writer would not');
   expect(full).toContain("Keep the writer's own voice");
   const light = buildSystemPrompt({ intensity: 'light', tells: [], target: 'nano' });
   expect(light).not.toContain('reads generated');
@@ -103,10 +103,10 @@ test('punctuation is replaced, never deleted, and hyphens are not dashes', () =>
   // hyphens and semicolons. The code path was always a replacement; the model was
   // over-generalising the instruction, so the instruction is explicit now.
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
-  expect(full).toContain('Never delete a dash and close the gap');
-  expect(full).toContain('Hyphens inside compound words are not dashes');
+  expect(full).toContain('never delete one and close the gap');
+  expect(full).toContain('Hyphens in compound words are not dashes');
   expect(full).toContain('cost-effective');
-  expect(full).toContain('Semicolons, colons, brackets and parentheses are not AI');
+  expect(full).toContain('Semicolons, colons and brackets are not tells');
 });
 
 test('pacing is asked for in both directions, and fragmenting is named as a tell', () => {
@@ -117,7 +117,7 @@ test('pacing is asked for in both directions, and fragmenting is named as a tell
   expect(full).toContain('Mix sentence lengths in both directions');
   expect(full).toContain('Merge two related sentences');
   expect(full).toContain('is its own AI tell');
-  expect(full).toContain('never start two consecutive sentences with This');
+  expect(full).toContain('Never open two consecutive sentences with This');
 });
 
 test("the writer's own voice is protected rather than treated as a tell", () => {
@@ -127,5 +127,20 @@ test("the writer's own voice is protected rather than treated as a tell", () => 
   const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
   expect(full).toContain("Keep the writer's own voice");
   expect(full).toContain('the writer, not tells');
-  expect(full).toContain('never add one that was not there');
+  expect(full).toContain('never add one');
+});
+
+test('a voice sample is trimmed to the room left, not dropped and not overrunning', () => {
+  const p = buildSystemPrompt({
+    intensity: 'full',
+    tells: [],
+    target: 'nano',
+    voiceSample: 'plainly stated sentences about ordinary work '.repeat(200),
+  });
+  expect(p.length).toBeLessThanOrEqual(6000);
+  // Present, so the feature still does its job under budget pressure.
+  expect(p).toContain('Match the voice of this writing sample');
+  expect(p).toContain('plainly stated sentences');
+  // Cut at a word boundary rather than mid-word.
+  expect(p.endsWith('plainl') || p.endsWith('sentenc') || p.endsWith('ordinar')).toBe(false);
 });

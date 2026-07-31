@@ -18,14 +18,14 @@ const TELL_NAMES: Record<string, string> = {
 
 const CONTRACT =
   'Rewrite the text the user sends. Output only the rewritten text: no preamble, no explanation, ' +
-  'no quotes around it, no code fences. Preserve the meaning, approximate length, paragraph breaks, ' +
-  'and all facts. Use no em dashes or en dashes in the output: replace each one with a comma, a ' +
-  'colon, a semicolon or a full stop, whichever the sentence needs. Never delete a dash and close ' +
-  'the gap, because that leaves two clauses jammed together ungrammatically. ' +
-  'Hyphens inside compound words are not dashes: keep cost-effective, error-prone, mid-15th, ' +
-  'performance-based exactly as they are. Semicolons, colons, brackets and parentheses are not AI ' +
-  'tells either; keep them where the original had them. ' +
-  'Leave text inside quotation marks exactly as written.';
+  'no code fences. Preserve the meaning, approximate length, paragraph breaks, ' +
+  'and all facts. Leave text inside quotation marks exactly as written. ' +
+  'Use no em dashes or en dashes: replace each with the punctuation its job needs, and never delete ' +
+  'one and close the gap, which jams two clauses together. A dash setting off an aside, or renaming ' +
+  'what comes before it, takes a comma or a colon, never a semicolon, because a semicolon needs a ' +
+  'whole sentence on each side. Paired dashes become paired commas or brackets, and the words ' +
+  'between them stay. Hyphens in compound words are not dashes: keep cost-effective, mid-15th, ' +
+  'error-prone as they are. Semicolons, colons and brackets are not tells; leave them where they are.';
 
 const LIGHT_CORE = `${CONTRACT}
 Change as little as possible. Only fix these AI tells where they appear:
@@ -43,41 +43,64 @@ Keep everything else exactly as written.`;
 // is ours, because asking a model for specificity invites fabrication.
 const FULL_CORE = `${CONTRACT}
 Rewrite so the text reads like a person wrote it, keeping the meaning and register:
-- Cut inflation and promotion: stands as, testament to, pivotal, underscores, vibrant, renowned, must-visit.
-- Replace AI-flavored words (delve, tapestry, crucial, interplay, intricate) with plain ones, and never swap a plain word for a fancier one.
-- Drop tacked-on "-ing" analysis clauses (highlighting, showcasing, reflecting), and do not add new ones.
-- Unwind "not just X, it's Y" and every other negative parallelism into a direct claim. Rewording it to "not merely" does not count.
-- Replace vague attributions (experts argue, observers note, according to some) with direct statements, and never add one that was not there.
+- Cut inflation and promotion, and never swap a plain word for a fancier one.
+- Drop tacked-on "-ing" analysis clauses (highlighting, reflecting) and add none.
+- Unwind "not just X, it's Y" and every other negative parallelism into a direct claim. "Not merely" does not count, and do not write one that was not there.
+- Replace vague attributions (experts argue, observers note) with direct statements, and never add one.
 - Prefer plain is/are/has over serves as, boasts, features.
 - Break up forced rule-of-three lists; two items or four are fine.
-- Cut signposting, fake-candid openers, aphorism formulas, false ranges, hedging filler, and generic upbeat closers.
-- Mix sentence lengths in both directions. Merge two related sentences into one
-  longer one as often as you split a long one, because variety needs long
-  sentences as much as short ones. A paragraph chopped into a run of short
-  sentences is its own AI tell: never leave three sentences in a row at roughly
-  the same length, and never start two consecutive sentences with This.
+- Mix sentence lengths in both directions. Merge two related sentences as often
+  as you split a long one: a run of short sentences is its own AI tell. Never
+  leave three in a row at roughly the same length.
 - Use contractions where the register allows them. Most people write "it's" and
   "does not" in the same paragraph.
-- Prefer concrete wording over abstract wording, and keep every specific already
-  in the text: names, numbers, dates, places. Do not invent details that were
-  not there.
-Voice. The enemy is generic phrasing, not long words or short ones. Be as
-specific as the original allows, in its own register, and invent nothing:
+- Keep every specific already in the text: names, numbers, dates, places, and
+  invent no details that were not there.
+Voice. The enemy is generic phrasing, not long words or short ones:
 - Swap stock frames for concrete wording. "This led to a war that lasted ten
   years" reads generated; "the fight ground on for ten years" reads written.
   Formally: "conducted an analysis of the results" reads generated, "analyzed
   the results" reads written. Precision is the professional voice, so never
   trade a precise word for a vague plain one.
-- Prefer doing-verbs over happening-verbs: called in, ground on, rather than
-  prompted, resulted in, was influenced by.
-- Never open two sentences in a row with This, and never open with However.
-- Keep the writer's own voice. First-person, informality and stated opinions are
+- A field's own vocabulary is precise, not jargon. Collective action, illuminated
+  manuscripts, vassal states, common law and their like stay exactly as written.
+  Explaining one into a description, "vassal states" into "states under
+  Byzantine control", loses the meaning and reads more generated, not less.
+- Never reach for how, things, problems, good, important, a lot, or a closer look
+  where the original had a specific word. That is what a rewrite falls back on
+  when it is avoiding the work, and a wall of it is the generic-language flag
+  detectors score against. Plain is not vague.
+- Keep every hedge as strong as it arrived. Purported, alleged, attributed to,
+  ostensibly, reportedly and arguably are claims about evidence: drop one and you
+  assert as fact what the writer would not.
+- Prefer doing-verbs to happening-verbs: called in, ground on, not prompted,
+  resulted in, was influenced by.
+- Never open two consecutive sentences with This, and never open with However.
+- Keep the writer's own voice. First person, informality and stated opinions are
   the writer, not tells: never sand "honestly, I'm impressed" into a neutral
-  report. Contractions and one short judgment sentence suit casual registers; in
+  report. Honestly, frankly, I think and the intensifiers around them stay where
+  they stand, mid-sentence as much as at the front. Feeling keeps its strength,
+  so "the emotional toll was immense" does not become "I felt a lot" and a
+  paragraph about grief must not come back reading like a condolence card. In
   formal writing carry the voice with precise verbs instead.
-Rewrite even when none of the listed tells appear: smooth, evenly paced prose where every sentence has the same shape is itself an AI tell. Make the rewrite different by changing structure: split a long sentence, join two short ones, break up a three-item list, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register of the original, because plain wording is not casual wording: do not add chatty intensifiers like really, very, or a lot to formal text. Returning the text unchanged is a failure, and so is returning the same structure with the words shuffled.`;
+Rewrite even when no listed tell appears: evenly paced prose where every sentence has the same shape is itself a tell. Change structure, not words: split a long sentence, join two short ones, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register, because plain wording is not casual wording: add no chatty intensifiers like really or very to formal text. Returning the text unchanged is a failure, and so is the same structure with the words shuffled.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
+
+/**
+ * Whole-prompt ceiling in characters. Nano's is the tight one: instruction
+ * quality falls off well before its context does, and the review batches were
+ * all run under this figure.
+ *
+ * The voice sample is trimmed to whatever room is left rather than to a fixed
+ * word count. A word cap alone cannot hold a budget it cannot see: the sample
+ * was capped at 350 words no matter how much the tell summary, the cadence
+ * measurement and the instructions had already spent, so a long selection with
+ * many detected tells could push the total over on its own. The sample yields
+ * because it is the one part that degrades gracefully; half a voice sample is
+ * still a voice sample, while half an instruction is a broken one.
+ */
+const PROMPT_BUDGET = { nano: 6000, byok: 24_000 } as const;
 
 export interface PromptOptions {
   intensity: Intensity;
@@ -100,8 +123,15 @@ export function buildSystemPrompt(opts: PromptOptions): string {
   if (opts.cadence) parts.push(opts.cadence);
   const sample = opts.voiceSample?.trim();
   if (sample) {
-    const words = sample.split(/\s+/).slice(0, VOICE_WORD_LIMIT[opts.target]);
-    parts.push(`Match the voice of this writing sample from the author:\n${words.join(' ')}`);
+    const heading = 'Match the voice of this writing sample from the author:\n';
+    // Two joins' worth of separator, for the block about to be appended.
+    const spent = parts.join('\n\n').length + heading.length + 2;
+    const room = PROMPT_BUDGET[opts.target] - spent;
+    let block = sample.split(/\s+/).slice(0, VOICE_WORD_LIMIT[opts.target]).join(' ');
+    // Cut back to a word boundary so the sample never ends mid-word, which would
+    // read to the model as a typo worth imitating.
+    if (block.length > room) block = block.slice(0, Math.max(0, room)).replace(/\s+\S*$/, '');
+    if (block) parts.push(heading + block);
   }
   return parts.join('\n\n');
 }

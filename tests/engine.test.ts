@@ -635,3 +635,86 @@ test('text with real tells is still rewritten', async () => {
   await humanize(tellish, { intensity: 'full' }, { providers: [provider] });
   expect(called).toBeGreaterThan(0);
 });
+
+test('AI vocabulary the old list missed is detected, so the no-rewrite gate does not fire', async () => {
+  // Pair 30 of the 100-rewrite review in miniature: strong prose, no dash, no
+  // curly quote, no rule-of-three, and six words that mark it as machine-written.
+  // The gate returned text like this untouched and reported zero tells, because
+  // not one of these words was in the list it consulted.
+  const heavy =
+    'The council met each spring to settle the accounts of the previous year. ' +
+    'Members reviewed the ledgers meticulously, and consequently the disputes that ' +
+    'had run on for years were closed inside a single session. Ultimately the ' +
+    'practice spread to the other towns along the river, though that took another ' +
+    'decade and a proactive push from the guilds. Poor harvests exacerbated the ' +
+    'arguments over precedence. The records survive in the town archive today.';
+  let called = false;
+  const fake = new FakeProvider(t => {
+    called = true;
+    return t;
+  });
+  const res = await humanize(heavy, { intensity: 'full' }, { providers: [fake] });
+  expect(called).toBe(true);
+  expect(res.tells.before).toBeGreaterThan(0);
+});
+
+test('a rewrite that only changes quote characters counts as no rewrite and is retried', async () => {
+  // The review found two rewrites in a hundred that came back with nothing but
+  // the apostrophes straightened. applyFixes runs before the comparison, so a
+  // byte check called them changed and the retry never fired.
+  const original =
+    "The tenants' agreement ran for seven years and nobody read it closely. " +
+    'It set the rent, the repairs and the notice period. When the roof failed ' +
+    'in the second winter the landlord pointed at clause nine, which said ' +
+    'nothing about roofs at all. They argued about it until the following spring.';
+  const prompts: string[] = [];
+  let call = 0;
+  const echo = {
+    info: { kind: 'fake' as const, model: 'echo' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      // First pass: the same text with curly apostrophes and doubled spacing.
+      if (call === 1) return original.replace(/'/g, '’').replace(/\. /g, '.  ');
+      return original.replace('nobody read it closely', 'nobody read it');
+    },
+  };
+  const res = await humanize(original, { intensity: 'full' }, { providers: [echo] });
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('returned the text exactly as it arrived');
+  expect(res.rewritten).toContain('nobody read it.');
+});
+
+test('a tell the rewrite invented triggers a retry even when the total count fell', async () => {
+  // Four rewrites in the review were handed prose without negative parallelism
+  // and wrote it in. Each had removed enough other tells that the count dropped,
+  // so the old no-progress trigger read it as success.
+  const source =
+    'The bridge opened in 1874 after two collapses during construction. ' +
+    'Engineers blamed the first on the caissons and the second on a winter storm. ' +
+    'The county paid for both inquiries and published neither, moreover the ' +
+    'contractor kept the retainer. Traffic crossed it for ninety years.';
+  const prompts: string[] = [];
+  let call = 0;
+  const inventor = {
+    info: { kind: 'fake' as const, model: 'inventor' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      // Removes the 'moreover' tell but writes in a negative parallelism the
+      // original never had, so the raw count goes down while the text gets worse.
+      if (call === 1) {
+        return source
+          .replace(', moreover the', '. The')
+          .replace('Traffic crossed it', 'It was not just a crossing but a lifeline, and traffic crossed it');
+      }
+      return source.replace(', moreover the', '. The');
+    },
+  };
+  const res = await humanize(source, { intensity: 'full' }, { providers: [inventor] });
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('added something the original did not have');
+  expect(res.rewritten).not.toContain('not just a crossing');
+});
