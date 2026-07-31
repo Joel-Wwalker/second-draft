@@ -75,6 +75,10 @@ const normalize = v =>
 
 const PRIMER = /\b(?:how|things?|problems?|good|important|a lot|a closer look|really|very)\b/gi;
 const HEDGES = /\b(?:purported(?:ly)?|alleged(?:ly)?|attributed to|ostensibly|reportedly|arguably|apparently|seemingly)\b/gi;
+// The writer showing up in their own sentence. A rewrite may move one; it may not
+// quietly delete it, which is how a paragraph about grief came back reading like
+// a condolence card.
+const VOICE = /\b(?:honestly|frankly|I think|I mean|to be fair|of course)\b/gi;
 const DASHES = /[—–]/g;
 const NEGPAR = /\bnot (?:just|only|merely)\b[^.!?\n]{0,80}\bbut\b/gi;
 
@@ -97,6 +101,11 @@ function summarize(get) {
     primer: (hits(joinedAfter, PRIMER) / words(joinedAfter)) * 1000,
     hedgeKept:
       hits(joinedAfter, HEDGES) / Math.max(1, hits(before.join('\n'), HEDGES)),
+    // Per pair rather than per occurrence: losing one of a paragraph's three
+    // markers is a different failure from flattening the paragraph entirely.
+    voiceKept:
+      shared.filter((i, k) => hits(before[k], VOICE) > 0 && hits(after[k], VOICE) > 0).length /
+      Math.max(1, shared.filter((i, k) => hits(before[k], VOICE) > 0).length),
     spread: avg(m.map(x => x.spread)),
     longRate: avg(m.map(x => x.longRate)),
     sents: avg(m.map(x => x.sents)),
@@ -123,6 +132,7 @@ const rows = [
   ['invented negative parallelism', a.negpar, b.negpar, '0', 'lower'],
   ['primer words per 1k', a.primer.toFixed(2), b.primer.toFixed(2), hp(PRIMER).toFixed(2), 'lower'],
   ['hedges kept vs input', a.hedgeKept.toFixed(2), b.hedgeKept.toFixed(2), '1.00', 'higher'],
+  ['voice markers kept (per pair)', a.voiceKept.toFixed(2), b.voiceKept.toFixed(2), '1.00', 'higher'],
   ['mean sentence spread', a.spread.toFixed(3), b.spread.toFixed(3), String(humanSpread), 'higher'],
   ['still flat after', a.flat, b.flat, '~8', 'lower'],
   ['mean long-word rate', a.longRate.toFixed(3), b.longRate.toFixed(3), String(humanLong), 'lower'],
