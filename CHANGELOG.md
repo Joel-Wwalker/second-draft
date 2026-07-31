@@ -21,6 +21,19 @@ to every page you visit.
   that goes quiet for a minute gives up instead of spinning
 - A right click on a password, payment, or one-time-code field now says so
   instead of appearing to do nothing
+- Clean input is left exactly as it arrived. With no tell to remove, the engine
+  used to rewrite anyway and fall back on its default moves, which manufactured
+  new tells; that was two of three cases where the score got worse
+- Dashes are replaced, never deleted. Grammar was being broken by a dash
+  vanishing with nothing in its place, and by the no-dashes rule spreading to
+  hyphens and semicolons, so cost-effective became cost effective and required
+  semicolons disappeared
+- Pacing is asked for in both directions. The only structural move was splitting,
+  which destroyed variance good input already had and gamed the spread number by
+  fragmenting a paragraph into thirteen clipped sentences
+- The writer's own voice is protected. First-person reviews were being sanded
+  into neutral reports, and one rewrite turned a reviewer's own opinion into
+  "according to some", inventing a vague attribution out of human writing
 - The full rewrite teaches voice with worked examples. Tested against a public
   AI detector in one sitting: our output scored 76 percent machine-written with
   neutral tone and generic language given as the reasons, a human-written

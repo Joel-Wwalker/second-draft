@@ -104,12 +104,21 @@ export function cadenceInstruction(cadence: Cadence): string {
   ];
   if (cadence.shortest > SHORT_SENTENCE) {
     parts.push(
-      `Nothing is under ${SHORT_SENTENCE + 1} words. Split one of the long sentences so that at least one comes out under ${SHORT_SENTENCE + 1} words.`,
+      `Nothing is under ${SHORT_SENTENCE + 1} words. Split one long sentence so at least one comes out under ${SHORT_SENTENCE + 1} words.`,
     );
   }
   if (cadence.longest < LONG_SENTENCE) {
-    parts.push(`Nothing reaches ${LONG_SENTENCE} words. Join two related sentences into one longer one.`);
+    parts.push(
+      `Nothing reaches ${LONG_SENTENCE} words. Merge two related sentences into one longer one, joined with a comma, a semicolon or a subordinating word.`,
+    );
   }
-  parts.push('Do not even out the result. Short next to long is the point.');
+  // Splitting alone raises the number while making the prose worse, and the
+  // model will do exactly that if only splitting is named: one batch produced a
+  // paragraph of thirteen clipped sentences that scored well and read like a
+  // machine. Both directions, every time.
+  parts.push(
+    'Do both, not just splitting. Chopping everything into short sentences is itself a machine tell, and a paragraph needs at least one genuinely long sentence.',
+    'Do not even out the result. Short next to long is the point.',
+  );
   return parts.join(' ');
 }

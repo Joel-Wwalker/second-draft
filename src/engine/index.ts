@@ -10,6 +10,7 @@ import { buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
 
+
 export interface EngineDeps {
   /** Ordered by preference; first available provider wins. */
   providers: Provider[];
@@ -37,6 +38,25 @@ export async function humanize(
       engine: { kind: 'rules' },
       tells: { before: tells.length, after: detect(rewritten, extraRules).length },
       fidelity: checkFidelity(text, rewritten),
+      retried: false,
+    };
+  }
+
+  // Nothing to fix, so fix nothing. A review of 114 rewrites found the engine
+  // rewriting clean input anyway and making it worse: with no tell to remove it
+  // fell back on its default moves and manufactured new ones, which is where two
+  // of the three tell-count regressions came from. Reading like a person already
+  // is the goal, not an input to be processed.
+  // Zero tells, not merely few, and only when the text is long enough for the
+  // style checks to have an opinion: on a short selection they return nothing
+  // because they cannot judge, which is not the same as nothing being wrong.
+  if (tells.length === 0 && measureCadence(text) !== null && !styleNotes(text)) {
+    return {
+      rewritten: text,
+      changes: [],
+      engine: provider.info,
+      tells: { before: tells.length, after: tells.length },
+      fidelity: [],
       retried: false,
     };
   }

@@ -64,7 +64,7 @@ test('the instruction names measured numbers, not a preference', () => {
 test('a text with no long sentence is told to join two, not only to split one', () => {
   const allShort = 'One two three four five. Six seven eight nine ten. ' .repeat(6);
   const cadence = measureCadence(allShort);
-  if (cadence) expect(cadenceInstruction(cadence)).toMatch(/join two/i);
+  if (cadence) expect(cadenceInstruction(cadence)).toMatch(/merge two/i);
 });
 
 test('a heading does not count into the sentence after it', () => {

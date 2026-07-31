@@ -333,7 +333,7 @@ test('an evenly paced rewrite is retried, and the second pass is told the number
   // The pattern that already works for lost content, applied to the thing that
   // actually makes text read like a machine wrote it.
   const original =
-    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'Helen of Troy is one of the most crucial women in Greek mythology, remembered for her beauty and ' +
     'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
     'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
     'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
@@ -371,7 +371,7 @@ test('an evenly paced rewrite is retried, and the second pass is told the number
 
 test('a rewrite that varies its pacing is left alone', async () => {
   const original =
-    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'Helen of Troy is one of the most crucial women in Greek mythology, remembered for her beauty and ' +
     'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
     'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
     'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
@@ -391,7 +391,7 @@ test('a rewrite that varies its pacing is left alone', async () => {
 
 test('flat pacing counts against the score, so the failure is visible', async () => {
   const original =
-    'Helen of Troy is one of the most famous women in Greek mythology, remembered for her beauty and ' +
+    'Helen of Troy is one of the most crucial women in Greek mythology, remembered for her beauty and ' +
     'her part in the Trojan War. She was the daughter of Zeus and married Menelaus, the king of Sparta. ' +
     'The Trojan prince Paris took her to Troy, which started a Greek expedition to bring her back. ' +
     'That expedition turned into a war lasting ten full years. Helen is blamed for it more than anyone.';
@@ -435,7 +435,8 @@ test('a flat source is measured on the first pass, before anything has failed', 
 });
 
 test('a source that already varies gets no rhythm lecture', async () => {
-  const varied = VARIED;
+  // One tell so the engine runs at all; clean input is returned untouched now.
+  const varied = VARIED.replace('daughter of Zeus', 'crucial daughter of Zeus');
   const prompts: string[] = [];
   const quiet = {
     info: { kind: 'fake' as const, model: 'quiet' },
@@ -534,12 +535,12 @@ test('a rewrite that upgrades plain words is retried for it by name', async () =
   // Varied pacing and no tells on either side, so nothing else can trigger:
   // only the vocabulary getting heavier than the input.
   const plain =
-    'Helen married the king of Sparta. Then Paris took her east, and the war that followed ran ' +
+    'Helen married the crucial king of Sparta. Then Paris took her east, and the war that followed ran ' +
     'for ten years and left her with more blame than the men who launched it. Homer knew that. ' +
     'The blame stuck anyway. People still argue about her reasons, and every account says more ' +
     'about its author than about her.';
   const upgraded =
-    'Helen married the king of Sparta. Then Paris transported her eastward, and the subsequent ' +
+    'Helen married the crucial king of Sparta. Then Paris transported her eastward, and the subsequent ' +
     'conflict persisted for ten years and left her shouldering more culpability than the men who ' +
     'instigated it. Homer understood that. The culpability endured regardless. People still argue ' +
     'about her reasons, and every account says more about its author than about her.';
@@ -586,4 +587,51 @@ test('a rewrite that fixes none of the detected tells is retried even when its s
   expect(prompts[1]).toContain('Your rewrite still contains');
   expect(prompts[1]).toContain('rule of three');
   expect(res.retried).toBe(true);
+});
+
+test('clean input is returned untouched rather than rewritten into something worse', async () => {
+  // From a review of 114 rewrites: an input with no tells was rewritten anyway,
+  // and with nothing to remove the model fell back on its default moves, adding
+  // an "-ing" tack-on and flattening the pacing. Two of three tell-count
+  // regressions were this exact shape.
+  const clean =
+    'Helen of Troy was the daughter of Zeus. She married Menelaus, the king of Sparta. ' +
+    'Then the Trojan prince Paris took her east, and a Greek expedition sailed after her, which ' +
+    'hardened into a war that ran for ten years and left Helen carrying more of the blame than any ' +
+    'of the men who launched it. Homer knew that.';
+  let called = 0;
+  const provider = {
+    info: { kind: 'fake' as const, model: 'untouched' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      called += 1;
+      return 'something worse';
+    },
+  };
+  const res = await humanize(clean, { intensity: 'full' }, { providers: [provider] });
+
+  expect(called).toBe(0);
+  expect(res.rewritten).toBe(clean);
+  expect(res.changes).toEqual([]);
+  expect(res.retried).toBe(false);
+  expect(res.tells.after).toBe(res.tells.before);
+});
+
+test('text with real tells is still rewritten', async () => {
+  // The gate must not swallow the work: this has tells and flat pacing.
+  const tellish =
+    'The plan represents a testament to our vibrant culture. It is not just a plan, it is a promise. ' +
+    'The team will delve into the intricate details. The team will foster alignment across groups. ' +
+    'The team will leverage crucial insights from data. Furthermore the plan underscores our values.';
+  let called = 0;
+  const provider = {
+    info: { kind: 'fake' as const, model: 'works' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> => {
+      called += 1;
+      return VARIED;
+    },
+  };
+  await humanize(tellish, { intensity: 'full' }, { providers: [provider] });
+  expect(called).toBeGreaterThan(0);
 });
