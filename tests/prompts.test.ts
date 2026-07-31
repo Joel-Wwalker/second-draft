@@ -159,3 +159,14 @@ test('the first pass is told which AI words were found, not just how many', () =
   expect(p).toContain('"delve"');
   expect(p).not.toContain('AI-associated word (');
 });
+
+test('the preservation rules are bounded to wording, not to sentence shape', () => {
+  // Measured cost of leaving this implicit: with the term-of-art, hedge and
+  // voice-marker rules added and no boundary drawn, bigram overlap with the
+  // source went from 0.45 to 0.62 and the engine de-flattened 5 of 29 flat
+  // inputs where it had managed 22. The model read "keep this" as "keep
+  // everything", and pacing repair needs the opposite.
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).toContain('None of them protects sentence shape');
+  expect(full).toContain('rebuild the sentences around them');
+});

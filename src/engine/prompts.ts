@@ -83,6 +83,7 @@ Voice. The enemy is generic phrasing, not long words or short ones:
   so "the emotional toll was immense" does not become "I felt a lot" and a
   paragraph about grief must not come back reading like a condolence card. In
   formal writing carry the voice with precise verbs instead.
+Every rule above says which words to keep. None of them protects sentence shape, and shape is what has to change: keep the right words and rebuild the sentences around them. A paragraph that comes back with its wording defended and its sentences in the same order and the same lengths has not been rewritten.
 Rewrite even when no listed tell appears: evenly paced prose where every sentence has the same shape is itself a tell. Change structure, not words: split a long sentence, join two short ones, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register, because plain wording is not casual wording: add no chatty intensifiers like really or very to formal text. Returning the text unchanged is a failure, and so is the same structure with the words shuffled.`;
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
