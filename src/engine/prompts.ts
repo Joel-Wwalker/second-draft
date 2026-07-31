@@ -168,6 +168,25 @@ function tellSummary(tells: DetectedTell[]): string {
     const rule = RULES.find(r => r.id === id);
     if (count < (rule?.minCountForPrompt ?? 1)) continue;
     const name = TELL_NAMES[id] ?? id;
+    // Name the actual words for anything code will not fix itself. "AI-associated
+    // word (7x)" tells the model a number and leaves it to guess which seven,
+    // which is worse than the static list this replaced: that at least named
+    // delve and crucial. A fixable rule needs no words here, because applyFixes
+    // guarantees it whatever the model does.
+    if (rule && !rule.fixable) {
+      const seen = new Map<string, string>();
+      for (const tell of tells) {
+        if (tell.ruleId !== id) continue;
+        const excerpt = tell.excerpt.slice(0, 40);
+        if (!seen.has(excerpt.toLowerCase())) seen.set(excerpt.toLowerCase(), excerpt);
+      }
+      const named = [...seen.values()].slice(0, 6);
+      if (named.length > 0) {
+        const more = seen.size > named.length ? ', and more' : '';
+        items.push(`${name}: ${named.map(w => `"${w}"`).join(', ')}${more}`);
+        continue;
+      }
+    }
     items.push(count > 1 ? `${name} (${count}x)` : name);
   }
   for (const [phrase, count] of customPhrases) {

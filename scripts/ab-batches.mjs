@@ -19,6 +19,19 @@ for (const p of [aPath, bPath]) {
   }
 }
 
+// Scored here rather than read from the batch files. Each file stores the count
+// the engine computed when it ran, so the newer batch was scored by a detector
+// the older one never saw: after 23 words joined the list, the same prose counts
+// more tells without a single rewrite having got worse. One detector over both
+// outputs is the only version of this number that compares anything.
+//   npx esbuild eval/detect-entry.ts --bundle --format=esm --outfile=eval/detect.mjs
+let detect = null;
+try {
+  ({ detect } = await import('../eval/detect.mjs'));
+} catch {
+  // Left null; the row prints n/a rather than a number that means two things.
+}
+
 const load = p => new Map(JSON.parse(readFileSync(p, 'utf8')).map(d => [d.index, d]));
 const A = load(aPath);
 const B = load(bPath);
@@ -88,7 +101,8 @@ function summarize(get) {
     longRate: avg(m.map(x => x.longRate)),
     sents: avg(m.map(x => x.sents)),
     flat: m.filter(x => x.sents >= 3 && x.words >= 55 && x.spread < 0.22).length,
-    tellsAfter: avg(shared.map(i => get(i).tellsAfter ?? 0)),
+    tellsAfter: detect ? avg(after.map(t => detect(t).length)) : NaN,
+    tellsBefore: detect ? avg(before.map(t => detect(t).length)) : NaN,
     retried: shared.filter(i => get(i).retried).length,
   };
 }
@@ -113,7 +127,13 @@ const rows = [
   ['still flat after', a.flat, b.flat, '~8', 'lower'],
   ['mean long-word rate', a.longRate.toFixed(3), b.longRate.toFixed(3), String(humanLong), 'lower'],
   ['mean sentences per para', a.sents.toFixed(1), b.sents.toFixed(1), '', 'flat is fine'],
-  ['mean tells after', a.tellsAfter.toFixed(2), b.tellsAfter.toFixed(2), '', 'lower'],
+  [
+    'mean tells after (one detector)',
+    detect ? a.tellsAfter.toFixed(2) : 'n/a',
+    detect ? b.tellsAfter.toFixed(2) : 'n/a',
+    detect ? a.tellsBefore.toFixed(2) : '',
+    'lower than the source column',
+  ],
   ['retried', a.retried, b.retried, '', ''],
 ];
 

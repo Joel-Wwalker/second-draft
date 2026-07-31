@@ -144,3 +144,18 @@ test('a voice sample is trimmed to the room left, not dropped and not overrunnin
   // Cut at a word boundary rather than mid-word.
   expect(p.endsWith('plainl') || p.endsWith('sentenc') || p.endsWith('ordinar')).toBe(false);
 });
+
+test('the first pass is told which AI words were found, not just how many', () => {
+  // A count is not actionable. Naming the category and a number replaced a static
+  // list that at least said delve and crucial, so the model went from a guessable
+  // list to no list at all. Fixable rules are exempt: applyFixes guarantees those
+  // whatever the model returns.
+  const tells = detect(
+    'The council reviewed the ledgers meticulously and consequently the delve into ' +
+      'disputes ended there. Ultimately a proactive push from the guilds was crucial.',
+  );
+  const p = buildSystemPrompt({ intensity: 'full', tells, target: 'nano' });
+  expect(p).toContain('"meticulously"');
+  expect(p).toContain('"delve"');
+  expect(p).not.toContain('AI-associated word (');
+});

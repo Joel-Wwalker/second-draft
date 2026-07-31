@@ -7,3 +7,4 @@ test-results/
 playwright-report/
 INTERVIEW-NOTES.md
 tests-e2e/fixtures/engine.js
+eval/detect.mjs
