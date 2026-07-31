@@ -88,6 +88,30 @@ const hits = (t, re) => {
 };
 const words = t => t.split(/\s+/).filter(Boolean).length;
 
+// How much of the source survives structurally. The measurement that finally
+// explained a pacing regression three reruns could not pin down: preservation
+// rules aimed at word choice made the model stop restructuring, and nothing else
+// in the report could see it, because every other row was either about which
+// words appear or about the shape of the result rather than the distance
+// travelled to get there.
+const bigrams = text => {
+  const w = (text ?? '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const out = new Set();
+  for (let i = 0; i + 2 <= w.length; i++) out.add(`${w[i]} ${w[i + 1]}`);
+  return out;
+};
+const overlap = (x, y) => {
+  const a2 = bigrams(x);
+  const b2 = bigrams(y);
+  let both = 0;
+  for (const g of a2) if (b2.has(g)) both += 1;
+  return both / Math.max(1, a2.size + b2.size - both);
+};
+const isFlatText = t => {
+  const m = measure(t);
+  return m.sents >= 3 && m.words >= 55 && m.spread < 0.22;
+};
+
 function summarize(get) {
   const after = shared.map(i => get(i).after ?? '');
   const before = shared.map(i => A.get(i).before ?? '');
@@ -112,6 +136,16 @@ function summarize(get) {
     flat: m.filter(x => x.sents >= 3 && x.words >= 55 && x.spread < 0.22).length,
     tellsAfter: detect ? avg(after.map(t => detect(t).length)) : NaN,
     tellsBefore: detect ? avg(before.map(t => detect(t).length)) : NaN,
+    overlap: avg(shared.map((i, k) => overlap(before[k], after[k]))),
+    // Of the sources that arrived flat, how many left that way. The engine's
+    // actual job on this axis, and the number a whole-corpus flat count hides:
+    // that count mixes paragraphs the engine failed to fix with paragraphs it
+    // flattened itself, which have different causes and different fixes.
+    deflattened: (() => {
+      const flatIn = shared.filter((i, k) => isFlatText(before[k]));
+      const fixed = flatIn.filter((i, k) => !isFlatText(after[shared.indexOf(i)]));
+      return `${fixed.length}/${flatIn.length}`;
+    })(),
     retried: shared.filter(i => get(i).retried).length,
   };
 }
@@ -135,6 +169,8 @@ const rows = [
   ['voice markers kept (per pair)', a.voiceKept.toFixed(2), b.voiceKept.toFixed(2), '1.00', 'higher'],
   ['mean sentence spread', a.spread.toFixed(3), b.spread.toFixed(3), String(humanSpread), 'higher'],
   ['still flat after', a.flat, b.flat, '~8', 'lower'],
+  ['flat sources de-flattened', a.deflattened, b.deflattened, '', 'higher'],
+  ['bigram overlap with source', a.overlap.toFixed(3), b.overlap.toFixed(3), '', 'lower = rebuilt more'],
   ['mean long-word rate', a.longRate.toFixed(3), b.longRate.toFixed(3), String(humanLong), 'lower'],
   ['mean sentences per para', a.sents.toFixed(1), b.sents.toFixed(1), '', 'flat is fine'],
   [
