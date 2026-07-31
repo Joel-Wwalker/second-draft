@@ -7,8 +7,10 @@
 // as data.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
-const IN = 'eval/pairs100.json';
-const OUT = 'docs/review/pairs-100.md';
+// Defaults to the first review batch; both paths can be given so a rerun can be
+// read the same way without overwriting the batch it is being compared against.
+//   node scripts/make-pairs.mjs eval/pairs100b.json docs/review/pairs-100-rerun.md
+const [IN = 'eval/pairs100.json', OUT = 'docs/review/pairs-100.md'] = process.argv.slice(2);
 
 if (!existsSync(IN)) {
   console.error(`no ${IN} yet`);
