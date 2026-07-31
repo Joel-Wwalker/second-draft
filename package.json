@@ -38,6 +38,8 @@
     "compare": "node scripts/compare.mjs",
     "eval": "node scripts/evaluate.mjs",
     "eval:prompts": "vitest run tests/eval-prompts.test.ts",
+    "eval:vocab": "node scripts/calibrate-vocab.mjs",
+    "eval:primer": "node scripts/primer-speak.mjs",
     "review": "node scripts/make-review.mjs"
   },
   "license": "AGPL-3.0-or-later",
