@@ -183,17 +183,40 @@ const rows = [
   ['retried', a.retried, b.retried, '', ''],
 ];
 
+/**
+ * Two standard deviations across three runs of behaviourally identical engines,
+ * over the same 100 sources. The model is sampled, so the same code twice is not
+ * the same output twice, and a difference smaller than this says nothing.
+ *
+ * Measured because it had to be: a de-flattening count that read 8, then 5, then
+ * 7 across those runs was reported here as a regression and then as a fix, and it
+ * was neither. Anything at or under these numbers is now labelled rather than
+ * argued about.
+ */
+const NOISE = {
+  'no-op rewrites (normalized)': 1.9,
+  'primer words per 1k': 0.88,
+  'still flat after': 2.8,
+  'flat sources de-flattened': 2.5,
+  'bigram overlap with source': 0.02,
+};
+
 const w = [30, 10, 10, 10];
 console.log(
   'measure'.padEnd(w[0]) + 'old'.padStart(w[1]) + 'new'.padStart(w[2]) + 'target'.padStart(w[3]) + '   want',
 );
 for (const [name, oldV, newV, target, want] of rows) {
+  // "7/29" carries its own denominator; compare the numerators.
+  const num = v => Number(String(v).split('/')[0]);
+  const floor = NOISE[name];
+  const quiet =
+    floor !== undefined && Number.isFinite(num(oldV)) && Math.abs(num(newV) - num(oldV)) <= floor;
   console.log(
     String(name).padEnd(w[0]) +
       String(oldV).padStart(w[1]) +
       String(newV).padStart(w[2]) +
       String(target).padStart(w[3]) +
-      `   ${want}`,
+      `   ${want}${quiet ? '   [within noise]' : ''}`,
   );
 }
 console.log(
