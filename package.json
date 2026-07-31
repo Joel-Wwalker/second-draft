@@ -37,7 +37,8 @@
     "screenshots": "node scripts/make-screenshots.mjs",
     "compare": "node scripts/compare.mjs",
     "eval": "node scripts/evaluate.mjs",
-    "eval:prompts": "vitest run tests/eval-prompts.test.ts"
+    "eval:prompts": "vitest run tests/eval-prompts.test.ts",
+    "review": "node scripts/make-review.mjs"
   },
   "license": "AGPL-3.0-or-later",
   "type": "module",
