@@ -170,3 +170,33 @@ test('the preservation rules are bounded to wording, not to sentence shape', () 
   expect(full).toContain('None of them protects sentence shape');
   expect(full).toContain('rebuild the sentences around them');
 });
+
+test('a rule that defends something absent from the text is left out', () => {
+  // Every conditional rule is a "keep" instruction, and a pile of them taught the
+  // model to keep the sentences too: bigram overlap with the source went 0.45 to
+  // 0.62 and de-flattening fell from 22 of 29 flat inputs to 5. Defending a hedge
+  // in a paragraph with no hedge buys nothing and costs that.
+  const history =
+    'The Assize of Bread fixed loaf weights against the price of grain from 1266. ' +
+    'Enforcement fell to borough courts, whose records survive unevenly. Bakers ' +
+    'were fined by the dozen in some years and not at all in others.';
+  const personal =
+    'Honestly, I did not expect the first month to be that hard. I kept a list of ' +
+    'everything I got wrong, which helped more than I thought it would.';
+
+  const forHistory = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: history });
+  const forPersonal = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: personal });
+
+  expect(forHistory).not.toContain('Keep every hedge as strong as it arrived');
+  expect(forHistory).not.toContain("Keep the writer's own voice");
+  expect(forPersonal).toContain("Keep the writer's own voice");
+  expect(forPersonal).not.toContain('Keep every hedge as strong as it arrived');
+  // Cheaper as well as less insistent, which is the point on a small model.
+  expect(forHistory.length).toBeLessThan(forPersonal.length);
+});
+
+test('without the text every conditional rule is kept, which is the cautious default', () => {
+  const p = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(p).toContain('Keep every hedge as strong as it arrived');
+  expect(p).toContain("Keep the writer's own voice");
+});

@@ -72,19 +72,48 @@ Voice. The enemy is generic phrasing, not long words or short ones:
   where the original had a specific word. That is what a rewrite falls back on
   when it is avoiding the work, and a wall of it is the generic-language flag
   detectors score against. Plain is not vague.
-- Keep every hedge as strong as it arrived. Purported, alleged, attributed to,
-  ostensibly, reportedly and arguably are claims about evidence: drop one and you
-  assert as fact what the writer would not.
 - Never open two consecutive sentences with This, and never open with However.
-- Keep the writer's own voice. First person, informality and stated opinions are
-  the writer, not tells: never sand "honestly, I'm impressed" into a neutral
-  report. Honestly, frankly, I think and the intensifiers around them stay where
-  they stand, mid-sentence as much as at the front. Feeling keeps its strength,
-  so "the emotional toll was immense" does not become "I felt a lot" and a
-  paragraph about grief must not come back reading like a condolence card. In
-  formal writing carry the voice with precise verbs instead.
 Every rule above says which words to keep. None of them protects sentence shape, and shape is what has to change: keep the right words and rebuild the sentences around them. A paragraph that comes back with its wording defended and its sentences in the same order and the same lengths has not been rewritten.
 Rewrite even when no listed tell appears: evenly paced prose where every sentence has the same shape is itself a tell. Change structure, not words: split a long sentence, join two short ones, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register, because plain wording is not casual wording: add no chatty intensifiers like really or very to formal text. Returning the text unchanged is a failure, and so is the same structure with the words shuffled.`;
+
+/**
+ * Rules that defend something in the input, added only when that something is
+ * actually there.
+ *
+ * Every one of these is a "keep" instruction, and a run of 100 rewrites showed
+ * what a pile of them costs: told to keep terms of art, hedges, voice markers and
+ * the strength of feeling, the model generalized to keeping the sentences too.
+ * Bigram overlap with the source went from 0.45 to 0.62 and de-flattening
+ * collapsed from 22 of 29 flat inputs to 5. Defending a hedge in a paragraph that
+ * contains no hedge buys nothing and costs that.
+ *
+ * So each is gated on its own trigger. A history paragraph with no first person
+ * and no hedging now carries neither rule, and the budget goes to the work the
+ * paragraph actually needs.
+ */
+const CONDITIONAL_RULES: { when: RegExp; rule: string }[] = [
+  {
+    when: /\b(?:purported(?:ly)?|alleged(?:ly)?|attributed to|ostensibly|reportedly|arguably|apparently|seemingly|is said to|claims? to)\b/i,
+    rule:
+      'Keep every hedge as strong as it arrived. Purported, alleged, attributed to, ostensibly, ' +
+      'reportedly and arguably are claims about evidence: drop one and you assert as fact what the ' +
+      'writer would not.',
+  },
+  {
+    when: /(?:^|[^\w'])(?:I|I'm|I've|my|me|we|our|us)(?:[^\w']|$)|\b(?:honestly|frankly)\b/i,
+    rule:
+      "Keep the writer's own voice. First person, informality and stated opinions are the writer, " +
+      'not tells: never sand "honestly, I\'m impressed" into a neutral report. Honestly, frankly, ' +
+      'I think and the intensifiers around them stay where they stand, mid-sentence as much as at ' +
+      'the front. Feeling keeps its strength, so "the emotional toll was immense" does not become ' +
+      '"I felt a lot" and a paragraph about grief must not come back reading like a condolence card.',
+  },
+];
+
+/** The conditional rules this text earns, as prompt lines. */
+export function preservationNotes(text: string): string[] {
+  return CONDITIONAL_RULES.filter(entry => entry.when.test(text)).map(entry => entry.rule);
+}
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
 
@@ -110,10 +139,21 @@ export interface PromptOptions {
   target: 'nano' | 'byok';
   /** Measured sentence rhythm, when the text is long enough to have one. */
   cadence?: string;
+  /**
+   * The text being rewritten, used only to decide which conditional rules it
+   * earns. Optional: without it every conditional rule is included, which is the
+   * older and more cautious behaviour.
+   */
+  text?: string;
 }
 
 export function buildSystemPrompt(opts: PromptOptions): string {
   const parts = [opts.intensity === 'light' ? LIGHT_CORE : FULL_CORE];
+  if (opts.intensity !== 'light') {
+    const earned =
+      opts.text === undefined ? CONDITIONAL_RULES.map(r => r.rule) : preservationNotes(opts.text);
+    if (earned.length > 0) parts.push(earned.map(rule => `- ${rule}`).join('\n'));
+  }
   const summary = tellSummary(opts.tells);
   if (summary) {
     parts.push(`Detected in this text: ${summary}. Fix these along with anything else you find.`);

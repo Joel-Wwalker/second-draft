@@ -69,6 +69,7 @@ export async function humanize(
     voiceSample: opts.voiceSample,
     target: provider.info.kind === 'nano' ? 'nano' : 'byok',
     cadence: styleNotes(text) || undefined,
+    text,
   });
 
   const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
