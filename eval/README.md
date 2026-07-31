@@ -37,3 +37,43 @@ count either side, and every sample where the rewrite made a signal **worse** th
 its input. That last list is the one that matters: it catches the model trading one
 target for another, which is what happened when sentence length was the only thing
 measured.
+
+## Signals that were measured and rejected
+
+Kept here so they are not rebuilt from the same reasoning that produced them the
+first time. Every one looked obviously right before it was measured.
+
+| Signal | Why it was dropped |
+| --- | --- |
+| Fronted-clause openers | Flagged 57.6% of 1000 human paragraphs. |
+| Repeated sentence openers | Backwards: 39.6% of human paragraphs, 3.3% of machine. |
+| Narrow sentence-length band, as a flatness trigger | Subsumed by spread. Adding it moved human false positives 7.7% to 7.8% and caught no machine paragraph spread had not already caught. |
+| Narrow band and all-long, as extra pacing instructions | Made pacing worse. De-flattened 8 of 29 flat inputs where the same engine without them managed 22. |
+| Comma splices | Does not discriminate. The pattern runs 1.609 per 1000 words in human prose against 0.722 in our output, so people use the construction more than the engine does. Whatever the introduced grammar errors are, this is not them, and finding them still needs a reader. |
+| `arguably` in the AI-vocabulary list | Scores well (0.1% human, 2% machine) and was left out anyway: it is an epistemic hedge, and a rule telling the model to replace one is how "the purported trade privileges" became "the trade benefits enjoyed by". |
+
+The pattern is hard to miss. Six signals invented from taste, five rejected by
+measurement. The one that survived, the AI-vocabulary list, is the one that was
+scored against the corpus before it shipped rather than after.
+
+## Comparing two batches
+
+    node scripts/ab-batches.mjs eval/pairs100.json eval/pairs100b.json
+
+Both files must hold the same source paragraphs, so every difference between the
+two `after` columns is the engine. `tests-e2e/fixtures/review100b.html` produces
+such a file by feeding an existing batch's sources back through the current
+engine, which also skips the generation half of every iteration.
+
+Tell counts are scored here rather than read from the files. Each batch stores
+the count its own engine computed, so a batch run after words joined the list
+scores higher on identical prose and the comparison measures the detector instead
+of the rewrites. Build the detector for node with:
+
+    npx esbuild eval/detect-entry.ts --bundle --format=esm --outfile=eval/detect.mjs
+
+Two rows earn their place by having explained a regression nothing else could
+see. **Bigram overlap with source** says how much was rebuilt rather than how the
+result looks, and **flat sources de-flattened** counts only paragraphs that
+arrived flat, which a whole-corpus flat count conflates with paragraphs the
+engine flattened itself.
