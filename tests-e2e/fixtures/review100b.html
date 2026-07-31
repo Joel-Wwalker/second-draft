@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Second Draft rerun: same sources, new engine</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      #log { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+             background: #1e293b; border-radius: 8px; padding: 12px; max-height: 70vh; overflow: auto; }
+      .n { color: #818cf8; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Rerun <span class="n" id="count">0</span> of <span id="total">100</span> &middot; same sources, new engine</h1>
+    <div id="log">idle</div>
+    <script src="/engine.js"></script>
+    <script type="module">
+      // A/B on the engine alone.
+      //
+      // review100.html generates a source paragraph and then rewrites it, so two
+      // runs differ in both their inputs and the code under test and neither
+      // difference can be attributed. This page takes the 100 source paragraphs
+      // the previous batch already produced and sends those exact strings through
+      // the current engine, so the only thing that changed between pairs100 and
+      // pairs100b is the code. It is also about twice as fast, because the
+      // generation half of every iteration is already done.
+      const log = document.getElementById('log');
+      const count = document.getElementById('count');
+      const say = m => {
+        log.textContent = `${m}\n${log.textContent}`.split('\n').slice(0, 400).join('\n');
+      };
+
+      const post = (path, body) =>
+        fetch(`http://localhost:8788/${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+      async function load(name) {
+        try {
+          const res = await fetch(`http://localhost:8788/read/${name}`);
+          return res.ok ? await res.json() : [];
+        } catch {
+          return [];
+        }
+      }
+
+      async function run() {
+        const sources = await load('pairs100');
+        if (sources.length === 0) {
+          say('no pairs100.json to take sources from');
+          return;
+        }
+        document.getElementById('total').textContent = String(sources.length);
+
+        const have = new Map((await load('pairs100b')).map(d => [d.index, d]));
+        say(`resuming with ${have.size} of ${sources.length}`);
+        count.textContent = String(have.size);
+        const providers = [new SecondDraft.NanoProvider()];
+        const started = Date.now();
+        let done = 0;
+
+        for (const src of sources) {
+          if (have.has(src.index)) continue;
+          const before = src.before ?? '';
+          if (!before.trim()) continue;
+          try {
+            const result = await SecondDraft.humanize(before, { intensity: 'full' }, { providers });
+            have.set(src.index, {
+              index: src.index,
+              topic: src.topic,
+              band: src.band,
+              before,
+              after: result.rewritten,
+              tellsBefore: result.tells.before,
+              tellsAfter: result.tells.after,
+              retried: result.retried,
+              fidelity: result.fidelity.map(f => f.message),
+              engine: result.engine.kind,
+            });
+          } catch (e) {
+            say(`${src.index} failed: ${e.kind ?? e.name}: ${(e.message ?? '').slice(0, 60)}`);
+            continue;
+          }
+          done += 1;
+          count.textContent = String(have.size);
+          if (have.size % 2 === 0 || have.size === sources.length) {
+            await post('pairs100b', [...have.values()].sort((a, b) => a.index - b.index));
+            const per = (Date.now() - started) / 1000 / Math.max(1, done);
+            const left = Math.round(((sources.length - have.size) * per) / 60);
+            say(`${have.size}/${sources.length}  ${src.band}: ${src.topic}  (~${left} min left)`);
+          }
+        }
+        await post('pairs100b', [...have.values()].sort((a, b) => a.index - b.index));
+        say('FINISHED');
+      }
+
+      (async () => {
+        if (typeof LanguageModel === 'undefined') {
+          say('no Prompt API in this browser');
+          return;
+        }
+        say(`availability: ${await LanguageModel.availability()}`);
+        await run();
+      })();
+    </script>
+  </body>
+</html>
