@@ -79,26 +79,18 @@ test('a heading does not count into the sentence after it', () => {
   expect(measureCadence(withHeading)!.lengths).toEqual(measureCadence(body)!.lengths);
 });
 
-test('a narrow band is named in the instruction even when the numbers look varied', () => {
-  // Six sentences from 20 to 27 words. Every one sits in the same band, which is
-  // the shape the 100-rewrite review found passing as varied prose.
-  const band = measureCadence(
-    Array.from({ length: 6 }, (_, i) => `${'word '.repeat(20 + i)}end.`).join(' '),
-  );
-  expect(band).not.toBeNull();
-  const note = cadenceInstruction(band!);
-  expect(note).toContain('within');
-  expect(note).toContain('words of every other');
-});
-
-test('an all-long paragraph is told to aim short, not merely to split', () => {
-  // Splitting a 24-word sentence yields two 12-word ones, which is the same
-  // problem again. The instruction has to name the target length.
-  const long = measureCadence(
-    Array.from({ length: 5 }, () => `${'word '.repeat(23)}end.`).join(' '),
-  );
-  expect(long).not.toBeNull();
-  const note = cadenceInstruction(long!);
-  expect(note).toContain('Every sentence here is long');
-  expect(note).toContain('leaves two medium sentences');
+test('the pacing instruction stays short enough for a small model to act on', () => {
+  // Two extra clauses were added here, naming the longest-to-shortest band and
+  // the all-long case. Both read as helpful. Measured over 100 rewrites, the
+  // engine carrying them de-flattened 8 of 29 flat inputs where the engine
+  // without them managed 22. Length is not free: this instruction competes for
+  // a small model's attention with everything else in the prompt.
+  const sentences = Array.from({ length: 6 }, (_, i) => `${'word '.repeat(20 + i)}end.`);
+  const flat = measureCadence(sentences.join(' '));
+  expect(flat).not.toBeNull();
+  const note = cadenceInstruction(flat!);
+  expect(note.length).toBeLessThan(700);
+  // Still says the two things that earn their place: the numbers, and both directions.
+  expect(note).toContain('words.');
+  expect(note).toContain('Do both, not just splitting');
 });

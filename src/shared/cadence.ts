@@ -136,21 +136,20 @@ export function cadenceInstruction(cadence: Cadence): string {
       `Nothing reaches ${LONG_SENTENCE} words. Merge two related sentences into one longer one, joined with a comma, a semicolon or a subordinating word.`,
     );
   }
-  // The band is what spread cannot see. A paragraph running 20 to 27 words has a
-  // respectable-looking ratio and still reads as one length, and the review that
-  // found it also found the model responding to a bare split instruction by
-  // halving a long sentence into two more mid-length ones.
-  const band = cadence.longest - cadence.shortest;
-  if (band <= NARROW_BAND) {
-    parts.push(
-      `Every sentence sits within ${band} words of every other, from ${cadence.shortest} to ${cadence.longest}. Widen that range at both ends rather than shifting all of them.`,
-    );
-  }
-  if (cadence.shortest >= UNIFORM_LONG) {
-    parts.push(
-      `Every sentence here is long; the shortest is ${cadence.shortest} words. Cutting one in half leaves two medium sentences, which is the same problem in a new shape. Take one down under ${SHORT_SENTENCE + 1} words and leave another above ${LONG_SENTENCE}.`,
-    );
-  }
+  // Two further clauses lived here and were removed by measurement. One named the
+  // longest-minus-shortest band, the other named an all-long paragraph and asked
+  // for a genuinely short sentence rather than a half-length one. Both read as
+  // obviously helpful and both made this instruction worse.
+  //
+  // Across the same 100 sources, the engine that carried them de-flattened 8 of
+  // 29 flat inputs where the engine without them managed 22, and every flat
+  // output in that run had already spent its retry. Nothing else in the pacing
+  // path had changed, and restoring the prompt wording cut in the same commit
+  // moved the count by zero. Nano acts on a short instruction with a number in
+  // it; a longer one covering more cases is not a better one.
+  //
+  // NARROW_BAND and UNIFORM_LONG stay exported and documented so the next attempt
+  // starts from the measurement rather than the idea.
   // Splitting alone raises the number while making the prose worse, and the
   // model will do exactly that if only splitting is named: one batch produced a
   // paragraph of thirteen clipped sentences that scored well and read like a
