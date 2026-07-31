@@ -12,7 +12,7 @@
     </style>
   </head>
   <body>
-    <h1>Second Draft review batch <span class="n" id="count">0</span> of 500</h1>
+    <h1>Second Draft review batch <span class="n" id="count">0</span> of <span id="total">500</span></h1>
     <div id="log">idle</div>
     <script src="/engine.js"></script>
     <script type="module">
@@ -20,7 +20,13 @@
       // paragraphs. Two phases so an interruption never loses finished work:
       // sources are produced and posted first, then each is humanized and posted
       // as it completes. Both phases resume from whatever the server already has.
-      import { specFor, promptFor, TOTAL } from '/corpus-spec.mjs';
+      import { specFor, promptFor, TOTAL as FULL } from '/corpus-spec.mjs';
+
+      // ?cap=150 stops the run early without losing anything: the spread of
+      // topics, registers and shapes is deterministic per index, so the first N
+      // indexes are already a balanced sample rather than a truncated one.
+      const CAP = Math.min(FULL, Number(new URLSearchParams(location.search).get('cap')) || FULL);
+      const TOTAL = CAP;
 
       const log = document.getElementById('log');
       const count = document.getElementById('count');
@@ -114,6 +120,7 @@
           say('no Prompt API in this browser');
           return;
         }
+        document.getElementById('total').textContent = String(TOTAL);
         say(`availability: ${await LanguageModel.availability()}`);
         await run();
       })();
