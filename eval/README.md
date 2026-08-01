@@ -77,3 +77,28 @@ see. **Bigram overlap with source** says how much was rebuilt rather than how th
 result looks, and **flat sources de-flattened** counts only paragraphs that
 arrived flat, which a whole-corpus flat count conflates with paragraphs the
 engine flattened itself.
+
+## The two-pass verdict
+
+Eight batches over the same 100 sources, one engine change at a time. The
+register rules and sentence restructuring fought inside one prompt for seven of
+them: every variant either protected wording and stopped rebuilding rhythm, or
+rebuilt rhythm and trampled the register. Splitting them into two calls ended it.
+
+| | original engine | best single-pass | two-pass |
+| --- | --- | --- | --- |
+| flat sources de-flattened | 22/29 | 9/29 | 25/29 |
+| still flat after | 11 | 23 | 11 |
+| mean sentence spread | 0.321 | 0.306 | 0.338 |
+| primer words per 1k | 16.36 | 11.49 | 10.11 |
+| voice markers kept | 0.48 | 0.91 | 1.00 |
+| hedges kept | 0.00 | 0.42 | 0.33 |
+
+Text measured as flat gets a shaping pass first, on a prompt that defends nothing
+because it may change nothing except where sentences break; the register pass
+runs on the result. The pass discards itself on any doubt. Cost is one extra
+model call on the 29% of paragraphs that arrive flat.
+
+Still open, at best-ever levels rather than fixed: primer words run 12x the human
+rate, long words 0.240 against the 0.19 human mark, and the corpus still shows a
+few reused phrases ("a closer look shows", "still debated by scholars").
