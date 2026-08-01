@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Five paragraphs, shipped engine, this machine</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; margin: 0; padding: 28px; background: #0f172a; color: #e2e8f0; max-width: 900px; }
+      h1 { font-size: 17px; }
+      .pair { background: #1e293b; border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+      .tag { font-weight: 700; color: #818cf8; }
+      .same { color: #f87171; font-weight: 700; }
+      .diff { color: #34d399; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Five paragraphs through the shipped engine: <span id="state">loading</span></h1>
+    <div id="list"></div>
+    <script src="/engine.js"></script>
+    <script type="module">
+      // The five paragraphs a user ran through the extension five times and got
+      // back untouched. This page runs the same strings through the same engine
+      // code with the same on-device model, in a page context, where this
+      // machine demonstrably runs inference. If rewrites happen here, the engine
+      // and the model are innocent and the installed extension is the suspect;
+      // if they do not, the engine declines these paragraphs and the extension
+      // was never the problem.
+      const state = document.getElementById('state');
+      const list = document.getElementById('list');
+
+      const post = (name, body) =>
+        fetch(`http://localhost:8788/${name}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch(() => {});
+
+      (async () => {
+        if (typeof LanguageModel === 'undefined') {
+          state.textContent = 'no Prompt API in this page';
+          await post('five', [{ error: 'no-api' }]);
+          return;
+        }
+        state.textContent = `availability: ${await LanguageModel.availability()}`;
+        const inputs = await fetch('http://localhost:8788/read/five-inputs').then(r => r.json());
+        const providers = [new SecondDraft.NanoProvider()];
+        const results = [];
+        for (let i = 0; i < inputs.length; i++) {
+          const before = inputs[i];
+          state.textContent = `rewriting ${i + 1} of ${inputs.length}...`;
+          let entry;
+          try {
+            const res = await SecondDraft.humanize(before, { intensity: 'full' }, { providers });
+            const norm = t => t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
+            entry = {
+              index: i,
+              before,
+              after: res.rewritten,
+              engine: res.engine.kind,
+              tellsBefore: res.tells.before,
+              tellsAfter: res.tells.after,
+              retried: res.retried,
+              unchanged: norm(res.rewritten) === norm(before),
+            };
+          } catch (e) {
+            entry = { index: i, before, error: `${e.kind ?? e.name}: ${e.message ?? e}` };
+          }
+          results.push(entry);
+          const div = document.createElement('div');
+          div.className = 'pair';
+          div.innerHTML = entry.error
+            ? `<span class="tag">${i + 1}</span> <span class="same">ERROR</span> ${entry.error}`
+            : `<span class="tag">${i + 1}</span> engine=${entry.engine} tells ${entry.tellsBefore}→${entry.tellsAfter} ` +
+              (entry.unchanged ? '<span class="same">UNCHANGED</span>' : '<span class="diff">REWRITTEN</span>') +
+              `<br><br>${entry.after ?? ''}`;
+          list.append(div);
+          await post('five', results);
+        }
+        state.textContent = 'FINISHED';
+        await post('five', results);
+      })();
+    </script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../../shared/storage';
-import { nanoAvailability } from '../../engine/providers/nano';
+import { NANO_LANGUAGE, nanoAvailability } from '../../engine/providers/nano';
 import type { ByokSettings, Settings } from '../../shared/storage';
 import type { Intensity } from '../../shared/types';
 import { HumanizerError } from '../../shared/types';
@@ -44,6 +44,12 @@ let profileDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 void init();
 
 async function init(): Promise<void> {
+  // The installed version, visibly. Five identical bug reports came from a
+  // machine that turned out to be running a weeks-old store copy alongside the
+  // updated unpacked one, and nothing on screen could tell them apart.
+  const versionEl = document.getElementById('version');
+  if (versionEl) versionEl.textContent = `Second Draft v${chrome.runtime.getManifest().version}`;
+
   const settings = await getSettings();
   byokProvider.value = settings.byok.provider;
   byokKey.value = settings.byok.apiKey;
@@ -234,6 +240,7 @@ async function downloadNano(): Promise<void> {
   nanoDownload.disabled = true;
   try {
     const session = await LanguageModel.create({
+      ...NANO_LANGUAGE,
       monitor(monitor) {
         monitor.addEventListener('downloadprogress', event => {
           const loaded = (event as ProgressEvent).loaded;

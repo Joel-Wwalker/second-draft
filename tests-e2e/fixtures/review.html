@@ -52,6 +52,8 @@
 
       async function makeSource(spec) {
         const s = await LanguageModel.create({
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }],
           initialPrompts: [
             {
               role: 'system',

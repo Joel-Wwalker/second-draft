@@ -14,10 +14,21 @@ export const NANO_CHUNK_CHARS = 4000;
  * to display engine status must ask the engine's context, and this is the
  * question they send.
  */
+/**
+ * Declared on every request. Chrome warns on unattested output language and
+ * reserves the right to refuse it, and availability is measured per options, so
+ * asking without them can report on a configuration the rewrite never uses.
+ * English only, which is the language the prompts are written in.
+ */
+export const NANO_LANGUAGE = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }],
+} as const;
+
 export async function nanoAvailability(): Promise<string> {
   if (typeof LanguageModel === 'undefined' || !LanguageModel) return 'no-api';
   try {
-    return await LanguageModel.availability();
+    return await LanguageModel.availability(NANO_LANGUAGE);
   } catch {
     return 'error';
   }
@@ -45,6 +56,7 @@ export class NanoProvider implements Provider {
       try {
         session = await LanguageModel.create({
           initialPrompts: [{ role: 'system', content: req.systemPrompt }],
+          ...NANO_LANGUAGE,
           signal: req.signal,
         });
       } catch (err) {

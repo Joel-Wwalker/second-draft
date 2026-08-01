@@ -14,14 +14,24 @@ interface LanguageModelSession {
   destroy(): void;
 }
 
+/** Declared per request; Chrome warns on, and may refuse, unattested output. */
+interface LanguageModelExpected {
+  readonly type: 'text';
+  readonly languages: readonly string[];
+}
+
 interface LanguageModelCreateOptions {
   initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  expectedInputs?: readonly LanguageModelExpected[];
+  expectedOutputs?: readonly LanguageModelExpected[];
   signal?: AbortSignal;
   monitor?(monitor: EventTarget): void;
 }
 
 interface LanguageModelStatic {
-  availability(): Promise<LanguageModelAvailability>;
+  availability(
+    options?: Pick<LanguageModelCreateOptions, 'expectedInputs' | 'expectedOutputs'>,
+  ): Promise<LanguageModelAvailability>;
   create(options?: LanguageModelCreateOptions): Promise<LanguageModelSession>;
 }
 
