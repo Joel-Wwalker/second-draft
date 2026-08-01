@@ -63,8 +63,10 @@ export async function humanize(
 
   // Shape first, on flat text only, and against the original. What comes back is
   // what the register pass rewrites; everything downstream still measures against
-  // the text the user actually selected.
-  const shaped = await reshape(text, provider, opts);
+  // the text the user actually selected. Full intensity only: light promises to
+  // change as little as possible, and a pass whose whole job is moving sentence
+  // boundaries has no business running under that promise.
+  const shaped = opts.intensity === 'full' ? await reshape(text, provider, opts) : text;
 
   // Rhythm and shape are measured, not requested. The prompt has asked for varied
   // sentences since the first version and models flatten them anyway.

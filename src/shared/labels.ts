@@ -16,7 +16,27 @@ export function engineLabel(engine: EngineInfo): string {
 export function resultStatus(result: HumanizeResult): string {
   const n = result.changes.length;
   const changes = `${n} change${n === 1 ? '' : 's'}`;
+  // The rules engine only scans for mechanical tells: dashes, curly quotes, a
+  // word list. "No AI tells detected" from it would claim a judgment it never
+  // made, so say what actually ran instead.
+  if (result.engine.kind === 'rules') return `${changes} · mechanical fixes only, no AI engine ran`;
   const { before, after } = result.tells;
   if (before === 0) return `${changes} · no AI tells detected`;
   return `${changes} · AI tells: ${before} → ${after}`;
+}
+
+/**
+ * The big line above the output.
+ *
+ * Five paragraphs of GPT output once came back byte-identical under this
+ * headline reading "Looks human already", because the on-device model was
+ * unavailable and the rules fallback had quietly run instead. Whatever went
+ * wrong, a state where the AI never looked at the text must never share a
+ * headline with a state where it looked and approved.
+ */
+export function headline(result: HumanizeResult): string {
+  if (result.engine.kind === 'rules') return 'AI engine unavailable';
+  if (result.tells.before === 0) return 'Looks human already';
+  if (result.tells.after === 0) return 'All clear';
+  return `${result.tells.after} tell${result.tells.after === 1 ? '' : 's'} left`;
 }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prompt API probe</title>
+    <style>
+      body { font: 16px/1.6 system-ui, sans-serif; margin: 0; padding: 32px; background: #0f172a; color: #e2e8f0; }
+      code { background: #1e293b; padding: 2px 8px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1>Prompt API probe</h1>
+    <p id="verdict">checking...</p>
+    <script>
+      // One question, answered where a page can answer it: what does the
+      // Prompt API say about the on-device model right now? Five paragraphs
+      // once came back from the extension untouched because the answer was not
+      // "available" and the rules fallback ran instead; this page makes the
+      // machine state checkable in five seconds, and posts the result to the
+      // batch server so a terminal can read it too.
+      //
+      // A page context and the extension's service worker can disagree, so an
+      // "available" here does not fully clear the extension; an unavailable
+      // here condemns both.
+      (async () => {
+        const out = { when: new Date().toISOString(), api: typeof LanguageModel !== 'undefined' };
+        if (out.api) {
+          try {
+            out.availability = await LanguageModel.availability();
+            const params = await LanguageModel.params().catch(() => null);
+            if (params) out.params = { maxTemperature: params.maxTemperature, maxTopK: params.maxTopK };
+          } catch (e) {
+            out.error = String(e);
+          }
+        }
+        document.getElementById('verdict').innerHTML = out.api
+          ? `LanguageModel.availability() = <code>${out.availability ?? out.error}</code>`
+          : 'No Prompt API in this context.';
+        try {
+          await fetch('http://localhost:8788/probe', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify([out]),
+          });
+        } catch {}
+      })();
+    </script>
+  </body>
+</html>

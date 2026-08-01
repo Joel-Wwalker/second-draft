@@ -875,3 +875,20 @@ test('a shaping pass that does not improve the rhythm is thrown away', async () 
   expect(res.rewritten).toContain('discuss');
   expect(res.rewritten).toContain('circulated');
 });
+
+test('light intensity never pays for a shaping pass, however flat the text', async () => {
+  // Light mode promises to change as little as possible. A pass whose whole job
+  // is moving sentence boundaries contradicts that, so flat text under light
+  // goes straight to the single rewrite.
+  const prompts: string[] = [];
+  const watcher = {
+    info: { kind: 'fake' as const, model: 'watcher' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return req.text;
+    },
+  };
+  await humanize(FLAT_SOURCE, { intensity: 'light' }, { providers: [watcher] });
+  expect(shapingPrompts(prompts)).toHaveLength(0);
+});

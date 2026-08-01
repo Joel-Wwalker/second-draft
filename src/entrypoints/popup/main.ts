@@ -11,7 +11,7 @@ import type {
 import { HUMANIZE_PORT, PENDING_KEY, isPendingFresh, isPendingSelection } from '../../shared/messages';
 import type { HumanizeResult, Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
-import { engineLabel as engineLabelFor, resultStatus } from '../../shared/labels';
+import { engineLabel as engineLabelFor, headline as headlineFor, resultStatus } from '../../shared/labels';
 import { formatChanges } from '../../shared/change-log';
 import { findAlternatives, shiftRangesAfter, swapWord } from '../../shared/alternatives';
 import type { AltSpan } from '../../shared/alternatives';
@@ -253,12 +253,7 @@ function render(result: HumanizeResult, original: string): void {
   engineLabel.textContent = engineLabelFor(result.engine);
   status.textContent = resultStatus(result) + retryNote(result);
   setRing(result.tells.before, result.tells.after);
-  headline.textContent =
-    result.tells.before === 0
-      ? 'Looks human already'
-      : result.tells.after === 0
-        ? 'All clear'
-        : `${result.tells.after} tell${result.tells.after === 1 ? '' : 's'} left`;
+  headline.textContent = headlineFor(result);
   renderFidelity(result.fidelity);
   renderChanges(result, original);
   void renderProfileNote(result.rewritten);
