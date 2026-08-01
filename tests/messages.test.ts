@@ -2,35 +2,12 @@ import { expect, test } from 'vitest';
 import {
   PENDING_TTL_MS,
   isApplyRequest,
-  isEngineStatusRequest,
-  isCancelRequest,
   isCaptureRequest,
   isCaptureResponse,
-  isHumanizeRequest,
   isPendingFresh,
   isPendingSelection,
   isUndoRequest,
 } from '../src/shared/messages';
-
-test('isHumanizeRequest accepts a valid request', () => {
-  expect(isHumanizeRequest({ type: 'humanize', id: 'a1', text: 'hello there', intensity: 'light' })).toBe(true);
-});
-
-test('isHumanizeRequest rejects malformed shapes', () => {
-  expect(isHumanizeRequest(null)).toBe(false);
-  expect(isHumanizeRequest('humanize')).toBe(false);
-  expect(isHumanizeRequest({ type: 'humanize', id: 1, text: 't', intensity: 'light' })).toBe(false);
-  expect(isHumanizeRequest({ type: 'humanize', id: 'a', text: 't', intensity: 'max' })).toBe(false);
-  expect(isHumanizeRequest({ type: 'cancel', id: 'a' })).toBe(false);
-});
-
-test('isCancelRequest accepts a cancel and rejects everything else', () => {
-  expect(isCancelRequest({ type: 'cancel', id: 'a1' })).toBe(true);
-  expect(isCancelRequest({ type: 'cancel' })).toBe(false);
-  expect(isCancelRequest({ type: 'cancel', id: 7 })).toBe(false);
-  expect(isCancelRequest({ type: 'humanize', id: 'a1', text: 't', intensity: 'light' })).toBe(false);
-  expect(isCancelRequest(null)).toBe(false);
-});
 
 test('page requests are validated by tag', () => {
   expect(isCaptureRequest({ type: 'capture' })).toBe(true);
@@ -82,9 +59,4 @@ test('parked text expires, so it cannot run itself in a popup opened later', () 
   expect(isPendingFresh({ ...parked, at: now + 5_000 }, now)).toBe(false);
 });
 
-test('isEngineStatusRequest accepts the request and nothing shaped like it', () => {
-  expect(isEngineStatusRequest({ type: 'engine-status' })).toBe(true);
-  expect(isEngineStatusRequest({ type: 'humanize' })).toBe(false);
-  expect(isEngineStatusRequest(null)).toBe(false);
-  expect(isEngineStatusRequest('engine-status')).toBe(false);
-});
+

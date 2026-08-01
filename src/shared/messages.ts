@@ -1,48 +1,8 @@
-import type { HumanizeResult, HumanizerErrorKind, Intensity } from './types';
-
-export interface HumanizeRequest {
-  type: 'humanize';
-  /** Correlation id; responses and cancels reference it. */
-  id: string;
-  text: string;
-  intensity: Intensity;
-}
-
-export interface CancelRequest {
-  type: 'cancel';
-  id: string;
-}
-
-export type BackgroundRequest = HumanizeRequest | CancelRequest;
-
-export type HumanizeResponse =
-  | { ok: true; result: HumanizeResult }
-  | { ok: false; kind: HumanizerErrorKind; message: string };
-
-/** Streamed over a long-lived port to the popup. */
-export type PortServerMessage =
-  | { type: 'chunk'; id: string; textSoFar: string }
-  | { type: 'done'; id: string; result: HumanizeResult }
-  | { type: 'error'; id: string; kind: HumanizerErrorKind; message: string };
-
-export const HUMANIZE_PORT = 'humanize';
-
-export function isHumanizeRequest(msg: unknown): msg is HumanizeRequest {
-  if (typeof msg !== 'object' || msg === null) return false;
-  const m = msg as Record<string, unknown>;
-  return (
-    m['type'] === 'humanize' &&
-    typeof m['id'] === 'string' &&
-    typeof m['text'] === 'string' &&
-    (m['intensity'] === 'light' || m['intensity'] === 'full')
-  );
-}
-
-export function isCancelRequest(msg: unknown): msg is CancelRequest {
-  if (typeof msg !== 'object' || msg === null) return false;
-  const m = msg as Record<string, unknown>;
-  return m['type'] === 'cancel' && typeof m['id'] === 'string';
-}
+// The humanize port protocol used to live here: request, cancel, and a chunk /
+// done / error stream between the popup and the background worker. It is gone
+// because the rewrite no longer crosses a context boundary at all; the popup
+// calls the engine directly (src/shared/rewrite.ts) after the worker's Prompt
+// API view proved unreliable on a machine where every document context worked.
 
 /**
  * Popup to content-script messages, sent with chrome.tabs.sendMessage straight to
@@ -161,28 +121,3 @@ export function isPendingFresh(pending: PendingSelection, now: number): boolean 
   return age >= 0 && age <= PENDING_TTL_MS;
 }
 
-/**
- * "What does the engine's own context say about the on-device model?"
- *
- * Sent by any page that wants to display engine status. The background answers
- * with nanoAvailability() as measured in the service worker, because that is
- * where rewrites run and the only place the answer decides anything: the
- * options page once reported "Ready" from its own window while the worker fell
- * back to the rules engine.
- */
-export interface EngineStatusRequest {
-  type: 'engine-status';
-}
-
-export interface EngineStatusResponse {
-  /** Chrome's availability value, or 'no-api' / 'error' from nanoAvailability(). */
-  availability: string;
-}
-
-export function isEngineStatusRequest(value: unknown): value is EngineStatusRequest {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as Record<string, unknown>)['type'] === 'engine-status'
-  );
-}

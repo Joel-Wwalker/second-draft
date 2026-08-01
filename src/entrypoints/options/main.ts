@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../../shared/storage';
-import type { EngineStatusRequest, EngineStatusResponse } from '../../shared/messages';
+import { nanoAvailability } from '../../engine/providers/nano';
 import type { ByokSettings, Settings } from '../../shared/storage';
 import type { Intensity } from '../../shared/types';
 import { HumanizerError } from '../../shared/types';
@@ -212,23 +212,13 @@ function renderSites(settings: Settings): void {
 }
 
 async function refreshNano(): Promise<void> {
-  // Ask the background worker, not this window. Rewrites run in the worker, and
-  // the two contexts have disagreed in practice: this page said "Ready" while
-  // five paragraphs fell back to the rules engine because the worker's answer
-  // was not 'available'. Whatever the worker says is what the user will get.
-  const fromWorker: unknown = await chrome.runtime
-    .sendMessage({ type: 'engine-status' } satisfies EngineStatusRequest)
-    .catch(() => null);
-  const availability =
-    typeof fromWorker === 'object' && fromWorker !== null
-      ? String((fromWorker as EngineStatusResponse).availability)
-      : 'error';
-
+  // This window's answer is the engine's answer. Rewrites run in the popup, a
+  // document context like this page, precisely because the background worker's
+  // view of the Prompt API proved unreliable while document contexts worked.
+  // Asking anything else here would report on a context the engine left.
+  const availability = await nanoAvailability();
   if (availability === 'no-api') {
-    nanoStatus.textContent =
-      typeof LanguageModel === 'undefined'
-        ? 'Not supported by this browser (needs Chrome 138 or newer).'
-        : 'This page can see the on-device model but the engine cannot. Rewrites will fall back to mechanical fixes; restarting Chrome usually clears this.';
+    nanoStatus.textContent = 'Not supported by this browser (needs Chrome 138 or newer).';
     return;
   }
   if (availability === 'error') {

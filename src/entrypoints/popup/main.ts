@@ -1,14 +1,12 @@
 import type {
   ApplyRequest,
   ApplyResponse,
-  CancelRequest,
-  HumanizeRequest,
   PendingRefusal,
   PendingSelection,
-  PortServerMessage,
   UndoRequest,
 } from '../../shared/messages';
-import { HUMANIZE_PORT, PENDING_KEY, isPendingFresh, isPendingSelection } from '../../shared/messages';
+import { PENDING_KEY, isPendingFresh, isPendingSelection } from '../../shared/messages';
+import { runRewrite } from '../../shared/rewrite';
 import type { HumanizeResult, Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
 import { engineLabel as engineLabelFor, headline as headlineFor, resultStatus } from '../../shared/labels';
@@ -57,9 +55,12 @@ type HandedText = Extract<PendingSelection, { kind: 'text' }>;
 let pending: HandedText | null = null;
 /** The rewrite currently on screen, including any alternative words swapped in. */
 let current: { text: string; changes: Change[]; result: HumanizeResult } | null = null;
-/** The long-lived connection rewrites stream over. */
-let port: chrome.runtime.Port | null = null;
-let inFlight: { id: string; original: string; timer: ReturnType<typeof setTimeout> } | null = null;
+let inFlight: {
+  id: string;
+  original: string;
+  timer: ReturnType<typeof setTimeout>;
+  ctl: AbortController;
+} | null = null;
 let requests = 0;
 let intensity: Intensity = 'light';
 
@@ -163,6 +164,14 @@ function showRefusal(reason: PendingRefusal): void {
   status.textContent = REFUSALS[reason].status;
 }
 
+/**
+ * The rewrite runs right here in the popup document, not in the background
+ * worker it used to stream over a port from. The worker's Prompt API view
+ * proved unreliable on a machine where every document context could see the
+ * model, and five paragraphs silently fell back to mechanical fixes there.
+ * Closing the popup tears down this context and the inference inside it, which
+ * is the cancellation the port's disconnect handler used to arrange by hand.
+ */
 function run(): void {
   const text = input.value.trim();
   if (!text) return;
@@ -173,51 +182,23 @@ function run(): void {
   setWorking(true);
   resetResult();
   const id = `req-${++requests}`;
-  try {
-    const req: HumanizeRequest = { type: 'humanize', id, text, intensity };
-    connect().postMessage(req);
-  } catch (err) {
-    setWorking(false);
-    fail(String(err));
-    return;
-  }
-  inFlight = { id, original: text, timer: armTimeout(id) };
-}
-
-/**
- * Rewrites stream, so this is a long-lived port rather than a one-shot message.
- * Closing the popup disconnects it, which is what cancels the work in flight.
- */
-function connect(): chrome.runtime.Port {
-  if (port) return port;
-  const opened = chrome.runtime.connect({ name: HUMANIZE_PORT });
-  opened.onMessage.addListener(msg => onPortMessage(msg as PortServerMessage));
-  opened.onDisconnect.addListener(() => {
-    if (port === opened) port = null;
-    if (!inFlight) return;
-    clearInFlight();
-    setWorking(false);
-    fail('The background worker stopped before it answered. Try again.');
-  });
-  port = opened;
-  return opened;
-}
-
-function onPortMessage(msg: PortServerMessage): void {
-  if (!inFlight || msg.id !== inFlight.id) return; // superseded or cancelled
-  if (msg.type === 'chunk') {
+  const ctl = new AbortController();
+  inFlight = { id, original: text, timer: armTimeout(id), ctl };
+  void runRewrite(text, intensity, ctl.signal, textSoFar => {
+    if (inFlight?.id !== id) return; // superseded or cancelled
     outField.hidden = false;
-    out.textContent = msg.textSoFar;
+    out.textContent = textSoFar;
     // Text arriving is proof of life, so the timeout is an idle timeout.
     clearTimeout(inFlight.timer);
-    inFlight = { ...inFlight, timer: armTimeout(msg.id) };
-    return;
-  }
-  const { original } = inFlight;
-  clearInFlight();
-  setWorking(false);
-  if (msg.type === 'done') render(msg.result, original);
-  else fail(msg.message);
+    inFlight = { ...inFlight, timer: armTimeout(id) };
+  }).then(outcome => {
+    if (inFlight?.id !== id) return; // superseded or cancelled; stay silent
+    const { original } = inFlight;
+    clearInFlight();
+    setWorking(false);
+    if (outcome.ok) render(outcome.result, original);
+    else fail(outcome.message);
+  });
 }
 
 function armTimeout(id: string): ReturnType<typeof setTimeout> {
@@ -231,12 +212,10 @@ function armTimeout(id: string): ReturnType<typeof setTimeout> {
 
 function cancelInFlight(): void {
   if (!inFlight) return;
-  const req: CancelRequest = { type: 'cancel', id: inFlight.id };
-  try {
-    port?.postMessage(req);
-  } catch {
-    // Port already gone; the background aborts everything on disconnect.
-  }
+  // The abort reaches the engine and, through it, the model session. The
+  // in-flight guard in run()'s callbacks keeps a late chunk or result from a
+  // cancelled request off the screen.
+  inFlight.ctl.abort();
   clearInFlight();
 }
 
