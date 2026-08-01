@@ -34,12 +34,24 @@ export async function nanoAvailability(): Promise<string> {
   }
 }
 
-/** Chrome's on-device Gemini Nano via the Prompt API (extension SW context). */
+/** Chrome's on-device Gemini Nano via the Prompt API. */
 export class NanoProvider implements Provider {
   readonly info: EngineInfo = { kind: 'nano' };
 
+  /**
+   * Willing, not ready. Requiring 'available' here was a bootstrap deadlock:
+   * Chrome tracks model availability per origin, 'downloadable' only becomes
+   * 'available' once the origin calls create(), and this gate refused to call
+   * create() until the state it could only reach by calling create(). Every
+   * rewrite then fell back to the rules engine, silently, forever, while batch
+   * pages on the same machine worked because they never check, they just
+   * create. 'downloadable' and 'downloading' are yes: create() below triggers
+   * or joins the fetch, and on a machine whose browser already holds the shared
+   * model binary that is a registration, not a download.
+   */
   async available(): Promise<boolean> {
-    return (await nanoAvailability()) === 'available';
+    const state = await nanoAvailability();
+    return state === 'available' || state === 'downloadable' || state === 'downloading';
   }
 
   async rewrite(req: RewriteRequest): Promise<string> {

@@ -7,6 +7,7 @@ import type {
 } from '../../shared/messages';
 import { PENDING_KEY, isPendingFresh, isPendingSelection } from '../../shared/messages';
 import { runRewrite } from '../../shared/rewrite';
+import { nanoAvailability } from '../../engine/providers/nano';
 import type { HumanizeResult, Intensity } from '../../shared/types';
 import { getSettings, updateSettings, isSiteDisabled, toggleSiteDisabled } from '../../shared/storage';
 import { engineLabel as engineLabelFor, headline as headlineFor, resultStatus } from '../../shared/labels';
@@ -231,6 +232,13 @@ function render(result: HumanizeResult, original: string): void {
   copy.disabled = false;
   engineLabel.textContent = engineLabelFor(result.engine);
   status.textContent = resultStatus(result) + retryNote(result);
+  // A fallback names the model state it saw. Six identical bug reports were
+  // needed to find a silent one; the seventh should carry its own diagnosis.
+  if (result.engine.kind === 'rules') {
+    void nanoAvailability().then(state => {
+      status.textContent = `${resultStatus(result)}${retryNote(result)} · on-device model: ${state}`;
+    });
+  }
   setRing(result.tells.before, result.tells.after);
   headline.textContent = headlineFor(result);
   renderFidelity(result.fidelity);

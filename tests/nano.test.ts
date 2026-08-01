@@ -62,10 +62,19 @@ test('chunkText concatenation equals the input and respects paragraph bounds', (
   expect(chunkText(giant, 4000).join('')).toBe(giant);
 });
 
-test('unavailable when the global is missing or not ready', async () => {
+test('available means willing: downloadable and downloading are yes, only truly missing is no', async () => {
+  // 'downloadable' => false was a bootstrap deadlock, and a test asserted it:
+  // per-origin availability only becomes 'available' after the origin calls
+  // create(), and the gate refused to create until 'available'. Five paragraphs
+  // fell back to the rules engine on every run while pages that never check
+  // rewrote the same text on the same machine.
   const provider = new NanoProvider();
   expect(await provider.available()).toBe(false);
   installLanguageModel('downloadable', []);
+  expect(await provider.available()).toBe(true);
+  installLanguageModel('downloading', []);
+  expect(await provider.available()).toBe(true);
+  installLanguageModel('unavailable', []);
   expect(await provider.available()).toBe(false);
   installLanguageModel('available', []);
   expect(await provider.available()).toBe(true);
