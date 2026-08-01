@@ -43,7 +43,11 @@ Keep everything else exactly as written.`;
 // is ours, because asking a model for specificity invites fabrication.
 const FULL_CORE = `${CONTRACT}
 Rewrite so the text reads like a person wrote it, keeping the meaning and register:
-- Cut inflation and promotion, and never swap a plain word for a fancier one.
+- Cut inflation and promotion: stands as, testament to, renowned, must-visit.
+- Replace AI-flavored words with plain ones, and never swap a plain word for a fancier one.
+- Cut signposting, fake-candid openers, aphorism formulas, false ranges, hedging filler, and generic upbeat closers.
+- Prefer doing-verbs to happening-verbs: called in, ground on, not prompted, resulted in.
+- Prefer concrete wording to abstract wording.
 - Drop tacked-on "-ing" analysis clauses (highlighting, reflecting) and add none.
 - Unwind "not just X, it's Y" and every other negative parallelism into a direct claim. "Not merely" does not count, and do not write one that was not there.
 - Replace vague attributions (experts argue, observers note) with direct statements, and never add one.
@@ -114,6 +118,42 @@ const CONDITIONAL_RULES: { when: RegExp; rule: string }[] = [
 export function preservationNotes(text: string): string[] {
   return CONDITIONAL_RULES.filter(entry => entry.when.test(text)).map(entry => entry.rule);
 }
+
+/**
+ * How many offending words a tell may name before the list reads as a checklist.
+ *
+ * Six, and tested rather than assumed. Naming the words hands the model a mean of
+ * 2.15 targets with a third of paragraphs getting three or more, which looked
+ * like the reason it had stopped restructuring and started swapping words. Turning
+ * naming off entirely left bigram overlap with the source at 0.385 against 0.381,
+ * so it is not the cause, and naming is what made tells actually get fixed.
+ */
+const NAMED_TELL_LIMIT = 6;
+
+/**
+ * The shaping pass, for text measured as flat before anything else runs.
+ *
+ * Deliberately the shortest prompt in the file and deliberately about one thing.
+ * Seven batches over the same 100 sources established that the main prompt cannot
+ * hold both dispositions at once: the rules protecting terms of art, hedges and
+ * the writer's voice make the model cautious, and rebuilding sentence rhythm needs
+ * the opposite. Rewording, reordering, rebalancing, shortening and gating them all
+ * failed, six attempts, with bigram overlap pinned near 0.60 against the 0.45 of an
+ * engine that had none of those rules.
+ *
+ * So the two instincts get separate calls. Nothing here defends anything, because
+ * nothing here is allowed to change anything except where the sentences break.
+ * The register pass runs afterwards on the result.
+ */
+export const RESTRUCTURE_PROMPT =
+  'Rewrite the text the user sends, changing only where its sentences begin and end. ' +
+  'Output only the rewritten text: no preamble, no explanation, no code fences.\n' +
+  'Keep every fact, name, number, date, place and quotation. Keep every idea, in the ' +
+  'order it arrives. Keep the vocabulary, the tone and the register exactly as they ' +
+  'are: this pass is not about word choice, and a word swapped here is a mistake.\n' +
+  'Change the rhythm and nothing else. Split a long sentence so a genuinely short one ' +
+  'appears, and join two short related ones into a long one. Short next to long is the ' +
+  'whole point, so do not even the result out.';
 
 const VOICE_WORD_LIMIT = { nano: 350, byok: 2000 } as const;
 
@@ -221,7 +261,7 @@ function tellSummary(tells: DetectedTell[]): string {
         const excerpt = tell.excerpt.slice(0, 40);
         if (!seen.has(excerpt.toLowerCase())) seen.set(excerpt.toLowerCase(), excerpt);
       }
-      const named = [...seen.values()].slice(0, 6);
+      const named = [...seen.values()].slice(0, NAMED_TELL_LIMIT);
       if (named.length > 0) {
         const more = seen.size > named.length ? ', and more' : '';
         items.push(`${name}: ${named.map(w => `"${w}"`).join(', ')}${more}`);

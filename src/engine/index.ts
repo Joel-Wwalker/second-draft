@@ -6,7 +6,7 @@ import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
 import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } from '../shared/diction';
 import { applyFixes, customRules, detect } from './rules';
-import { buildSystemPrompt, describeTells } from './prompts';
+import { RESTRUCTURE_PROMPT, buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
 
@@ -61,36 +61,48 @@ export async function humanize(
     };
   }
 
+  // Shape first, on flat text only, and against the original. What comes back is
+  // what the register pass rewrites; everything downstream still measures against
+  // the text the user actually selected.
+  const shaped = await reshape(text, provider, opts);
+
   // Rhythm and shape are measured, not requested. The prompt has asked for varied
   // sentences since the first version and models flatten them anyway.
+  // What the register pass is working from. Identical to the input unless the
+  // shaping pass ran and proved it helped, so every comparison below that judges
+  // this pass judges it against what it was actually handed.
+  const shapedTells = detect(shaped, extraRules);
   const systemPrompt = buildSystemPrompt({
     intensity: opts.intensity,
-    tells,
+    tells: shapedTells,
     voiceSample: opts.voiceSample,
     target: provider.info.kind === 'nano' ? 'nano' : 'byok',
-    cadence: styleNotes(text) || undefined,
-    text,
+    cadence: styleNotes(shaped) || undefined,
+    text: shaped,
   });
 
   const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
     let raw: string;
     try {
-      raw = await provider.rewrite({ text, systemPrompt: prompt, signal: opts.signal, onChunk });
+      raw = await provider.rewrite({ text: shaped, systemPrompt: prompt, signal: opts.signal, onChunk });
     } catch (err) {
       throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
     }
     throwIfAborted(opts.signal);
-    const rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, text), text));
+    const rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, shaped), shaped));
     if (text.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
     return {
       rewritten,
+      // Fidelity and drift answer to the text the user selected, not to the
+      // shaping pass's output. A fact lost in shaping must still be reported,
+      // and vocabulary is measured against what arrived.
       fidelity: checkFidelity(text, rewritten),
       style: styleNotes(rewritten),
       drift: vocabularyDrift(text, rewritten),
       remaining: detect(rewritten, extraRules),
-      noop: isNoOp(rewritten, text),
+      noop: isNoOp(rewritten, shaped),
     };
   };
 
@@ -105,13 +117,13 @@ export async function humanize(
   // three shown to the user while our one retry went unused on them. One retry
   // only, because the on-device model is slow enough that a third attempt costs
   // more waiting than it tends to buy.
-  const noTellProgress = best.remaining.length >= tells.length && best.remaining.length > 0;
+  const noTellProgress = best.remaining.length >= shapedTells.length && best.remaining.length > 0;
   // A tell the input never had is a regression even when the total count fell.
   // The review found four rewrites that were handed clean prose and wrote "not
   // just X, it's Y" into it; each had removed enough other tells that the count
   // dropped and the retry never ran. Introducing a tell is worse than leaving
   // one, because the writer did not put it there.
-  const introduced = introducedTells(tells, best.remaining);
+  const introduced = introducedTells(shapedTells, best.remaining);
   if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || introduced.length > 0) {
     throwIfAborted(opts.signal);
     const notes: string[] = [];
@@ -259,6 +271,45 @@ interface Attempt {
   remaining: DetectedTell[];
   /** The model handed the text back; see isNoOp. */
   noop: boolean;
+}
+
+/**
+ * A first pass that only changes where sentences break, for text that arrived
+ * flat. Returns the original unchanged whenever it cannot prove it helped.
+ *
+ * Every exit here is the original text. A shaping pass that loses a date, drops a
+ * word, throws, or fails to widen the spread it was called to widen has earned
+ * nothing, and the register pass that follows is perfectly capable on its own.
+ * The cost is one extra model call on the 29% of paragraphs measured as flat, and
+ * nothing at all on the rest.
+ */
+async function reshape(
+  text: string,
+  provider: Provider,
+  opts: HumanizeOptions,
+): Promise<string> {
+  const cadence = measureCadence(text);
+  if (!cadence || !isFlat(cadence)) return text;
+  try {
+    const raw = await provider.rewrite({
+      text,
+      systemPrompt: `${RESTRUCTURE_PROMPT}\n\n${cadenceInstruction(cadence)}`,
+      signal: opts.signal,
+    });
+    throwIfAborted(opts.signal);
+    const shaped = applyFixes(stripAddedQuotes(stripWrapping(raw, text), text));
+    if (!shaped.trim()) return text;
+    // Shape is worth nothing at the cost of a fact.
+    if (checkFidelity(text, shaped).length > 0) return text;
+    const after = measureCadence(shaped);
+    // It had one job. Keeping a pass that did not do it would trade the register
+    // pass's input for no gain, and this pass is not allowed to cost anything.
+    if (!after || after.spread <= cadence.spread) return text;
+    return shaped;
+  } catch (err) {
+    if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
+    return text;
+  }
 }
 
 /**

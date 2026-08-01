@@ -4,6 +4,22 @@ import { FakeProvider } from '../src/engine/providers/fake';
 import { HumanizerError } from '../src/shared/types';
 import type { RewriteRequest } from '../src/shared/types';
 
+/**
+ * The prompts the register pass saw, with any shaping-pass prompt removed.
+ *
+ * Flat input now costs an extra model call before the rewrite proper, so a bare
+ * prompts[0] is the shaping prompt on some fixtures and the register prompt on
+ * others. Both carry the cadence instruction, so an index-based assertion can
+ * pass against the wrong pass and prove nothing.
+ */
+const registerPrompts = (all: string[]): string[] =>
+  all.filter(p => !p.startsWith('Rewrite the text the user sends, changing only'));
+
+/** Prompts the shaping pass saw; empty when the input was not flat. */
+const shapingPrompts = (all: string[]): string[] =>
+  all.filter(p => p.startsWith('Rewrite the text the user sends, changing only'));
+
+
 test('falls back to rules-only when no provider is available', async () => {
   const res = await humanize('The plan—bold.', { intensity: 'light' }, { providers: [] });
   expect(res.engine.kind).toBe('rules');
@@ -117,8 +133,8 @@ test('a lossy first rewrite is retried silently and the better attempt wins', as
   expect(res.fidelity).toEqual([]);
   expect(res.rewritten).toContain('$4.2M');
   // The retry prompt names what was lost so the model knows what to protect.
-  expect(prompts[1]).toContain('A previous attempt lost content');
-  expect(prompts[1]).toContain('$4.2M');
+  expect(registerPrompts(prompts)[1]).toContain('A previous attempt lost content');
+  expect(registerPrompts(prompts)[1]).toContain('$4.2M');
 });
 
 test('a faithful first rewrite is not retried', async () => {
@@ -361,10 +377,10 @@ test('an evenly paced rewrite is retried, and the second pass is told the number
   expect(res.retried).toBe(true);
   // This input already varies its pacing, so the first pass is not lectured about
   // rhythm. Only the rewrite that came back flat is.
-  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+  expect(registerPrompts(prompts)[0]).not.toContain('steady length is the strongest sign');
   // The retry got measurements, not the adjective the first pass already ignored.
-  expect(prompts[1]).toContain('still read machine-made');
-  expect(prompts[1]).toMatch(/run \d+, \d+/);
+  expect(registerPrompts(prompts)[1]).toContain('still read machine-made');
+  expect(registerPrompts(prompts)[1]).toMatch(/run \d+, \d+/);
   // And the varied pass is the one kept.
   expect(res.rewritten).toContain('Homer knew that');
 });
@@ -430,8 +446,13 @@ test('a flat source is measured on the first pass, before anything has failed', 
   };
   await humanize(flat, { intensity: 'full' }, { providers: [noted] });
   // The measured lengths, not the adjective that has been in the prompt all along.
-  expect(prompts[0]).toContain('23, 24, 18, 16, 15');
-  expect(prompts[0]).toContain('steady length is the strongest sign');
+  // Flat input is shaped before it is rewritten, so the numbers arrive in the
+  // shaping prompt. Still the first pass, still before anything has failed.
+  expect(shapingPrompts(prompts)[0]).toContain('23, 24, 18, 16, 15');
+  expect(shapingPrompts(prompts)[0]).toContain('steady length is the strongest sign');
+  // And once shaping has fixed the rhythm, the register pass is not lectured
+  // about a problem that no longer exists.
+  expect(registerPrompts(prompts)[0]).not.toContain('steady length is the strongest sign');
 });
 
 test('a source that already varies gets no rhythm lecture', async () => {
@@ -447,7 +468,7 @@ test('a source that already varies gets no rhythm lecture', async () => {
     },
   };
   await humanize(varied, { intensity: 'full' }, { providers: [quiet] });
-  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+  expect(registerPrompts(prompts)[0]).not.toContain('steady length is the strongest sign');
 });
 
 
@@ -474,10 +495,10 @@ test('heavy vocabulary reaches the prompt even when the pacing is fine', async (
     },
   };
   await humanize(heavyVaried, { intensity: 'full' }, { providers: [provider] });
-  expect(prompts[0]).toContain('words in every 100');
-  expect(prompts[0]).toContain('nearer 19');
+  expect(registerPrompts(prompts)[0]).toContain('words in every 100');
+  expect(registerPrompts(prompts)[0]).toContain('nearer 19');
   // Not a pacing lecture: the pacing here is fine.
-  expect(prompts[0]).not.toContain('steady length is the strongest sign');
+  expect(registerPrompts(prompts)[0]).not.toContain('steady length is the strongest sign');
 });
 
 /** The user's real report: input and output from a live Gemini Nano run. */
@@ -507,6 +528,12 @@ test('the retry is told which tells survived, with their own text', async () => 
     available: async (): Promise<boolean> => true,
     rewrite: async (req: RewriteRequest): Promise<string> => {
       prompts.push(req.systemPrompt);
+      // ROMAN_INPUT is flat, so a shaping pass runs first. Echo it back: an
+      // unchanged spread is rejected, the register pass gets the original, and
+      // this test keeps testing what it was written to test.
+      if (req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')) {
+        return req.text;
+      }
       call += 1;
       return call === 1
         ? ROMAN_CHURNED
@@ -521,12 +548,12 @@ test('the retry is told which tells survived, with their own text', async () => 
   const res = await humanize(ROMAN_INPUT, { intensity: 'full' }, { providers: [churner] });
 
   expect(call).toBe(2);
-  expect(prompts[1]).toContain('Your rewrite still contains');
-  expect(prompts[1]).toContain('rule of three');
+  expect(registerPrompts(prompts)[1]).toContain('Your rewrite still contains');
+  expect(registerPrompts(prompts)[1]).toContain('rule of three');
   // The excerpt itself, so the model knows which list. Note it is not the
   // geographic one: "North Africa" is two words, which the pattern requires
   // single-word items to avoid flagging ordinary place lists.
-  expect(prompts[1]).toContain('bridges, aqueducts');
+  expect(registerPrompts(prompts)[1]).toContain('bridges, aqueducts');
   // The better-paced second pass with fewer surviving tells is the one kept.
   expect(res.rewritten).toContain('The empire fell.');
 });
@@ -558,8 +585,8 @@ test('a rewrite that upgrades plain words is retried for it by name', async () =
   const res = await humanize(plain, { intensity: 'full' }, { providers: [upgrader] });
 
   expect(call).toBe(2);
-  expect(prompts[1]).toContain('vocabulary heavier');
-  expect(prompts[1]).toContain('transported');
+  expect(registerPrompts(prompts)[1]).toContain('vocabulary heavier');
+  expect(registerPrompts(prompts)[1]).toContain('transported');
   // The pass that kept the input's weight wins.
   expect(res.rewritten).toBe(plain);
 });
@@ -584,8 +611,8 @@ test('a rewrite that fixes none of the detected tells is retried even when its s
   const res = await humanize(listy, { intensity: 'full' }, { providers: [echo] });
 
   expect(call).toBe(2);
-  expect(prompts[1]).toContain('Your rewrite still contains');
-  expect(prompts[1]).toContain('rule of three');
+  expect(registerPrompts(prompts)[1]).toContain('Your rewrite still contains');
+  expect(registerPrompts(prompts)[1]).toContain('rule of three');
   expect(res.retried).toBe(true);
 });
 
@@ -682,7 +709,7 @@ test('a rewrite that only changes quote characters counts as no rewrite and is r
   };
   const res = await humanize(original, { intensity: 'full' }, { providers: [echo] });
   expect(call).toBe(2);
-  expect(prompts[1]).toContain('returned the text exactly as it arrived');
+  expect(registerPrompts(prompts)[1]).toContain('returned the text exactly as it arrived');
   expect(res.rewritten).toContain('nobody read it.');
 });
 
@@ -715,7 +742,7 @@ test('a tell the rewrite invented triggers a retry even when the total count fel
   };
   const res = await humanize(source, { intensity: 'full' }, { providers: [inventor] });
   expect(call).toBe(2);
-  expect(prompts[1]).toContain('added something the original did not have');
+  expect(registerPrompts(prompts)[1]).toContain('added something the original did not have');
   expect(res.rewritten).not.toContain('not just a crossing');
 });
 
@@ -754,4 +781,97 @@ test('a real rewrite beats a no-op even when the no-op scores better on style', 
   expect(call).toBe(2);
   // Doing something imperfect beats declining to act.
   expect(res.rewritten).toBe(flatRewrite);
+});
+
+const FLAT_SOURCE =
+  'The harbour authority reviewed the moorings in March and again in September. ' +
+  'The report noted the same six faults on both occasions without much comment. ' +
+  'Repairs were scheduled for the spring and then quietly moved to the autumn. ' +
+  'The berth holders were told about the delay by letter in early August. ' +
+  'Nobody from the authority attended the meeting that the berth holders called.';
+const SHAPED =
+  'The harbour authority reviewed the moorings in March, then again in September, and the ' +
+  'report noted the same six faults on both occasions without much comment. Repairs were ' +
+  'scheduled for the spring. They were then quietly moved to the autumn, and the berth ' +
+  'holders were told about the delay by letter in early August. Nobody came. The meeting ' +
+  'the berth holders called went unattended by anyone from the authority.';
+
+test('flat input is shaped by a dedicated pass before the rewrite proper', async () => {
+  // Seven batches established that one prompt cannot both protect wording and
+  // rebuild rhythm. The two instincts get separate calls, and only flat text
+  // pays for the second one.
+  const prompts: string[] = [];
+  const shaper = {
+    info: { kind: 'fake' as const, model: 'shaper' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')
+        ? SHAPED
+        : req.text.replace('quietly', 'later');
+    },
+  };
+  const res = await humanize(FLAT_SOURCE, { intensity: 'full' }, { providers: [shaper] });
+  expect(shapingPrompts(prompts)).toHaveLength(1);
+  expect(shapingPrompts(prompts)[0]).toContain('changing only where its sentences begin and end');
+  // The register pass worked from the shaped text, not the original.
+  expect(res.rewritten).toContain('later');
+  expect(res.rewritten).toContain('Nobody came');
+});
+
+test('well-paced input pays for no shaping pass at all', async () => {
+  const prompts: string[] = [];
+  const watcher = {
+    info: { kind: 'fake' as const, model: 'watcher' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      return req.text.replace('crucial', 'important-looking');
+    },
+  };
+  await humanize(VARIED.replace('daughter of Zeus', 'crucial daughter of Zeus'), { intensity: 'full' }, { providers: [watcher] });
+  expect(shapingPrompts(prompts)).toHaveLength(0);
+});
+
+test('a shaping pass that drops a fact is thrown away, not passed on', async () => {
+  // Shape is worth nothing at the cost of a date. The register pass must receive
+  // the original text, and the user must not be shown a rewrite missing 1998.
+  const withFact = `${FLAT_SOURCE} The authority had been warned about the moorings in 1998.`;
+  const shaper = {
+    info: { kind: 'fake' as const, model: 'lossy-shaper' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      // Better rhythm, and the date is gone.
+      if (req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')) return SHAPED;
+      return req.text;
+    },
+  };
+  const res = await humanize(withFact, { intensity: 'full' }, { providers: [shaper] });
+  expect(res.rewritten).toContain('1998');
+});
+
+test('a shaping pass that does not improve the rhythm is thrown away', async () => {
+  // It had one job. Keeping a pass that failed at it would hand the register pass
+  // a worse starting point for nothing.
+  const flatter =
+    'The council met on Tuesday to discuss the drainage works near the old mill. ' +
+    'The clerk had circulated the costings to every member the previous Friday. ' +
+    'Two members asked whether the figures included the culvert under the lane. ' +
+    'The surveyor confirmed that they did not and offered to price it separately. ' +
+    'The chair adjourned the item until the January meeting without taking a vote. ' +
+    'The minutes record none of the discussion beyond the decision to adjourn it.';
+  const shaper = {
+    info: { kind: 'fake' as const, model: 'useless-shaper' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')) {
+        // Same shape, different words: exactly what this pass is told not to do.
+        return req.text.replace('discuss', 'consider').replace('circulated', 'distributed');
+      }
+      return req.text.replace('Tuesday', 'the Tuesday');
+    },
+  };
+  const res = await humanize(flatter, { intensity: 'full' }, { providers: [shaper] });
+  expect(res.rewritten).toContain('discuss');
+  expect(res.rewritten).toContain('circulated');
 });
