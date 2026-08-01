@@ -25,6 +25,14 @@
       // the current engine, so the only thing that changed between pairs100 and
       // pairs100b is the code. It is also about twice as fast, because the
       // generation half of every iteration is already done.
+      // Where this run writes. A tab left open from an earlier run keeps posting
+      // to whatever name it was given, so giving each run its own name is what
+      // stops two pages clobbering one file: one run went 90 pairs, then 92, then
+      // 56, because a page nobody could see was still resuming and overwriting.
+      // Chrome reports only the active tab in a window title, so a backgrounded
+      // batch tab cannot be found and closed from outside.
+      const OUT = (new URLSearchParams(location.search).get('out') ?? 'pairs100b').replace(/[^a-z0-9-]/gi, '');
+
       const log = document.getElementById('log');
       const count = document.getElementById('count');
       const say = m => {
@@ -55,7 +63,7 @@
         }
         document.getElementById('total').textContent = String(sources.length);
 
-        const have = new Map((await load('pairs100b')).map(d => [d.index, d]));
+        const have = new Map((await load(OUT)).map(d => [d.index, d]));
         say(`resuming with ${have.size} of ${sources.length}`);
         count.textContent = String(have.size);
         const providers = [new SecondDraft.NanoProvider()];
@@ -87,13 +95,13 @@
           done += 1;
           count.textContent = String(have.size);
           if (have.size % 2 === 0 || have.size === sources.length) {
-            await post('pairs100b', [...have.values()].sort((a, b) => a.index - b.index));
+            await post(OUT, [...have.values()].sort((a, b) => a.index - b.index));
             const per = (Date.now() - started) / 1000 / Math.max(1, done);
             const left = Math.round(((sources.length - have.size) * per) / 60);
             say(`${have.size}/${sources.length}  ${src.band}: ${src.topic}  (~${left} min left)`);
           }
         }
-        await post('pairs100b', [...have.values()].sort((a, b) => a.index - b.index));
+        await post(OUT, [...have.values()].sort((a, b) => a.index - b.index));
         say('FINISHED');
       }
 
