@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import {
   PENDING_TTL_MS,
   isApplyRequest,
+  isEngineStatusRequest,
   isCancelRequest,
   isCaptureRequest,
   isCaptureResponse,
@@ -79,4 +80,11 @@ test('parked text expires, so it cannot run itself in a popup opened later', () 
   expect(isPendingFresh({ ...parked, at: now - 86_400_000 }, now)).toBe(false);
   // A clock that jumped backwards must not make old text look fresh forever.
   expect(isPendingFresh({ ...parked, at: now + 5_000 }, now)).toBe(false);
+});
+
+test('isEngineStatusRequest accepts the request and nothing shaped like it', () => {
+  expect(isEngineStatusRequest({ type: 'engine-status' })).toBe(true);
+  expect(isEngineStatusRequest({ type: 'humanize' })).toBe(false);
+  expect(isEngineStatusRequest(null)).toBe(false);
+  expect(isEngineStatusRequest('engine-status')).toBe(false);
 });

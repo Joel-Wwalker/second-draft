@@ -1,6 +1,6 @@
 import { humanize } from '../engine';
 import { FakeProvider } from '../engine/providers/fake';
-import { NanoProvider } from '../engine/providers/nano';
+import { NanoProvider, nanoAvailability } from '../engine/providers/nano';
 import { AnthropicProvider } from '../engine/providers/anthropic';
 import { OpenAIProvider } from '../engine/providers/openai';
 import { getSettings } from '../shared/storage';
@@ -8,11 +8,21 @@ import type { Settings } from '../shared/storage';
 import { redactError } from '../shared/redact';
 import { HumanizerError } from '../shared/types';
 import type { Intensity, Provider } from '../shared/types';
-import { HUMANIZE_PORT, isCancelRequest, isHumanizeRequest } from '../shared/messages';
+import { HUMANIZE_PORT, isCancelRequest, isEngineStatusRequest, isHumanizeRequest } from '../shared/messages';
 import type { HumanizeResponse, PortServerMessage } from '../shared/messages';
 import { discardPending, discardPendingForTab, handOff } from '../background/handoff';
 
 export default defineBackground(() => {
+  // Engine status is answered from here, not measured by the asker, because
+  // this worker is where rewrites run and contexts disagree: the options page
+  // once said "Ready" from its own window while rewrites here fell back to the
+  // rules engine. Async answer, so the listener returns true to hold the line.
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!isEngineStatusRequest(message)) return;
+    void nanoAvailability().then(availability => sendResponse({ availability }));
+    return true;
+  });
+
   chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({

@@ -3,17 +3,32 @@ import { HumanizerError } from '../../shared/types';
 
 export const NANO_CHUNK_CHARS = 4000;
 
+/**
+ * What this context's Prompt API says about the on-device model, as a string
+ * that never throws. 'no-api' when the global is missing entirely, 'error' when
+ * asking it failed; otherwise Chrome's own availability value.
+ *
+ * Exists because contexts disagree. The options page asked its own window,
+ * showed "Ready", and the engine meanwhile ran in the service worker, where the
+ * answer decides between a real rewrite and the rules fallback. Whoever wants
+ * to display engine status must ask the engine's context, and this is the
+ * question they send.
+ */
+export async function nanoAvailability(): Promise<string> {
+  if (typeof LanguageModel === 'undefined' || !LanguageModel) return 'no-api';
+  try {
+    return await LanguageModel.availability();
+  } catch {
+    return 'error';
+  }
+}
+
 /** Chrome's on-device Gemini Nano via the Prompt API (extension SW context). */
 export class NanoProvider implements Provider {
   readonly info: EngineInfo = { kind: 'nano' };
 
   async available(): Promise<boolean> {
-    if (typeof LanguageModel === 'undefined' || !LanguageModel) return false;
-    try {
-      return (await LanguageModel.availability()) === 'available';
-    } catch {
-      return false;
-    }
+    return (await nanoAvailability()) === 'available';
   }
 
   async rewrite(req: RewriteRequest): Promise<string> {

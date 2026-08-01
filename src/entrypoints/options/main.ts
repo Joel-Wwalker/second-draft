@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../../shared/storage';
+import type { EngineStatusRequest, EngineStatusResponse } from '../../shared/messages';
 import type { ByokSettings, Settings } from '../../shared/storage';
 import type { Intensity } from '../../shared/types';
 import { HumanizerError } from '../../shared/types';
@@ -211,17 +212,31 @@ function renderSites(settings: Settings): void {
 }
 
 async function refreshNano(): Promise<void> {
-  if (typeof LanguageModel === 'undefined' || !LanguageModel) {
-    nanoStatus.textContent = 'Not supported by this browser (needs Chrome 138 or newer).';
+  // Ask the background worker, not this window. Rewrites run in the worker, and
+  // the two contexts have disagreed in practice: this page said "Ready" while
+  // five paragraphs fell back to the rules engine because the worker's answer
+  // was not 'available'. Whatever the worker says is what the user will get.
+  const fromWorker: unknown = await chrome.runtime
+    .sendMessage({ type: 'engine-status' } satisfies EngineStatusRequest)
+    .catch(() => null);
+  const availability =
+    typeof fromWorker === 'object' && fromWorker !== null
+      ? String((fromWorker as EngineStatusResponse).availability)
+      : 'error';
+
+  if (availability === 'no-api') {
+    nanoStatus.textContent =
+      typeof LanguageModel === 'undefined'
+        ? 'Not supported by this browser (needs Chrome 138 or newer).'
+        : 'This page can see the on-device model but the engine cannot. Rewrites will fall back to mechanical fixes; restarting Chrome usually clears this.';
     return;
   }
-  try {
-    const availability = await LanguageModel.availability();
-    nanoStatus.textContent = NANO_LABELS[availability];
-    nanoDownload.hidden = availability !== 'downloadable';
-  } catch {
+  if (availability === 'error') {
     nanoStatus.textContent = 'Could not query the on-device model.';
+    return;
   }
+  nanoStatus.textContent = NANO_LABELS[availability as LanguageModelAvailability] ?? availability;
+  nanoDownload.hidden = availability !== 'downloadable';
 }
 
 async function downloadNano(): Promise<void> {

@@ -160,3 +160,29 @@ export function isPendingFresh(pending: PendingSelection, now: number): boolean 
   // A clock that jumped backwards must not make stale text look fresh forever.
   return age >= 0 && age <= PENDING_TTL_MS;
 }
+
+/**
+ * "What does the engine's own context say about the on-device model?"
+ *
+ * Sent by any page that wants to display engine status. The background answers
+ * with nanoAvailability() as measured in the service worker, because that is
+ * where rewrites run and the only place the answer decides anything: the
+ * options page once reported "Ready" from its own window while the worker fell
+ * back to the rules engine.
+ */
+export interface EngineStatusRequest {
+  type: 'engine-status';
+}
+
+export interface EngineStatusResponse {
+  /** Chrome's availability value, or 'no-api' / 'error' from nanoAvailability(). */
+  availability: string;
+}
+
+export function isEngineStatusRequest(value: unknown): value is EngineStatusRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<string, unknown>)['type'] === 'engine-status'
+  );
+}

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'vitest';
-import { NanoProvider, accumulate, chunkText } from '../src/engine/providers/nano';
+import { NanoProvider, accumulate, chunkText , nanoAvailability } from '../src/engine/providers/nano';
 
 function fakeSession(replies: string[][]): {
   session: LanguageModelSession;
@@ -151,4 +151,24 @@ test('stream failures map to internal and mid-stream aborts to aborted', async (
   await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'internal' });
   (globalThis as Record<string, unknown>)['LanguageModel'] = failing(new DOMException('x', 'AbortError'));
   await expect(provider.rewrite({ text: 't', systemPrompt: 's' })).rejects.toMatchObject({ kind: 'aborted' });
+});
+
+test('nanoAvailability reports no-api, the value, and error without throwing', async () => {
+  const g = globalThis as { LanguageModel?: unknown };
+  const saved = g.LanguageModel;
+  try {
+    delete g.LanguageModel;
+    expect(await nanoAvailability()).toBe('no-api');
+    g.LanguageModel = { availability: async () => 'downloadable' };
+    expect(await nanoAvailability()).toBe('downloadable');
+    g.LanguageModel = {
+      availability: async () => {
+        throw new Error('boom');
+      },
+    };
+    expect(await nanoAvailability()).toBe('error');
+  } finally {
+    if (saved === undefined) delete g.LanguageModel;
+    else g.LanguageModel = saved;
+  }
 });
