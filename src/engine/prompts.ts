@@ -1,5 +1,5 @@
 import type { DetectedTell, Intensity } from '../shared/types';
-import { RULES } from './rules';
+import { RULES, quotedCoverage } from './rules';
 
 const TELL_NAMES: Record<string, string> = {
   'em-dash': 'em dash',
@@ -19,7 +19,7 @@ const TELL_NAMES: Record<string, string> = {
 const CONTRACT =
   'Rewrite the text the user sends. Output only the rewritten text: no preamble, no explanation, ' +
   'no code fences. Preserve the meaning, approximate length, paragraph breaks, ' +
-  'and all facts. Leave text inside quotation marks exactly as written. ' +
+  'and all facts. ' +
   'Use no em dashes or en dashes: replace each with the punctuation its job needs, and never delete ' +
   'one and close the gap, which jams two clauses together. A dash setting off an aside, or renaming ' +
   'what comes before it, takes a comma or a colon, never a semicolon, because a semicolon needs a ' +
@@ -187,8 +187,28 @@ export interface PromptOptions {
   text?: string;
 }
 
+/**
+ * Above this share of the text sitting inside double quotes, the marks are
+ * formatting, not quotation. A real quotation is a sentence or two inside a
+ * paragraph; a pasted collection of quote-wrapped paragraphs is mostly quote by
+ * character count, and telling the model to preserve quoted text verbatim then
+ * silences the whole rewrite. It did: five wrapped paragraphs came back
+ * verbatim on every attempt, contract obeyed, until the input format was seen.
+ */
+const QUOTE_FORMATTING_COVERAGE = 0.5;
+
+const PROTECT_QUOTES = 'Leave text inside quotation marks exactly as written.';
+const QUOTES_ARE_FORMATTING =
+  'The quotation marks in this text wrap whole paragraphs: they are formatting, not quotations. ' +
+  'Rewrite the text inside them like any other text, and do not add quotation marks of your own.';
+
 export function buildSystemPrompt(opts: PromptOptions): string {
   const parts = [opts.intensity === 'light' ? LIGHT_CORE : FULL_CORE];
+  // Without the text there is nothing to measure, and protecting quotations is
+  // the safe default: wrongly protecting formatting mutes a rewrite, but
+  // wrongly rewriting a real quotation changes what somebody said.
+  const coverage = opts.text === undefined ? 0 : quotedCoverage(opts.text);
+  parts.push(coverage >= QUOTE_FORMATTING_COVERAGE ? QUOTES_ARE_FORMATTING : PROTECT_QUOTES);
   if (opts.intensity !== 'light') {
     const earned =
       opts.text === undefined ? CONDITIONAL_RULES.map(r => r.rule) : preservationNotes(opts.text);

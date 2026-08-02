@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { applyFixes, customRules, detect } from '../src/engine/rules';
+import { applyFixes, customRules, detect , quotedCoverage } from '../src/engine/rules';
 
 describe('applyFixes', () => {
   test('replaces em dashes with commas', () => {
@@ -124,4 +124,17 @@ describe('detect with extra rules', () => {
       detect('a zebra here and another zebra there', extra).filter(t => t.ruleId === 'custom'),
     ).toHaveLength(2);
   });
+});
+
+test('quotedCoverage separates wrapper quotes from real quotations', () => {
+  // Paragraph-wrapping quotes dominate by character count.
+  const wrapped = '"' + 'a'.repeat(200) + '" "' + 'b'.repeat(200) + '"';
+  expect(quotedCoverage(wrapped)).toBeGreaterThan(0.9);
+  // One short spoken line inside a paragraph does not.
+  const quoting = `The chair said "we will not fund this twice" and ${'c'.repeat(200)}.`;
+  expect(quotedCoverage(quoting)).toBeLessThan(0.3);
+  expect(quotedCoverage('no quotes at all here')).toBe(0);
+  expect(quotedCoverage('')).toBe(0);
+  // An unpaired trailing mark is ignored rather than swallowing the tail.
+  expect(quotedCoverage('plain text with one stray " mark')).toBe(0);
 });

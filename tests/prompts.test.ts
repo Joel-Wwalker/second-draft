@@ -200,3 +200,34 @@ test('without the text every conditional rule is kept, which is the cautious def
   expect(p).toContain('Keep every hedge as strong as it arrived');
   expect(p).toContain("Keep the writer's own voice");
 });
+
+test('quote marks wrapping whole paragraphs are called formatting, not protected', () => {
+  // The input shape that silenced the engine seven times: five paragraphs, each
+  // wrapped in double quotes, pasted as one block. Most of the text sits inside
+  // quotation marks, and "leave text inside quotation marks exactly as written"
+  // then commands a verbatim return, which the model dutifully produced.
+  const wrapped = [
+    'Alexander the Great was one of the most successful military leaders in his era of history.',
+    '"Dear Mr. Johnson, I am writing to ask whether I may have an extension on the project due Friday."',
+    '"One of the most memorable events in my life was my first day at a new school in a new town."',
+    '"Artificial intelligence has created serious concerns about personal privacy in modern times."',
+  ].join('\n\n');
+  const formatted = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: wrapped });
+  expect(formatted).toContain('they are formatting, not quotations');
+  expect(formatted).not.toContain('Leave text inside quotation marks exactly as written');
+
+  // A real quotation inside ordinary prose keeps its protection.
+  const quoting =
+    'The chair opened the meeting with a warning. "We will not fund this twice," she said, and ' +
+    'the minutes record that nobody argued. The rest of the session covered the roof repairs, ' +
+    'the insurance excess, and the schedule for the winter inspections across both sites.';
+  const protective = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: quoting });
+  expect(protective).toContain('Leave text inside quotation marks exactly as written');
+  expect(protective).not.toContain('they are formatting, not quotations');
+
+  // No text to measure: protecting quotations is the safe default, because
+  // wrongly protecting formatting mutes a rewrite while wrongly rewriting a
+  // quotation changes what somebody said.
+  const bare = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(bare).toContain('Leave text inside quotation marks exactly as written');
+});

@@ -151,6 +151,30 @@ export function customRules(phrases: string[]): Rule[] {
   return rules;
 }
 
+/**
+ * How much of the text sits between double quotation marks, 0 to 1.
+ *
+ * Sequential pairing over every straight or curly double-quote character, an
+ * estimate rather than a parse, which is all the decision it feeds needs: at
+ * low coverage the marks are quotations and the prompt protects them, at high
+ * coverage they are formatting around whole paragraphs and protecting them
+ * silences the entire rewrite. Five quote-wrapped paragraphs went through the
+ * engine seven times and came back verbatim seven times, with the model
+ * following "leave text inside quotation marks exactly as written" to the
+ * letter, before anyone thought to look at the input's punctuation.
+ */
+export function quotedCoverage(text: string): number {
+  if (!text) return 0;
+  const marks: number[] = [];
+  const re = /["“”]/g;
+  for (let m = re.exec(text); m; m = re.exec(text)) marks.push(m.index);
+  let inside = 0;
+  for (let i = 0; i + 1 < marks.length; i += 2) {
+    inside += marks[i + 1]! - marks[i]! - 1;
+  }
+  return inside / text.length;
+}
+
 export function quotedRegions(text: string): Span[] {
   const spans: Span[] = [];
   const re = /(?<!\w)"[^"\n]{1,300}"(?!\w)|“[^”\n]{1,300}”/g;
