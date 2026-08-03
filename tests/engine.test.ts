@@ -137,14 +137,16 @@ test('a lossy first rewrite is retried silently and the better attempt wins', as
   expect(registerPrompts(prompts)[1]).toContain('$4.2M');
 });
 
-test('a faithful first rewrite is not retried', async () => {
+test('a faithful, genuinely rewritten first attempt is not retried', async () => {
+  // "Genuinely" carries weight now: a one-word swap used to pass here, and a
+  // one-word swap is exactly the under-rewritten case the retry exists for.
   let call = 0;
   const clean = {
     info: { kind: 'fake' as const, model: 'clean' },
     available: async (): Promise<boolean> => true,
     rewrite: async (): Promise<string> => {
       call += 1;
-      return 'We dig into the plan today with the same detail as before.';
+      return 'Today we dig into the plan, and the detail matches what we had before.';
     },
   };
   const res = await humanize('We delve into the plan today with the same detail as before.', { intensity: 'full' }, { providers: [clean] });
@@ -948,23 +950,26 @@ test('when even the salvage echoes, the result says unchanged instead of scoring
   expect(res.unchanged).toBe(true);
 });
 
-test('a paragraph that echoes its first salvage attempt gets one corrected retry', async () => {
-  // One attempt per paragraph left two of five untouched on a measured run.
-  // The second attempt carries the anti-echo correction, and stubborn
-  // paragraphs still keep their original after it.
+test('a paragraph that echoes its first attempt gets one corrected retry, and no more', async () => {
+  // Every paragraph runs the pipeline alone now, so the echo retry is the
+  // ordinary noop retry, carrying the anti-echo correction. Stubborn paragraphs
+  // keep their original after it, and nothing gets a third chance.
   const perParaCalls = new Map<string, number>();
   const stubborn = {
     info: { kind: 'fake' as const, model: 'stubborn' },
     available: async (): Promise<boolean> => true,
     rewrite: async (req: RewriteRequest): Promise<string> => {
-      if (req.text.includes('\n\n')) return req.text; // blob: echo both passes
       const n = (perParaCalls.get(req.text) ?? 0) + 1;
       perParaCalls.set(req.text, n);
-      // First paragraph converts on the corrected second attempt; the others
-      // never do.
+      // First paragraph converts on the corrected second attempt, with a
+      // genuine restructure rather than a word swap: near-echoes are refused by
+      // the same measure that triggers the retry. The others never convert.
       if (req.text.startsWith('The committee') && n === 2) {
-        if (!req.systemPrompt.includes('returned this text exactly as it arrived')) return req.text;
-        return req.text.replace('The committee reviewed', 'In March the committee went over');
+        if (!req.systemPrompt.includes('returned the text exactly as it arrived')) return req.text;
+        return (
+          'In March the committee went over the flood defence budget and found a hole in it. ' +
+          'Two separate sources fed the gap. Nobody had flagged either one before the review began.'
+        );
       }
       return req.text;
     },
@@ -976,29 +981,93 @@ test('a paragraph that echoes its first salvage attempt gets one corrected retry
   expect(res.unchanged).toBe(false);
 });
 
-test('an echoed paragraph is salvaged even when its neighbours were rewritten', async () => {
-  // The trigger that mattered. Salvage used to key on a whole-blob echo, and
-  // the first fix that made the blob pass rewrite one paragraph turned the
-  // salvage off for the rest: five measured runs left the same three paragraphs
-  // untouched behind two rewritten ones, identical to the digit.
-  const partial = {
-    info: { kind: 'fake' as const, model: 'partial' },
+test('multi-paragraph input never reaches the model as one blob', async () => {
+  // The architecture the whole saga bought. A prompt built for a whole paste
+  // dilutes across it and the model answers with token swaps: measured, the
+  // blob prompt left three of five paragraphs identical while the same
+  // paragraphs under their own prompts moved four of five below 80% overlap.
+  // So the model only ever sees paragraphs.
+  const seen: string[] = [];
+  const solo = {
+    info: { kind: 'fake' as const, model: 'solo' },
     available: async (): Promise<boolean> => true,
     rewrite: async (req: RewriteRequest): Promise<string> => {
-      if (req.text.includes('\n\n')) {
-        // Blob pass: rewrite the first paragraph, echo the rest, deterministically.
-        const [first, ...rest] = req.text.split('\n\n');
-        return [first!.replace('The committee reviewed', 'That March the committee combed through'), ...rest].join('\n\n');
-      }
-      // Solo passes crack the stragglers.
+      seen.push(req.text);
       return req.text
+        .replace('The committee reviewed', 'That March the committee combed through')
         .replace('The first source was', 'First came')
         .replace('Residents were told about', 'Residents heard about');
     },
   };
-  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [partial] });
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [solo] });
+  expect(seen.every(t => !t.includes('\n\n'))).toBe(true);
   expect(res.rewritten).toContain('combed through');
   expect(res.rewritten).toContain('First came');
   expect(res.rewritten).toContain('Residents heard about');
+  expect(res.rewritten.split(/\n\s*\n/)).toHaveLength(3);
   expect(res.unchanged).toBe(false);
+});
+
+test('a paragraph the blob pass barely touched is deepened, and a near-echo replacement is refused', async () => {
+  // The user-visible failure after the echo fixes: the blob pass changed two
+  // words of a long paragraph, the salvage saw "not an echo" and moved on, and
+  // the person who pasted it saw an untouched paragraph.
+  const deepen = {
+    info: { kind: 'fake' as const, model: 'deepen' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.text.includes('\n\n')) {
+        // Blob pass: a two-word tweak to paragraph one, real rewrites elsewhere.
+        const [a, b, c] = req.text.split('\n\n');
+        return [
+          a!.replace('found a crucial shortfall', 'found a big shortfall'),
+          'The maintenance contract was priced back in 2019 and nobody looked at it again through two extensions, while the survey backlog quietly grew alongside it.',
+          'A letter reached most households in May, promising a revised schedule by autumn and apologizing plainly for the delay.',
+        ].join('\n\n');
+      }
+      // Solo pass: a genuine restructure of the under-served paragraph.
+      return (
+        'That March, going over the flood defence budget, the committee hit a shortfall. ' +
+        'It had two sources. Neither one had been flagged before the review began.'
+      );
+    },
+  };
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [deepen] });
+  expect(res.rewritten).toContain('That March, going over');
+  expect(res.rewritten).not.toContain('found a big shortfall');
+});
+
+test('a salvage replacement that adds a tell is refused', async () => {
+  // A salvage once wrote "robust", a word on the engine's own detection list,
+  // into a paragraph that arrived without it. The count dropped elsewhere, so
+  // nothing objected. The source here is tell-free on purpose: a source
+  // already carrying one tell may trade it sideways under the count bound, and
+  // an earlier version of this test proved that by accident with "crucial".
+  // Tell-free where it matters, but not everywhere: a fully clean, well-paced
+  // input never reaches a model at all, because the no-rewrite gate returns it
+  // first, which made an earlier version of this test pass with the guard
+  // deleted. The em dash in the last paragraph gets the engine running while
+  // the harbour paragraph itself still arrives with zero tells.
+  const CLEAN_PARAS =
+    'The harbour board met on a Tuesday to talk through the mooring survey. ' +
+    'Nobody expected the meeting to run long, and it did anyway.\n\n' +
+    'The survey had found six faults, and four of them sat below the waterline. ' +
+    'Fixing those meant divers, and divers meant money the board had not set aside.\n\n' +
+    'A vote was taken before the room emptied. The repairs were approved for spring — ' +
+    'with the diving work first on the list and the paperwork to follow.';
+  const teller = {
+    info: { kind: 'fake' as const, model: 'teller' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.text.includes('\n\n')) return req.text;
+      if (!req.text.startsWith('The harbour board')) return req.text;
+      // A real restructure that smuggles in a listed word.
+      return (
+        'On a Tuesday the harbour board sat down over the mooring survey, a robust agenda in hand. ' +
+        'Long meetings were nobody\'s plan. This one ran long anyway.'
+      );
+    },
+  };
+  const res = await humanize(CLEAN_PARAS, { intensity: 'full' }, { providers: [teller] });
+  expect(res.rewritten).not.toContain('robust');
 });

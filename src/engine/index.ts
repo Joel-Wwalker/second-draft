@@ -6,6 +6,7 @@ import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
 import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } from '../shared/diction';
 import { applyFixes, customRules, detect, stripWrapperQuotes, wrapperQuoteShare } from './rules';
+import type { Rule } from './rules';
 import { RESTRUCTURE_PROMPT, buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
@@ -20,6 +21,28 @@ const MAX_INPUT_CHARS = 50_000;
  * and four identical runs proved the heat never touched the model.
  */
 const RETRY_SAMPLING = { temperature: 1.4, topK: 8 };
+
+/**
+ * At or above this share of positionally identical words, a rewrite reads as
+ * untouched to the person who pasted it. The measured case: a blob pass that
+ * changed two words of a 76-word paragraph, which is 96% identical, not an
+ * echo, and exactly as disappointing as one.
+ */
+const UNDER_REWRITTEN = 0.85;
+
+/** Share of input words standing unchanged at the same positions, 0 to 1. */
+function wordOverlap(before: string, after: string): number {
+  const words = (t: string): string[] =>
+    t.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').split(/\s+/).filter(Boolean);
+  const wb = words(before);
+  const wa = words(after);
+  if (wb.length === 0) return 0;
+  let same = 0;
+  for (let i = 0; i < Math.min(wb.length, wa.length); i++) {
+    if (wb[i] === wa[i]) same += 1;
+  }
+  return same / wb.length;
+}
 
 
 export interface EngineDeps {
@@ -82,18 +105,113 @@ export async function humanize(
     };
   }
 
-  // Shape first, on flat text only, and against the original. What comes back is
-  // what the register pass rewrites; everything downstream still measures against
-  // the text the user actually selected. Full intensity only: light promises to
-  // change as little as possible, and a pass whose whole job is moving sentence
-  // boundaries has no business running under that promise.
-  const shaped = opts.intensity === 'full' ? await reshape(text, provider, opts) : text;
+  const { final, retried } = await rewriteAll(text, opts, provider, extraRules);
 
-  // Rhythm and shape are measured, not requested. The prompt has asked for varied
-  // sentences since the first version and models flatten them anyway.
-  // What the register pass is working from. Identical to the input unless the
-  // shaping pass ran and proved it helped, so every comparison below that judges
-  // this pass judges it against what it was actually handed.
+  return {
+    rewritten: final.rewritten,
+    changes: diffChanges(text, final.rewritten, tells),
+    engine: provider.info,
+    tells: {
+      // Flat rhythm and heavier-than-input vocabulary count as tells. Leaving
+      // style out is why an evenly paced rewrite used to score well and still
+      // read like a machine wrote it.
+      before: tells.length + (styleNotes(text) ? 1 : 0),
+      after: final.remaining.length + (final.style ? 1 : 0) + (final.drift ? 1 : 0),
+    },
+    fidelity: final.fidelity,
+    retried,
+    unchanged: final.noop,
+  };
+}
+
+/**
+ * Paragraphs are the unit of work.
+ *
+ * A prompt built for a whole multi-paragraph paste dilutes across it and the
+ * model answers with shallow token swaps: measured on a five-paragraph paste,
+ * the blob prompt left three paragraphs identical and one at 96% word overlap,
+ * while the same paragraphs under their own prompts moved four of five below
+ * 80%. So multi-paragraph input runs the full pipeline once per paragraph,
+ * whatever the total size, and the results reassemble. Sequential, because the
+ * on-device model serves one session well and several badly. Light intensity
+ * still goes whole, because its contract is minimal change and the blob pass
+ * delivers exactly that.
+ */
+async function rewriteAll(
+  text: string,
+  opts: HumanizeOptions,
+  provider: Provider,
+  extraRules: Rule[],
+): Promise<{ final: Attempt; retried: boolean }> {
+  const bodies = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (opts.intensity !== 'full' || bodies.length < 2) {
+    const one = await rewriteOne(text, opts, provider, extraRules, opts.onChunk);
+    return { final: one, retried: one.retried };
+  }
+
+  const outs: string[] = [];
+  const fidelity: FidelityIssue[] = [];
+  let retried = false;
+  let allNoop = true;
+  for (const body of bodies) {
+    throwIfAborted(opts.signal);
+    // Too small for rhythm or register to mean anything; mechanical fixes only.
+    if (body.split(/\s+/).length < 15) {
+      outs.push(applyFixes(body));
+      continue;
+    }
+    // Streaming continues across paragraphs: each chunk carries everything
+    // finished so far plus the paragraph in flight, so the caller's view grows
+    // instead of restarting five times.
+    const done = outs.join('\n\n');
+    const relay = opts.onChunk;
+    const one = await rewriteOne(
+      body,
+      opts,
+      provider,
+      extraRules,
+      relay && (soFar => relay(done ? `${done}\n\n${soFar}` : soFar)),
+    );
+    outs.push(one.rewritten);
+    fidelity.push(...one.fidelity);
+    retried = retried || one.retried;
+    allNoop = allNoop && one.noop;
+  }
+  const rewritten = outs.join('\n\n');
+  return {
+    final: {
+      rewritten,
+      fidelity,
+      style: styleNotes(rewritten),
+      drift: vocabularyDrift(text, rewritten),
+      remaining: detect(rewritten, extraRules),
+      noop: allNoop,
+    },
+    retried,
+  };
+}
+
+/**
+ * The full pipeline for one piece of text: shape it if it arrived flat, prompt
+ * from its own tells and cadence, one attempt, one corrected retry, and a
+ * fallback to the source when the result introduces tells the source never had.
+ */
+async function rewriteOne(
+  source: string,
+  opts: HumanizeOptions,
+  provider: Provider,
+  extraRules: Rule[],
+  onChunk?: (textSoFar: string) => void,
+): Promise<Attempt & { retried: boolean }> {
+  // Shape first, on flat text only, and against the source. What comes back is
+  // what the register pass rewrites; everything downstream still measures
+  // against the text the caller handed over. Full intensity only: light
+  // promises to change as little as possible, and a pass whose whole job is
+  // moving sentence boundaries has no business running under that promise.
+  const shaped = opts.intensity === 'full' ? await reshape(source, provider, opts) : source;
+
+  // Rhythm and shape are measured, not requested. The prompt has asked for
+  // varied sentences since the first version and models flatten them anyway.
   const shapedTells = detect(shaped, extraRules);
   const systemPrompt = buildSystemPrompt({
     intensity: opts.intensity,
@@ -106,57 +224,60 @@ export async function humanize(
 
   const attempt = async (
     prompt: string,
-    onChunk?: (textSoFar: string) => void,
+    chunk?: (textSoFar: string) => void,
     sampling?: { temperature: number; topK: number },
   ): Promise<Attempt> => {
     let raw: string;
     try {
-      raw = await provider.rewrite({ text: shaped, systemPrompt: prompt, signal: opts.signal, onChunk, sampling });
+      raw = await provider.rewrite({ text: shaped, systemPrompt: prompt, signal: opts.signal, onChunk: chunk, sampling });
     } catch (err) {
       throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
     }
     throwIfAborted(opts.signal);
     const rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, shaped), shaped));
-    if (text.trim() && !rewritten.trim()) {
+    if (source.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
     return {
       rewritten,
-      // Fidelity and drift answer to the text the user selected, not to the
-      // shaping pass's output. A fact lost in shaping must still be reported,
-      // and vocabulary is measured against what arrived.
-      fidelity: checkFidelity(text, rewritten),
+      // Fidelity and drift answer to the source, not to the shaping pass's
+      // output. A fact lost in shaping must still be reported, and vocabulary
+      // is measured against what arrived.
+      fidelity: checkFidelity(source, rewritten),
       style: styleNotes(rewritten),
-      drift: vocabularyDrift(text, rewritten),
+      drift: vocabularyDrift(source, rewritten),
       remaining: detect(rewritten, extraRules),
       noop: isNoOp(rewritten, shaped),
     };
   };
 
-  let best = await attempt(systemPrompt, opts.onChunk);
+  let best = await attempt(systemPrompt, onChunk);
   let retried = false;
 
-  // One silent second pass, told exactly what went wrong. Four triggers, each a
-  // thing the first pass was asked to get right and did not: content it dropped,
-  // a rhythm it flattened, vocabulary it made heavier, or detected tells it left
-  // standing without fixing a single one. The last trigger is the Roman Empire
-  // case: two rule-of-three lists in, the same two out, and a score of three to
-  // three shown to the user while our one retry went unused on them. One retry
-  // only, because the on-device model is slow enough that a third attempt costs
-  // more waiting than it tends to buy.
+  // One silent second pass, told exactly what went wrong. The triggers are each
+  // a thing the first pass was asked to get right and did not: content it
+  // dropped, a rhythm it flattened, vocabulary it made heavier, detected tells
+  // it left standing without fixing a single one, a tell it wrote in itself, an
+  // echo, or a near-echo. The last one is the user-visible case that forced
+  // paragraph-scoped processing: a 76-word paragraph changed by two words is
+  // not an echo and reads exactly as untouched to the person who pasted it.
+  // One retry only, because the on-device model is slow enough that a third
+  // attempt costs more waiting than it tends to buy, and on current builds it
+  // decodes deterministically, so the retry's power is its changed prompt.
   const noTellProgress = best.remaining.length >= shapedTells.length && best.remaining.length > 0;
-  // A tell the input never had is a regression even when the total count fell.
-  // The review found four rewrites that were handed clean prose and wrote "not
-  // just X, it's Y" into it; each had removed enough other tells that the count
-  // dropped and the retry never ran. Introducing a tell is worse than leaving
-  // one, because the writer did not put it there.
   const introduced = introducedTells(shapedTells, best.remaining);
-  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || introduced.length > 0) {
+  const barely = !best.noop && wordOverlap(shaped, best.rewritten) >= UNDER_REWRITTEN;
+  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || barely || introduced.length > 0) {
     throwIfAborted(opts.signal);
     const notes: string[] = [];
     if (best.noop) {
       notes.push(
         'A previous attempt returned the text exactly as it arrived. That is a failure, not a judgment that the text was already fine. Change the structure this time: split a long sentence, join two short ones, or move a clause to the front.',
+      );
+    }
+    if (barely) {
+      notes.push(
+        'A previous attempt returned this text nearly unchanged. That is a failure. Change the structure: split a long sentence, join two short ones, or move a clause to the front.',
       );
     }
     if (best.fidelity.length > 0) {
@@ -181,12 +302,13 @@ export async function humanize(
     }
     const corrections = notes.join('\n\n');
     try {
-      // The second pass is not shown as it arrives, because a display that jumped
-      // back to a half-finished rewrite would read as starting over. It still has
-      // to be audible: a caller timing out on silence would otherwise cancel a
-      // rewrite that has already succeeded. Each chunk re-sends the text we would
-      // keep if this pass came to nothing, so the view holds still and stays live.
-      const keepAlive = opts.onChunk;
+      // The second pass is not shown as it arrives, because a display that
+      // jumped back to a half-finished rewrite would read as starting over. It
+      // still has to be audible: a caller timing out on silence would otherwise
+      // cancel a rewrite that has already succeeded. Each chunk re-sends the
+      // text we would keep if this pass came to nothing, so the view holds
+      // still and stays live.
+      const keepAlive = onChunk;
       const second = await attempt(
         `${systemPrompt}\n\n${corrections}`,
         keepAlive && (() => keepAlive(best.rewritten)),
@@ -202,92 +324,24 @@ export async function humanize(
     }
   }
 
-  // A paragraph the model handed back unchanged stays unchanged forever: the
-  // on-device model decodes near-greedily, so five measured runs of the same
-  // paste came back identical to the digit, echoed paragraphs included. The
-  // whole-blob passes cannot fix a paragraph they are deterministic about, so
-  // every individually echoed paragraph is sent alone: once as-is, once with
-  // heat and the anti-echo correction. A paragraph that still echoes, errors,
-  // or drops a fact keeps its original. Sequential, because the on-device model
-  // serves one session well and several badly.
-  //
-  // Triggered per paragraph, not on a whole-blob echo. An earlier version keyed
-  // this on best.noop, and the first fix that made the blob pass rewrite even
-  // one paragraph turned the salvage off for all the others.
-  const inBodies = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const outBodies = best.rewritten.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  if (inBodies.length >= 2 && inBodies.length === outBodies.length) {
-    const rebuilt = [...outBodies];
-    let salvaged = 0;
-    for (let i = 0; i < inBodies.length; i++) {
-      const part = inBodies[i]!;
-      if (!isNoOp(outBodies[i]!, part) || part.split(/\s+/).length < 15) continue;
-      try {
-        throwIfAborted(opts.signal);
-        // The paragraph's own prompt, not the blob's. The model is a pure
-        // function of prompt and input on current builds, temperature included
-        // and ignored, so a paragraph the blob prompt echoes will echo under it
-        // forever, solo or not. A paragraph-scoped prompt is a different
-        // function; an instrumented probe showed it rewriting the exact
-        // paragraph the blob prompt deterministically echoed.
-        const partPrompt = buildSystemPrompt({
-          intensity: opts.intensity,
-          tells: detect(part, extraRules),
-          voiceSample: opts.voiceSample,
-          target: provider.info.kind === 'nano' ? 'nano' : 'byok',
-          cadence: styleNotes(part) || undefined,
-          text: part,
-        });
-        for (let attemptNo = 0; attemptNo < 2 && rebuilt[i] === outBodies[i]; attemptNo++) {
-          const prompt =
-            attemptNo === 0
-              ? partPrompt
-              : `${partPrompt}\n\nA previous attempt returned this text exactly as it arrived. That is a failure. Change the structure: split a long sentence, join two short ones, or move a clause to the front.`;
-          const raw = await provider.rewrite({
-            text: part,
-            systemPrompt: prompt,
-            signal: opts.signal,
-            sampling: attemptNo === 1 ? RETRY_SAMPLING : undefined,
-          });
-          const piece = applyFixes(stripAddedQuotes(stripWrapping(raw, part), part));
-          if (piece.trim() && !isNoOp(piece, part) && checkFidelity(part, piece).length === 0) {
-            rebuilt[i] = piece;
-            salvaged += 1;
-          }
-        }
-      } catch (err) {
-        if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
-      }
-    }
-    if (salvaged > 0) {
-      const joined = rebuilt.join('\n\n');
-      best = {
-        rewritten: joined,
-        fidelity: checkFidelity(text, joined),
-        style: styleNotes(joined),
-        drift: vocabularyDrift(text, joined),
-        remaining: detect(joined, extraRules),
-        noop: isNoOp(joined, text),
-      };
-      retried = true;
-    }
+  // A rewrite that still carries a tell the source never had, after its retry
+  // was told so in as many words, is worse than no rewrite: the writer did not
+  // put that there. Fall back to the source with mechanical fixes and report it
+  // honestly as unchanged. The measured case wrote "robust", a word from the
+  // engine's own detection list, into a paragraph that arrived without it.
+  if (introducedTells(shapedTells, best.remaining).length > 0) {
+    const fallback = applyFixes(shaped);
+    best = {
+      rewritten: fallback,
+      fidelity: checkFidelity(source, fallback),
+      style: styleNotes(fallback),
+      drift: vocabularyDrift(source, fallback),
+      remaining: detect(fallback, extraRules),
+      noop: isNoOp(fallback, shaped),
+    };
   }
 
-  return {
-    rewritten: best.rewritten,
-    changes: diffChanges(text, best.rewritten, tells),
-    engine: provider.info,
-    tells: {
-      // Flat rhythm and heavier-than-input vocabulary count as tells. Leaving
-      // style out is why an evenly paced rewrite used to score well and still
-      // read like a machine wrote it.
-      before: tells.length + (styleNotes(text) ? 1 : 0),
-      after: best.remaining.length + (best.style ? 1 : 0) + (best.drift ? 1 : 0),
-    },
-    fidelity: best.fidelity,
-    retried,
-    unchanged: best.noop,
-  };
+  return { ...best, retried };
 }
 
 /**
