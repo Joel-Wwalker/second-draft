@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Quoted blob, 1.4.2 engine</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; margin: 0; padding: 28px; background: #0f172a; color: #e2e8f0; max-width: 900px; }
+    </style>
+  </head>
+  <body>
+    <h1>Quoted blob through the current engine: <span id="state">loading</span></h1>
+    <pre id="out" style="white-space: pre-wrap"></pre>
+    <script src="/engine.js"></script>
+    <script type="module">
+      // The user's exact paste shape: five paragraphs, quote-wrapped, one input.
+      // The current engine tells the model these marks are formatting. This page
+      // answers whether the model listens, on the machine that keeps reporting
+      // it does not.
+      const state = document.getElementById('state');
+      const out = document.getElementById('out');
+      const post = body =>
+        fetch('http://localhost:8788/quoted', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch(() => {});
+      (async () => {
+        if (typeof LanguageModel === 'undefined') {
+          state.textContent = 'no Prompt API';
+          await post([{ error: 'no-api' }]);
+          return;
+        }
+        const [blob] = await fetch('http://localhost:8788/read/quoted-input').then(r => r.json());
+        state.textContent = 'rewriting...';
+        try {
+          const res = await SecondDraft.humanize(blob, { intensity: 'full' }, { providers: [new SecondDraft.NanoProvider()] });
+          const norm = t => t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
+          const unchanged = norm(res.rewritten) === norm(blob);
+          state.textContent = unchanged ? 'UNCHANGED' : 'REWRITTEN';
+          out.textContent = res.rewritten;
+          await post([{ unchanged, engine: res.engine.kind, tellsBefore: res.tells.before, tellsAfter: res.tells.after, retried: res.retried, after: res.rewritten }]);
+        } catch (e) {
+          state.textContent = `error: ${e.kind ?? e.name}`;
+          await post([{ error: `${e.kind ?? e.name}: ${e.message ?? e}` }]);
+        }
+      })();
+    </script>
+  </body>
+</html>

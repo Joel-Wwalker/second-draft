@@ -41,7 +41,8 @@
     "eval:vocab": "node scripts/calibrate-vocab.mjs",
     "eval:primer": "node scripts/primer-speak.mjs",
     "eval:tics": "node scripts/tics.mjs",
-    "review": "node scripts/make-review.mjs"
+    "review": "node scripts/make-review.mjs",
+    "pipeline": "playwright test tests-e2e/pipeline.spec.ts"
   },
   "license": "AGPL-3.0-or-later",
   "type": "module",
