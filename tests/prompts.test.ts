@@ -231,3 +231,26 @@ test('quote marks wrapping whole paragraphs are called formatting, not protected
   const bare = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
   expect(bare).toContain('Leave text inside quotation marks exactly as written');
 });
+
+test('first-person text is told to contract, in its conditional rule', () => {
+  // A reviewer read a personal narrative that came back with zero contractions:
+  // "because I did not know anyone" survived a full rewrite, and the generic
+  // "use contractions where the register allows" line had not moved the model.
+  const personal =
+    'Honestly, I did not expect the first month to be that hard. I kept a list of ' +
+    'everything I got wrong, which helped more than I thought it would.';
+  const p = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: personal });
+  expect(p).toContain('so contract');
+  expect(p).toContain('loudest machine tell');
+  // Third-person formal prose gets no such order.
+  const formal =
+    'The committee approved the schedule after a short discussion of the costs involved. ' +
+    'Construction begins in March and the contractor expects completion within the year.';
+  const f = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano', text: formal });
+  expect(f).not.toContain('so contract');
+});
+
+test('the prompt orders non-subject openers preserved', () => {
+  const full = buildSystemPrompt({ intensity: 'full', tells: [], target: 'nano' });
+  expect(full).toContain('subordinate opener into subject-first');
+});

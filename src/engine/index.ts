@@ -8,6 +8,7 @@ import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } fr
 import { applyFixes, customRules, detect, stripWrapperQuotes, wrapperQuoteShare } from './rules';
 import type { Rule } from './rules';
 import { RESTRUCTURE_PROMPT, buildSystemPrompt, describeTells } from './prompts';
+import { applyContractions, isFirstPerson } from '../shared/contractions';
 
 const MAX_INPUT_CHARS = 50_000;
 
@@ -23,12 +24,40 @@ const MAX_INPUT_CHARS = 50_000;
 const RETRY_SAMPLING = { temperature: 1.4, topK: 8 };
 
 /**
+ * Model calls a single paragraph may spend, shaping included. Every trigger
+ * added for quality also added latency, and the worst case reached four calls
+ * per paragraph: a five-paragraph paste ran past ten minutes on device. Three
+ * keeps the highest-value sequence, one shaping attempt, the main attempt, and
+ * one corrected retry, and drops the second shaping attempt on paragraphs that
+ * already spent their budget elsewhere. The counter is per paragraph, so long
+ * inputs stay linear.
+ */
+const MAX_CALLS_PER_PARAGRAPH = 3;
+
+/**
  * At or above this share of positionally identical words, a rewrite reads as
  * untouched to the person who pasted it. The measured case: a blob pass that
  * changed two words of a 76-word paragraph, which is 96% identical, not an
  * echo, and exactly as disappointing as one.
  */
 const UNDER_REWRITTEN = 0.85;
+
+/**
+ * Share of sentences opening with their subject, approximated by their first
+ * word. Participial, subordinate, and prepositional openers are the variety a
+ * writer brings; a rewrite that flattens them all into subject-first reads
+ * machine-made even with perfect pacing.
+ */
+const NON_SUBJECT_OPENER =
+  /^(?:Although|Though|While|When|After|Before|Because|Since|If|Despite|During|In|On|At|By|From|With|Without|Under|Over|Born|Having|Given|To\s)/;
+function subjectFirstShare(text: string): number {
+  const sents = text
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.split(/\s+/).length > 3);
+  if (sents.length === 0) return 0;
+  return sents.filter(s => !NON_SUBJECT_OPENER.test(s)).length / sents.length;
+}
 
 /** Share of input words standing unchanged at the same positions, 0 to 1. */
 function wordOverlap(before: string, after: string): number {
@@ -186,6 +215,7 @@ async function rewriteAll(
       drift: vocabularyDrift(text, rewritten),
       remaining: detect(rewritten, extraRules),
       noop: allNoop,
+      openerShare: subjectFirstShare(rewritten),
     },
     retried,
   };
@@ -208,7 +238,10 @@ async function rewriteOne(
   // against the text the caller handed over. Full intensity only: light
   // promises to change as little as possible, and a pass whose whole job is
   // moving sentence boundaries has no business running under that promise.
-  const shaped = opts.intensity === 'full' ? await reshape(source, provider, opts) : source;
+  // Shared between shaping and rewriting, so a flat paragraph spends its budget
+  // on shape while an already-varied one spends it on the corrected retry.
+  const budget = { left: MAX_CALLS_PER_PARAGRAPH };
+  const shaped = opts.intensity === 'full' ? await reshape(source, provider, opts, budget) : source;
 
   // Rhythm and shape are measured, not requested. The prompt has asked for
   // varied sentences since the first version and models flatten them anyway.
@@ -234,7 +267,13 @@ async function rewriteOne(
       throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
     }
     throwIfAborted(opts.signal);
-    const rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, shaped), shaped));
+    // Contractions are code, not a request. The prompt asked generically, then
+    // asked as a direct order gated on first person, and a measured run still
+    // returned a personal narrative with "because I did not know anyone" intact
+    // while a letter one paragraph over obeyed. The safe subset is applied
+    // mechanically to first-person prose, quoted spans excluded.
+    let rewritten = applyFixes(stripAddedQuotes(stripWrapping(raw, shaped), shaped));
+    if (isFirstPerson(source)) rewritten = applyContractions(rewritten);
     if (source.trim() && !rewritten.trim()) {
       throw new HumanizerError('internal', 'The model returned an empty rewrite. Try again.');
     }
@@ -248,9 +287,11 @@ async function rewriteOne(
       drift: vocabularyDrift(source, rewritten),
       remaining: detect(rewritten, extraRules),
       noop: isNoOp(rewritten, shaped),
+      openerShare: subjectFirstShare(rewritten),
     };
   };
 
+  budget.left -= 1;
   let best = await attempt(systemPrompt, onChunk);
   let retried = false;
 
@@ -267,7 +308,17 @@ async function rewriteOne(
   const noTellProgress = best.remaining.length >= shapedTells.length && best.remaining.length > 0;
   const introduced = introducedTells(shapedTells, best.remaining);
   const barely = !best.noop && wordOverlap(shaped, best.rewritten) >= UNDER_REWRITTEN;
-  if (best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || barely || introduced.length > 0) {
+  // Converting "Born in Macedonia..." and "Although he died..." into "He was
+  // born" and "He died" makes every sentence start the same way. A reviewer
+  // caught a paragraph going from half subject-first to entirely subject-first,
+  // and a prompt line ordering the openers preserved changed nothing, so it is
+  // measured and retried like any other regression.
+  const openerRegression =
+    subjectFirstShare(best.rewritten) - subjectFirstShare(shaped) >= 0.25;
+  const wantRetry =
+    best.fidelity.length > 0 || best.style || best.drift || noTellProgress || best.noop || barely || openerRegression || introduced.length > 0;
+  if (wantRetry && budget.left > 0) {
+    budget.left -= 1;
     throwIfAborted(opts.signal);
     const notes: string[] = [];
     if (best.noop) {
@@ -288,6 +339,11 @@ async function rewriteOne(
     }
     if (best.style) {
       notes.push(`A previous attempt still read machine-made. ${best.style}`);
+    }
+    if (openerRegression) {
+      notes.push(
+        'Your rewrite converted varied sentence openings into subject-first ones. Restore openings like Born in..., Although..., and During...: do not begin every sentence with its subject.',
+      );
     }
     if (best.drift) {
       notes.push(best.drift);
@@ -338,6 +394,7 @@ async function rewriteOne(
       drift: vocabularyDrift(source, fallback),
       remaining: detect(fallback, extraRules),
       noop: isNoOp(fallback, shaped),
+      openerShare: subjectFirstShare(fallback),
     };
   }
 
@@ -411,6 +468,14 @@ function isBetter(candidate: Attempt, incumbent: Attempt): boolean {
   if (candidate.noop !== incumbent.noop) return incumbent.noop;
   const byStyle = worse(candidate, incumbent, a => (a.style ? 1 : 0));
   if (byStyle !== null) return byStyle;
+  // A retry whose only improvement is restoring varied sentence openings must
+  // be able to win, or the trigger that asked for it is theater: measured, a
+  // corrected attempt fixed exactly that, tied every axis above, and lost to
+  // the incumbent on the tie. Gated on a large gap so near-identical shares
+  // never decide between otherwise equal attempts.
+  if (Math.abs(candidate.openerShare - incumbent.openerShare) >= 0.25) {
+    return candidate.openerShare < incumbent.openerShare;
+  }
   return candidate.remaining.length < incumbent.remaining.length;
 }
 
@@ -423,6 +488,8 @@ interface Attempt {
   drift: string;
   /** Detected tells still present in the rewrite. */
   remaining: DetectedTell[];
+  /** Share of sentences opening subject-first; see subjectFirstShare. */
+  openerShare: number;
   /** The model handed the text back; see isNoOp. */
   noop: boolean;
 }
@@ -441,29 +508,49 @@ async function reshape(
   text: string,
   provider: Provider,
   opts: HumanizeOptions,
+  budget: { left: number },
 ): Promise<string> {
   const cadence = measureCadence(text);
   if (!cadence || !isFlat(cadence)) return text;
-  try {
-    const raw = await provider.rewrite({
-      text,
-      systemPrompt: `${RESTRUCTURE_PROMPT}\n\n${cadenceInstruction(cadence)}`,
-      signal: opts.signal,
-    });
-    throwIfAborted(opts.signal);
-    const shaped = applyFixes(stripAddedQuotes(stripWrapping(raw, text), text));
-    if (!shaped.trim()) return text;
-    // Shape is worth nothing at the cost of a fact.
-    if (checkFidelity(text, shaped).length > 0) return text;
-    const after = measureCadence(shaped);
-    // It had one job. Keeping a pass that did not do it would trade the register
-    // pass's input for no gain, and this pass is not allowed to cost anything.
-    if (!after || after.spread <= cadence.spread) return text;
-    return shaped;
-  } catch (err) {
-    if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
-    return text;
+  // Two attempts, because declining is not neutral here. A reviewer read a
+  // four-sentence paragraph running 20, 22, 21, 22 words, spread 0.039, the
+  // loudest flatness in its batch, and the shipped result had not moved: the
+  // first shaping attempt failed its own improvement bar, nothing escalated,
+  // and every later pass worked shallow. On a deterministic model the only
+  // lever is a changed prompt, so the second attempt says what happened.
+  // Budgeted: shaping always leaves at least one call for the rewrite proper.
+  for (let attemptNo = 0; attemptNo < 2 && budget.left > 1; attemptNo++) {
+    // The escalated second attempt is reserved for extreme flatness, where the
+    // register retry has measured as useless anyway. Spending it on ordinary
+    // flatness starved the corrected register retry, which is the pass that
+    // actually fixes surviving tells on those paragraphs.
+    if (attemptNo === 1 && cadence.spread >= 0.1) break;
+    budget.left -= 1;
+    try {
+      const escalation =
+        attemptNo === 0
+          ? ''
+          : '\n\nA previous attempt left the sentence lengths as they were. That is the one thing this rewrite is for. Break one sentence in half and join two others, even if the seams show; uneven is the goal.';
+      const raw = await provider.rewrite({
+        text,
+        systemPrompt: `${RESTRUCTURE_PROMPT}\n\n${cadenceInstruction(cadence)}${escalation}`,
+        signal: opts.signal,
+      });
+      throwIfAborted(opts.signal);
+      const shaped = applyFixes(stripAddedQuotes(stripWrapping(raw, text), text));
+      if (!shaped.trim()) continue;
+      // Shape is worth nothing at the cost of a fact.
+      if (checkFidelity(text, shaped).length > 0) continue;
+      const after = measureCadence(shaped);
+      // It had one job. Keeping a pass that did not do it would trade the
+      // register pass's input for no gain; this pass may not cost anything.
+      if (!after || after.spread <= cadence.spread) continue;
+      return shaped;
+    } catch (err) {
+      if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
+    }
   }
+  return text;
 }
 
 /**

@@ -112,6 +112,24 @@ const isFlatText = t => {
   return m.sents >= 3 && m.words >= 55 && m.spread < 0.22;
 };
 
+// Share of sentences opening with their subject. A reviewer caught the engine
+// converting "Born in Macedonia..." and "Although he died..." into "He was
+// born" and "He died", taking one batch's paragraph from 1-in-4 subject-first
+// to 3-in-4. Nothing was watching. Approximate on purpose: a sentence whose
+// first word is a pronoun, article-plus-noun, or capitalized name counts as
+// subject-first; participial, subordinate, and prepositional openers do not.
+const subjectFirstShare = text => {
+  const sents = proseOnly(text ?? '')
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.split(/\s+/).length > 3);
+  if (sents.length === 0) return 0;
+  const NON_SUBJECT =
+    /^(?:Although|Though|While|When|After|Before|Because|Since|If|Despite|During|In|On|At|By|From|With|Without|Under|Over|Born|Having|Given|Faced|Raised|To\s)/;
+  const subjectish = sents.filter(s => !NON_SUBJECT.test(s)).length;
+  return subjectish / sents.length;
+};
+
 function summarize(get) {
   const after = shared.map(i => get(i).after ?? '');
   const before = shared.map(i => A.get(i).before ?? '');
@@ -137,6 +155,8 @@ function summarize(get) {
     tellsAfter: detect ? avg(after.map(t => detect(t).length)) : NaN,
     tellsBefore: detect ? avg(before.map(t => detect(t).length)) : NaN,
     overlap: avg(shared.map((i, k) => overlap(before[k], after[k]))),
+    subjectFirst: avg(after.map(subjectFirstShare)),
+    subjectFirstBefore: avg(before.map(subjectFirstShare)),
     // Of the sources that arrived flat, how many left that way. The engine's
     // actual job on this axis, and the number a whole-corpus flat count hides:
     // that count mixes paragraphs the engine failed to fix with paragraphs it
@@ -171,6 +191,13 @@ const rows = [
   ['still flat after', a.flat, b.flat, '~8', 'lower'],
   ['flat sources de-flattened', a.deflattened, b.deflattened, '', 'higher'],
   ['bigram overlap with source', a.overlap.toFixed(3), b.overlap.toFixed(3), '', 'lower = rebuilt more'],
+  [
+    'subject-first openers',
+    a.subjectFirst.toFixed(2),
+    b.subjectFirst.toFixed(2),
+    a.subjectFirstBefore.toFixed(2),
+    'no higher than the source',
+  ],
   ['mean long-word rate', a.longRate.toFixed(3), b.longRate.toFixed(3), String(humanLong), 'lower'],
   ['mean sentences per para', a.sents.toFixed(1), b.sents.toFixed(1), '', 'flat is fine'],
   [

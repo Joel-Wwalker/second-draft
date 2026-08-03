@@ -1071,3 +1071,105 @@ test('a salvage replacement that adds a tell is refused', async () => {
   const res = await humanize(CLEAN_PARAS, { intensity: 'full' }, { providers: [teller] });
   expect(res.rewritten).not.toContain('robust');
 });
+
+test('a flat paragraph whose first shaping attempt fails gets an escalated second one', async () => {
+  // Spread 0.039, the loudest flatness in a reviewed batch, produced no
+  // restructuring: the first shaping attempt failed its own improvement bar and
+  // nothing escalated. On a deterministic model the only lever is a changed
+  // prompt, so the second attempt says what happened and asks for seams.
+  const shapePrompts: string[] = [];
+  const reluctant = {
+    info: { kind: 'fake' as const, model: 'reluctant' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')) {
+        shapePrompts.push(req.systemPrompt);
+        // First shaping attempt echoes; the escalated one restructures.
+        if (!req.systemPrompt.includes('even if the seams show')) return req.text;
+        return (
+          'Achilles was the deadliest fighter in Greek myth. He mattered in the Trojan War. ' +
+          'People admired his strength, his courage, and how he fought, though his pride and ' +
+          'his temper were as famous as either, and the stories never let him forget it. ' +
+          'Legend says his mother dipped him in the River Styx. That made him nearly invincible. ' +
+          'Only the heel she held stayed dry, and the wound that killed him landed there.'
+        );
+      }
+      // One-for-one swap: a true near-echo, so the barely trigger wants a retry
+      // and only the paragraph budget stands between it and a fourth call.
+      return req.text.replace('deadliest', 'strongest');
+    },
+  };
+  const FLAT_FOUR =
+    'Achilles was one of the most powerful warriors in Greek mythology and he played an important part. ' +
+    'He was admired for his strength and courage and his remarkable ability in battle by everyone. ' +
+    'According to legend his mother made him nearly invincible by dipping him into the River Styx. ' +
+    'His death caused by an injury to his heel inspired the expression that we still use today.';
+  let registerCalls = 0;
+  const counting = {
+    ...reluctant,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (!req.systemPrompt.startsWith('Rewrite the text the user sends, changing only')) registerCalls += 1;
+      return reluctant.rewrite(req);
+    },
+  };
+  const res = await humanize(FLAT_FOUR, { intensity: 'full' }, { providers: [counting] });
+  expect(shapePrompts).toHaveLength(2);
+  expect(shapePrompts[1]).toContain('even if the seams show');
+  expect(res.rewritten).toContain('Only the heel she held stayed dry');
+  // The paragraph budget holds: two shaping calls spent, one register call
+  // left, and the near-echo register result gets no retry because there is
+  // nothing left to spend.
+  expect(registerCalls).toBe(1);
+});
+
+test('first-person output is contracted in code, whatever the model returned', async () => {
+  const stiff = {
+    info: { kind: 'fake' as const, model: 'stiff' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (): Promise<string> =>
+      'My first day was rough because I did not know anyone there. I was not ready for the noise, ' +
+      'and I am still surprised at how loud a hallway between classes can actually get in practice.',
+  };
+  const res = await humanize(
+    'My first day at the new school was crucial to how the rest of the year went for me overall. ' +
+      'I did not know a single person in the building and the morning felt very long indeed.',
+    { intensity: 'full' },
+    { providers: [stiff] },
+  );
+  expect(res.rewritten).toContain("didn't");
+  expect(res.rewritten).toContain("wasn't");
+  expect(res.rewritten).toContain("I'm");
+  expect(res.rewritten).not.toContain('did not');
+});
+
+test('a rewrite that flattens varied openers into subject-first is retried for it by name', async () => {
+  const prompts: string[] = [];
+  let call = 0;
+  const flattener = {
+    info: { kind: 'fake' as const, model: 'flattener' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.systemPrompt);
+      call += 1;
+      return call === 1
+        ? // Deep rewrite, but every opener converted to subject-first.
+          'He was born in Macedonia and he crucially took the throne while still young. He led the army ' +
+          'east across Persia for a decade of fighting. He died before the campaigns could settle. ' +
+          'He left a culture spread wider than his kingdom had ever reached before the wars began.'
+        : // The corrected attempt restores the varied openings. No new long
+          // words, or the drift guard outranks the win and rejects it.
+          'Born in Macedonia, he took the throne while still young. For ten years he led the army east ' +
+          'across Persia and did not stop. Although he died before the wars could settle, he left a ' +
+          'culture spread wider than his kingdom had ever reached before those wars began.';
+    },
+  };
+  const res = await humanize(
+    'Born in Macedonia, the king crucially took his throne young and led armies east. Although he died ' +
+      'early in the campaigns, the culture he carried spread wider than the kingdom itself ever had.',
+    { intensity: 'full' },
+    { providers: [flattener] },
+  );
+  expect(call).toBe(2);
+  expect(prompts[1]).toContain('converted varied sentence openings');
+  expect(res.rewritten).toContain('Born in Macedonia,');
+});

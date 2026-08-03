@@ -77,6 +77,11 @@ Voice. The enemy is generic phrasing, not long words or short ones:
   when it is avoiding the work, and a wall of it is the generic-language flag
   detectors score against. Plain is not vague.
 - Never open two consecutive sentences with This, and never open with However.
+- Keep sentence openers that do not start with the subject. "Born in Macedonia,
+  he became king" and "Although he died young, his conquests spread" are how
+  people vary a paragraph; converting them to "He was born" and "He died" makes
+  every sentence start the same way, which reads machine-made. Never rewrite a
+  participial or subordinate opener into subject-first.
 Every rule above says which words to keep. None of them protects sentence shape, and shape is what has to change: keep the right words and rebuild the sentences around them. A paragraph that comes back with its wording defended and its sentences in the same order and the same lengths has not been rewritten.
 Rewrite even when no listed tell appears: evenly paced prose where every sentence has the same shape is itself a tell. Change structure, not words: split a long sentence, join two short ones, move a clause to the front. Do not make it different by swapping words for synonyms; a plain accurate word is already finished. Match the register, because plain wording is not casual wording: add no chatty intensifiers like really or very to formal text. Returning the text unchanged is a failure, and so is the same structure with the words shuffled.`;
 
@@ -110,7 +115,9 @@ const CONDITIONAL_RULES: { when: RegExp; rule: string }[] = [
       'not tells: never sand "honestly, I\'m impressed" into a neutral report. Honestly, frankly, ' +
       'I think and the intensifiers around them stay where they stand, mid-sentence as much as at ' +
       'the front. Feeling keeps its strength, so "the emotional toll was immense" does not become ' +
-      '"I felt a lot" and a paragraph about grief must not come back reading like a condolence card.',
+      '"I felt a lot" and a paragraph about grief must not come back reading like a condolence card. ' +
+      'This is first-person writing, so contract: didn\'t, I\'m, wasn\'t, couldn\'t. "I did not know ' +
+      'anyone" in a personal story is the loudest machine tell there is.',
   },
 ];
 
