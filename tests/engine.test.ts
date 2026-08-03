@@ -892,3 +892,58 @@ test('light intensity never pays for a shaping pass, however flat the text', asy
   await humanize(FLAT_SOURCE, { intensity: 'light' }, { providers: [watcher] });
   expect(shapingPrompts(prompts)).toHaveLength(0);
 });
+
+const MULTI_PARA =
+  'The committee reviewed the flood defence budget in March and found a crucial shortfall. ' +
+  'The gap came from two sources, and neither had been flagged before the review started.\n\n' +
+  'The first source was the pump maintenance contract, which had been priced in 2019 and ' +
+  'never revisited despite two extensions. The second was the survey backlog itself.\n\n' +
+  'Residents were told about the shortfall in a letter that reached most households in May. ' +
+  'The letter promised a revised schedule by autumn and apologized for the delay in plain terms.';
+
+test('wrapper quotes around paragraphs are stripped in code before any model sees them', async () => {
+  const wrapped = MULTI_PARA.split('\n\n').map(p => `"${p}"`).join('\n\n');
+  const prompts: string[] = [];
+  const echo = {
+    info: { kind: 'fake' as const, model: 'echo' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      prompts.push(req.text);
+      return req.text.replace('crucial shortfall', 'big shortfall');
+    },
+  };
+  const res = await humanize(wrapped, { intensity: 'full' }, { providers: [echo] });
+  // The model never saw a wrapper quote, and neither does the user.
+  expect(prompts.every(p => !p.includes('"'))).toBe(true);
+  expect(res.rewritten).not.toContain('"');
+});
+
+test('a whole-blob echo is salvaged paragraph by paragraph', async () => {
+  // The five-paragraph paste behind eight identical reports, in miniature: the
+  // model echoes the whole blob every time, but rewrites paragraphs sent alone.
+  let call = 0;
+  const blobEcho = {
+    info: { kind: 'fake' as const, model: 'blob-echo' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      call += 1;
+      if (req.text.includes('\n\n')) return req.text; // whole blob: echo, twice
+      return req.text
+        .replace('The first source was', 'First came')
+        .replace('Residents were told about', 'Residents heard about');
+    },
+  };
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [blobEcho] });
+  expect(call).toBeGreaterThan(2); // whole-blob attempts plus per-paragraph salvage
+  expect(res.unchanged).toBe(false);
+  expect(res.rewritten).toContain('First came');
+  expect(res.rewritten).toContain('Residents heard about');
+  // Paragraph breaks survive reassembly.
+  expect(res.rewritten.split(/\n\s*\n/)).toHaveLength(3);
+});
+
+test('when even the salvage echoes, the result says unchanged instead of scoring itself', async () => {
+  const totalEcho = new FakeProvider(t => t);
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [totalEcho] });
+  expect(res.unchanged).toBe(true);
+});

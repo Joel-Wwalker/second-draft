@@ -50,6 +50,12 @@ export interface HumanizeResult {
   fidelity: FidelityIssue[];
   /** True when a lossy first attempt was silently rewritten a second time. */
   retried: boolean;
+  /**
+   * True when the model returned the text as it arrived and every recovery
+   * failed. A UI must say so; a change count and a tell score over an echo
+   * once read as success through eight identical bug reports.
+   */
+  unchanged: boolean;
 }
 
 

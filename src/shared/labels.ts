@@ -36,6 +36,9 @@ export function resultStatus(result: HumanizeResult): string {
  */
 export function headline(result: HumanizeResult): string {
   if (result.engine.kind === 'rules') return 'AI engine unavailable';
+  // An echo must never wear a score. Eight identical bug reports came from a
+  // model returning the text as it arrived under "2 tells left".
+  if (result.unchanged) return 'Came back unchanged';
   if (result.tells.before === 0) return 'Looks human already';
   if (result.tells.after === 0) return 'All clear';
   return `${result.tells.after} tell${result.tells.after === 1 ? '' : 's'} left`;

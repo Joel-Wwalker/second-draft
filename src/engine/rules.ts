@@ -175,6 +175,26 @@ export function quotedCoverage(text: string): number {
   return inside / text.length;
 }
 
+/**
+ * Removes quotation marks that wrap whole paragraphs, in code, before any model
+ * sees the text.
+ *
+ * The prompt-only version of this ("these marks are formatting, rewrite the
+ * text inside them") turned out to be a request, and a small model treats a
+ * page of quoted paragraphs as untouchable often enough that a five-paragraph
+ * paste came back verbatim on most runs. Deleting the marks is not a request.
+ * Only wrapper marks go: a mark at a paragraph edge, or a stray unpaired one;
+ * quotation marks inside a paragraph's prose stay where they are.
+ */
+export function stripWrapperQuotes(text: string): string {
+  return text
+    .split(/(\n\s*\n)/)
+    .map(part =>
+      /\n/.test(part) ? part : part.replace(/^\s*["“”]+/, '').replace(/["“”]+\s*$/, ''),
+    )
+    .join('');
+}
+
 export function quotedRegions(text: string): Span[] {
   const spans: Span[] = [];
   const re = /(?<!\w)"[^"\n]{1,300}"(?!\w)|“[^”\n]{1,300}”/g;

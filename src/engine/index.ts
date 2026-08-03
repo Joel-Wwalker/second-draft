@@ -5,7 +5,7 @@ import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
 import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } from '../shared/diction';
-import { applyFixes, customRules, detect } from './rules';
+import { applyFixes, customRules, detect, quotedCoverage, stripWrapperQuotes } from './rules';
 import { RESTRUCTURE_PROMPT, buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
@@ -26,6 +26,13 @@ export async function humanize(
     throw new HumanizerError('too-long', 'Selection is too long for this engine. Split it or add an API key.');
   }
 
+  // Quote marks wrapping whole paragraphs are pasted formatting, and a model
+  // told about them still balks at rewriting "quoted" text often enough that a
+  // five-paragraph paste came back verbatim on most runs. Code removes them;
+  // code cannot balk. Everything downstream, including what the user gets
+  // back, works on the unwrapped text.
+  if (quotedCoverage(text) >= 0.5) text = stripWrapperQuotes(text);
+
   const extraRules = customRules(opts.customTells ?? []);
   const tells = detect(text, extraRules);
   const provider = await firstAvailable(deps.providers);
@@ -39,6 +46,7 @@ export async function humanize(
       tells: { before: tells.length, after: detect(rewritten, extraRules).length },
       fidelity: checkFidelity(text, rewritten),
       retried: false,
+      unchanged: false,
     };
   }
 
@@ -58,6 +66,8 @@ export async function humanize(
       tells: { before: tells.length, after: tells.length },
       fidelity: [],
       retried: false,
+      // A deliberate verdict that the text already reads human, not an echo.
+      unchanged: false,
     };
   }
 
@@ -176,6 +186,49 @@ export async function humanize(
     }
   }
 
+  // Twice the model handed the whole thing back. On multi-paragraph input that
+  // is the blob, not the writing: measured on the five-paragraph paste behind
+  // eight identical reports, the whole blob echoed on most runs while the same
+  // paragraphs sent alone were rewritten three times out of five. So send them
+  // alone: one attempt per paragraph, no retries, and any paragraph that still
+  // echoes or drops a fact keeps its original. Sequential, because the
+  // on-device model serves one session well and several badly.
+  const paragraphCount = text.split(/\n\s*\n/).filter(p => p.trim()).length;
+  if (best.noop && paragraphCount >= 2) {
+    const parts = text.split(/(\n\s*\n)/);
+    const rebuilt: string[] = [];
+    let salvaged = 0;
+    for (const part of parts) {
+      if (/^\s*$/.test(part) || /\n/.test(part) || part.split(/\s+/).length < 15) {
+        rebuilt.push(part);
+        continue;
+      }
+      try {
+        throwIfAborted(opts.signal);
+        const raw = await provider.rewrite({ text: part, systemPrompt, signal: opts.signal });
+        const piece = applyFixes(stripAddedQuotes(stripWrapping(raw, part), part));
+        const usable = piece.trim() && !isNoOp(piece, part) && checkFidelity(part, piece).length === 0;
+        rebuilt.push(usable ? piece : part);
+        if (usable) salvaged += 1;
+      } catch (err) {
+        if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
+        rebuilt.push(part);
+      }
+    }
+    if (salvaged > 0) {
+      const joined = rebuilt.join('');
+      best = {
+        rewritten: joined,
+        fidelity: checkFidelity(text, joined),
+        style: styleNotes(joined),
+        drift: vocabularyDrift(text, joined),
+        remaining: detect(joined, extraRules),
+        noop: isNoOp(joined, text),
+      };
+      retried = true;
+    }
+  }
+
   return {
     rewritten: best.rewritten,
     changes: diffChanges(text, best.rewritten, tells),
@@ -189,6 +242,7 @@ export async function humanize(
     },
     fidelity: best.fidelity,
     retried,
+    unchanged: best.noop,
   };
 }
 
