@@ -64,6 +64,15 @@ export interface RewriteRequest {
   systemPrompt: string;
   signal?: AbortSignal;
   onChunk?: (textSoFar: string) => void;
+  /**
+   * Decoding heat for providers that support it. The on-device model decodes
+   * near-greedily by default, so a text it echoes it echoes deterministically:
+   * three measured runs of the same five-paragraph paste came back identical to
+   * the digit, and every identical retry was guaranteed to echo again. Retries
+   * pass this to actually sample a different rewrite instead of re-rolling a
+   * die with one face.
+   */
+  sampling?: { temperature: number; topK: number };
 }
 
 export interface Provider {

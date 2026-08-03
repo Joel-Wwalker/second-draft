@@ -69,6 +69,7 @@ export class NanoProvider implements Provider {
         session = await LanguageModel.create({
           initialPrompts: [{ role: 'system', content: req.systemPrompt }],
           ...NANO_LANGUAGE,
+          ...(req.sampling ? { temperature: req.sampling.temperature, topK: req.sampling.topK } : {}),
           signal: req.signal,
         });
       } catch (err) {

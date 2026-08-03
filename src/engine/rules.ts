@@ -152,27 +152,26 @@ export function customRules(phrases: string[]): Rule[] {
 }
 
 /**
- * How much of the text sits between double quotation marks, 0 to 1.
+ * The share of paragraphs carrying a double quotation mark on their first or
+ * last character, 0 to 1. High means the marks are pasted formatting around
+ * whole paragraphs; low means any marks are quotations inside prose.
  *
- * Sequential pairing over every straight or curly double-quote character, an
- * estimate rather than a parse, which is all the decision it feeds needs: at
- * low coverage the marks are quotations and the prompt protects them, at high
- * coverage they are formatting around whole paragraphs and protecting them
- * silences the entire rewrite. Five quote-wrapped paragraphs went through the
- * engine seven times and came back verbatim seven times, with the model
- * following "leave text inside quotation marks exactly as written" to the
- * letter, before anyone thought to look at the input's punctuation.
+ * Replaces a sequential-pairing coverage estimate that a real paste defeated:
+ * the first paragraph lacked its opening mark, every pair misaligned, and the
+ * "coverage" measured the gaps between paragraphs instead of the text. The
+ * gate never tripped, the protect-quotations instruction stayed in every
+ * prompt, and each edge-quoted paragraph was deterministically echoed, whole
+ * or salvaged alone, through seven measured runs. Counting edges cannot
+ * misalign.
  */
-export function quotedCoverage(text: string): number {
-  if (!text) return 0;
-  const marks: number[] = [];
-  const re = /["“”]/g;
-  for (let m = re.exec(text); m; m = re.exec(text)) marks.push(m.index);
-  let inside = 0;
-  for (let i = 0; i + 1 < marks.length; i += 2) {
-    inside += marks[i + 1]! - marks[i]! - 1;
-  }
-  return inside / text.length;
+export function wrapperQuoteShare(text: string): number {
+  const paras = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  // Wrapper formatting is a multi-paragraph pattern. A single paragraph that
+  // opens with a mark is ordinary prose starting on a quotation, and stripping
+  // it would delete half of what somebody said.
+  if (paras.length < 2) return 0;
+  const edged = paras.filter(p => /^["“”]/.test(p) || /["“”]$/.test(p)).length;
+  return edged / paras.length;
 }
 
 /**

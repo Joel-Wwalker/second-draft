@@ -947,3 +947,58 @@ test('when even the salvage echoes, the result says unchanged instead of scoring
   const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [totalEcho] });
   expect(res.unchanged).toBe(true);
 });
+
+test('a paragraph that echoes its first salvage attempt gets one corrected retry', async () => {
+  // One attempt per paragraph left two of five untouched on a measured run.
+  // The second attempt carries the anti-echo correction, and stubborn
+  // paragraphs still keep their original after it.
+  const perParaCalls = new Map<string, number>();
+  const stubborn = {
+    info: { kind: 'fake' as const, model: 'stubborn' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.text.includes('\n\n')) return req.text; // blob: echo both passes
+      const n = (perParaCalls.get(req.text) ?? 0) + 1;
+      perParaCalls.set(req.text, n);
+      // First paragraph converts on the corrected second attempt; the others
+      // never do.
+      if (req.text.startsWith('The committee') && n === 2) {
+        if (!req.systemPrompt.includes('returned this text exactly as it arrived')) return req.text;
+        return req.text.replace('The committee reviewed', 'In March the committee went over');
+      }
+      return req.text;
+    },
+  };
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [stubborn] });
+  expect(res.rewritten).toContain('In March the committee went over');
+  // Every paragraph got exactly two chances, no more.
+  for (const n of perParaCalls.values()) expect(n).toBe(2);
+  expect(res.unchanged).toBe(false);
+});
+
+test('an echoed paragraph is salvaged even when its neighbours were rewritten', async () => {
+  // The trigger that mattered. Salvage used to key on a whole-blob echo, and
+  // the first fix that made the blob pass rewrite one paragraph turned the
+  // salvage off for the rest: five measured runs left the same three paragraphs
+  // untouched behind two rewritten ones, identical to the digit.
+  const partial = {
+    info: { kind: 'fake' as const, model: 'partial' },
+    available: async (): Promise<boolean> => true,
+    rewrite: async (req: RewriteRequest): Promise<string> => {
+      if (req.text.includes('\n\n')) {
+        // Blob pass: rewrite the first paragraph, echo the rest, deterministically.
+        const [first, ...rest] = req.text.split('\n\n');
+        return [first!.replace('The committee reviewed', 'That March the committee combed through'), ...rest].join('\n\n');
+      }
+      // Solo passes crack the stragglers.
+      return req.text
+        .replace('The first source was', 'First came')
+        .replace('Residents were told about', 'Residents heard about');
+    },
+  };
+  const res = await humanize(MULTI_PARA, { intensity: 'full' }, { providers: [partial] });
+  expect(res.rewritten).toContain('combed through');
+  expect(res.rewritten).toContain('First came');
+  expect(res.rewritten).toContain('Residents heard about');
+  expect(res.unchanged).toBe(false);
+});

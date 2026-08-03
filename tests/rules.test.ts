@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { applyFixes, customRules, detect , quotedCoverage } from '../src/engine/rules';
+import { applyFixes, customRules, detect  , wrapperQuoteShare } from '../src/engine/rules';
 
 describe('applyFixes', () => {
   test('replaces em dashes with commas', () => {
@@ -126,15 +126,27 @@ describe('detect with extra rules', () => {
   });
 });
 
-test('quotedCoverage separates wrapper quotes from real quotations', () => {
-  // Paragraph-wrapping quotes dominate by character count.
-  const wrapped = '"' + 'a'.repeat(200) + '" "' + 'b'.repeat(200) + '"';
-  expect(quotedCoverage(wrapped)).toBeGreaterThan(0.9);
-  // One short spoken line inside a paragraph does not.
-  const quoting = `The chair said "we will not fund this twice" and ${'c'.repeat(200)}.`;
-  expect(quotedCoverage(quoting)).toBeLessThan(0.3);
-  expect(quotedCoverage('no quotes at all here')).toBe(0);
-  expect(quotedCoverage('')).toBe(0);
-  // An unpaired trailing mark is ignored rather than swallowing the tail.
-  expect(quotedCoverage('plain text with one stray " mark')).toBe(0);
+test('wrapperQuoteShare counts edge-quoted paragraphs and survives a missing first mark', () => {
+  // The paste that defeated the pairing version: the first paragraph has no
+  // opening mark, only a trailing one, and the rest are fully wrapped. Pairing
+  // misaligned on it and measured the gaps between paragraphs; counting edges
+  // cannot misalign.
+  const usersShape = [
+    'Alexander led his army east and the campaign ran on for a decade in the sun."',
+    '"Dear Mr. Johnson, I am writing to ask for an extension on the project."',
+    '"My first day at a new school was the most memorable event of my life."',
+    '"Artificial intelligence has created serious concerns about personal privacy."',
+  ].join('\n\n');
+  expect(wrapperQuoteShare(usersShape)).toBe(1);
+
+  // A real quotation inside ordinary prose touches no paragraph edge.
+  const quoting =
+    'The chair opened the meeting with a warning. "We will not fund this twice," she said.\n\n' +
+    'The rest of the session covered the roof repairs and the winter schedule.';
+  expect(wrapperQuoteShare(quoting)).toBe(0);
+  expect(wrapperQuoteShare('')).toBe(0);
+});
+
+test('a lone paragraph opening on a quotation is never wrapper formatting', () => {
+  expect(wrapperQuoteShare('"We grew fast," she said, and the numbers back her up.')).toBe(0);
 });

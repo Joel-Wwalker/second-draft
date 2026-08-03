@@ -24,6 +24,9 @@ interface LanguageModelCreateOptions {
   initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   expectedInputs?: readonly LanguageModelExpected[];
   expectedOutputs?: readonly LanguageModelExpected[];
+  /** Both or neither, per the API contract. */
+  temperature?: number;
+  topK?: number;
   signal?: AbortSignal;
   monitor?(monitor: EventTarget): void;
 }

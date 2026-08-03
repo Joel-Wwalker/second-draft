@@ -5,10 +5,21 @@ import { checkFidelity } from '../shared/fidelity';
 import type { FidelityIssue } from '../shared/fidelity';
 import { cadenceInstruction, isFlat, measureCadence } from '../shared/cadence';
 import { dictionInstruction, isOverwrought, measureDiction, vocabularyDrift } from '../shared/diction';
-import { applyFixes, customRules, detect, quotedCoverage, stripWrapperQuotes } from './rules';
+import { applyFixes, customRules, detect, stripWrapperQuotes, wrapperQuoteShare } from './rules';
 import { RESTRUCTURE_PROMPT, buildSystemPrompt, describeTells } from './prompts';
 
 const MAX_INPUT_CHARS = 50_000;
+
+/**
+ * Decoding heat for retries. The on-device model decodes near-greedily, so a
+ * text it echoes it echoes deterministically: three measured runs of the same
+ * paste came back identical to the digit. A retry at default settings re-rolls
+ * a die with one face; this gives the reroll faces. Fidelity, drift and the
+ * per-paragraph guards catch anything the heat breaks. topK stays at 8, the
+ * Prompt API maximum: 32 exceeded it, create() threw, the catch swallowed it,
+ * and four identical runs proved the heat never touched the model.
+ */
+const RETRY_SAMPLING = { temperature: 1.4, topK: 8 };
 
 
 export interface EngineDeps {
@@ -31,7 +42,7 @@ export async function humanize(
   // five-paragraph paste came back verbatim on most runs. Code removes them;
   // code cannot balk. Everything downstream, including what the user gets
   // back, works on the unwrapped text.
-  if (quotedCoverage(text) >= 0.5) text = stripWrapperQuotes(text);
+  if (wrapperQuoteShare(text) >= 0.5) text = stripWrapperQuotes(text);
 
   const extraRules = customRules(opts.customTells ?? []);
   const tells = detect(text, extraRules);
@@ -93,10 +104,14 @@ export async function humanize(
     text: shaped,
   });
 
-  const attempt = async (prompt: string, onChunk?: (textSoFar: string) => void): Promise<Attempt> => {
+  const attempt = async (
+    prompt: string,
+    onChunk?: (textSoFar: string) => void,
+    sampling?: { temperature: number; topK: number },
+  ): Promise<Attempt> => {
     let raw: string;
     try {
-      raw = await provider.rewrite({ text: shaped, systemPrompt: prompt, signal: opts.signal, onChunk });
+      raw = await provider.rewrite({ text: shaped, systemPrompt: prompt, signal: opts.signal, onChunk, sampling });
     } catch (err) {
       throw err instanceof HumanizerError ? err : new HumanizerError('internal', String(err));
     }
@@ -175,6 +190,7 @@ export async function humanize(
       const second = await attempt(
         `${systemPrompt}\n\n${corrections}`,
         keepAlive && (() => keepAlive(best.rewritten)),
+        RETRY_SAMPLING,
       );
       retried = true;
       if (isBetter(second, best)) best = second;
@@ -186,37 +202,65 @@ export async function humanize(
     }
   }
 
-  // Twice the model handed the whole thing back. On multi-paragraph input that
-  // is the blob, not the writing: measured on the five-paragraph paste behind
-  // eight identical reports, the whole blob echoed on most runs while the same
-  // paragraphs sent alone were rewritten three times out of five. So send them
-  // alone: one attempt per paragraph, no retries, and any paragraph that still
-  // echoes or drops a fact keeps its original. Sequential, because the
-  // on-device model serves one session well and several badly.
-  const paragraphCount = text.split(/\n\s*\n/).filter(p => p.trim()).length;
-  if (best.noop && paragraphCount >= 2) {
-    const parts = text.split(/(\n\s*\n)/);
-    const rebuilt: string[] = [];
+  // A paragraph the model handed back unchanged stays unchanged forever: the
+  // on-device model decodes near-greedily, so five measured runs of the same
+  // paste came back identical to the digit, echoed paragraphs included. The
+  // whole-blob passes cannot fix a paragraph they are deterministic about, so
+  // every individually echoed paragraph is sent alone: once as-is, once with
+  // heat and the anti-echo correction. A paragraph that still echoes, errors,
+  // or drops a fact keeps its original. Sequential, because the on-device model
+  // serves one session well and several badly.
+  //
+  // Triggered per paragraph, not on a whole-blob echo. An earlier version keyed
+  // this on best.noop, and the first fix that made the blob pass rewrite even
+  // one paragraph turned the salvage off for all the others.
+  const inBodies = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const outBodies = best.rewritten.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (inBodies.length >= 2 && inBodies.length === outBodies.length) {
+    const rebuilt = [...outBodies];
     let salvaged = 0;
-    for (const part of parts) {
-      if (/^\s*$/.test(part) || /\n/.test(part) || part.split(/\s+/).length < 15) {
-        rebuilt.push(part);
-        continue;
-      }
+    for (let i = 0; i < inBodies.length; i++) {
+      const part = inBodies[i]!;
+      if (!isNoOp(outBodies[i]!, part) || part.split(/\s+/).length < 15) continue;
       try {
         throwIfAborted(opts.signal);
-        const raw = await provider.rewrite({ text: part, systemPrompt, signal: opts.signal });
-        const piece = applyFixes(stripAddedQuotes(stripWrapping(raw, part), part));
-        const usable = piece.trim() && !isNoOp(piece, part) && checkFidelity(part, piece).length === 0;
-        rebuilt.push(usable ? piece : part);
-        if (usable) salvaged += 1;
+        // The paragraph's own prompt, not the blob's. The model is a pure
+        // function of prompt and input on current builds, temperature included
+        // and ignored, so a paragraph the blob prompt echoes will echo under it
+        // forever, solo or not. A paragraph-scoped prompt is a different
+        // function; an instrumented probe showed it rewriting the exact
+        // paragraph the blob prompt deterministically echoed.
+        const partPrompt = buildSystemPrompt({
+          intensity: opts.intensity,
+          tells: detect(part, extraRules),
+          voiceSample: opts.voiceSample,
+          target: provider.info.kind === 'nano' ? 'nano' : 'byok',
+          cadence: styleNotes(part) || undefined,
+          text: part,
+        });
+        for (let attemptNo = 0; attemptNo < 2 && rebuilt[i] === outBodies[i]; attemptNo++) {
+          const prompt =
+            attemptNo === 0
+              ? partPrompt
+              : `${partPrompt}\n\nA previous attempt returned this text exactly as it arrived. That is a failure. Change the structure: split a long sentence, join two short ones, or move a clause to the front.`;
+          const raw = await provider.rewrite({
+            text: part,
+            systemPrompt: prompt,
+            signal: opts.signal,
+            sampling: attemptNo === 1 ? RETRY_SAMPLING : undefined,
+          });
+          const piece = applyFixes(stripAddedQuotes(stripWrapping(raw, part), part));
+          if (piece.trim() && !isNoOp(piece, part) && checkFidelity(part, piece).length === 0) {
+            rebuilt[i] = piece;
+            salvaged += 1;
+          }
+        }
       } catch (err) {
         if (err instanceof HumanizerError && err.kind === 'aborted') throw err;
-        rebuilt.push(part);
       }
     }
     if (salvaged > 0) {
-      const joined = rebuilt.join('');
+      const joined = rebuilt.join('\n\n');
       best = {
         rewritten: joined,
         fidelity: checkFidelity(text, joined),

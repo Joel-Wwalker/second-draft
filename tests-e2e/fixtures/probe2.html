@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Language attestation probe</title>
+    <style>
+      body { font: 15px/1.6 ui-monospace, monospace; margin: 0; padding: 28px; background: #0f172a; color: #e2e8f0; }
+    </style>
+  </head>
+  <body>
+    <h1>Language attestation probe</h1>
+    <pre id="log">running...</pre>
+    <script>
+      // Which call shapes still draw Chrome's "No output language was specified"
+      // warning, answered in the browser that raised it. Each step is bracketed
+      // by console.log sentinels so the warning can be attributed to the call
+      // between them when the console is read from outside.
+      const el = document.getElementById('log');
+      const lines = [];
+      const say = m => {
+        lines.push(m);
+        el.textContent = lines.join('\n');
+        console.log(`[probe2] ${m}`);
+      };
+      (async () => {
+        if (typeof LanguageModel === 'undefined') {
+          say('no Prompt API here');
+          return;
+        }
+        const LANG = {
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        };
+
+        say('A-start availability() bare');
+        say(`A availability = ${await LanguageModel.availability()}`);
+        say('A-end');
+
+        say('B-start availability(attested)');
+        say(`B availability = ${await LanguageModel.availability(LANG)}`);
+        say('B-end');
+
+        say('C-start create(attested)');
+        try {
+          const s = await LanguageModel.create({
+            ...LANG,
+            initialPrompts: [{ role: 'system', content: 'Echo the user text.' }],
+          });
+          s.destroy();
+          say('C create ok');
+        } catch (e) {
+          say(`C create failed: ${e}`);
+        }
+        say('C-end');
+
+        say('D-start create(unattested control)');
+        try {
+          const s = await LanguageModel.create({
+            initialPrompts: [{ role: 'system', content: 'Echo the user text.' }],
+          });
+          s.destroy();
+          say('D create ok');
+        } catch (e) {
+          say(`D create failed: ${e}`);
+        }
+        say('D-end');
+        say('FINISHED');
+      })();
+    </script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 import type { DetectedTell, Intensity } from '../shared/types';
-import { RULES, quotedCoverage } from './rules';
+import { RULES, wrapperQuoteShare } from './rules';
 
 const TELL_NAMES: Record<string, string> = {
   'em-dash': 'em dash',
@@ -207,8 +207,8 @@ export function buildSystemPrompt(opts: PromptOptions): string {
   // Without the text there is nothing to measure, and protecting quotations is
   // the safe default: wrongly protecting formatting mutes a rewrite, but
   // wrongly rewriting a real quotation changes what somebody said.
-  const coverage = opts.text === undefined ? 0 : quotedCoverage(opts.text);
-  parts.push(coverage >= QUOTE_FORMATTING_COVERAGE ? QUOTES_ARE_FORMATTING : PROTECT_QUOTES);
+  const share = opts.text === undefined ? 0 : wrapperQuoteShare(opts.text);
+  parts.push(share >= QUOTE_FORMATTING_COVERAGE ? QUOTES_ARE_FORMATTING : PROTECT_QUOTES);
   if (opts.intensity !== 'light') {
     const earned =
       opts.text === undefined ? CONDITIONAL_RULES.map(r => r.rule) : preservationNotes(opts.text);

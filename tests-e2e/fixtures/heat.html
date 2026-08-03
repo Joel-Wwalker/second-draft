@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>heat probe</title>
+<style>body{font:14px/1.5 monospace;background:#0f172a;color:#e2e8f0;padding:24px;white-space:pre-wrap}</style></head>
+<body><div id="log">running...</div>
+<script>
+const log = document.getElementById('log');
+const say = m => { log.textContent += '\n' + m; };
+const post = body => fetch('http://localhost:8788/heat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+(async () => {
+  const out = [];
+  const LANG = { expectedInputs: [{ type: 'text', languages: ['en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }] };
+  const PARA = 'One of the most memorable events in my life was my first day at a new school. I remember walking through the entrance feeling nervous because I did not know anyone. At first, I stayed quiet and worried that I would have trouble making friends.';
+  const SYS = 'Rewrite the text the user sends so it reads like a person wrote it. Change the sentence structure. Output only the rewritten text.';
+  async function gen(label, opts) {
+    try {
+      const s = await LanguageModel.create({ initialPrompts: [{ role: 'system', content: SYS }], ...LANG, ...opts });
+      try {
+        const r = await s.prompt(PARA);
+        out.push({ label, ok: true, head: r.slice(0, 90) });
+        say(label + ' OK: ' + r.slice(0, 70));
+      } finally { s.destroy(); }
+    } catch (e) {
+      out.push({ label, ok: false, error: String(e).slice(0, 160) });
+      say(label + ' FAIL: ' + String(e).slice(0, 120));
+    }
+  }
+  await gen('default-1', {});
+  await gen('default-2', {});
+  await gen('heat14-8-a', { temperature: 1.4, topK: 8 });
+  await gen('heat14-8-b', { temperature: 1.4, topK: 8 });
+  await gen('heat-only-temp', { temperature: 1.4 });
+  say('FINISHED');
+  await post(out);
+})();
+</script></body></html>
