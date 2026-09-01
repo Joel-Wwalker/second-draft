@@ -47,12 +47,12 @@
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "devDependencies": {
-    "@playwright/test": "^1.62.0",
-    "@types/chrome": "^0.2.2",
+    "@playwright/test": "^1.62.1",
+    "@types/chrome": "^0.2.7",
     "@types/node": "^22.20.1",
     "jsdom": "^30.0.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10",
-    "wxt": "^0.21.2"
+    "vitest": "^4.1.11",
+    "wxt": "^0.21.4"
   }
 }
